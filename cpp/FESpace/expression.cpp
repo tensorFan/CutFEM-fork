@@ -95,8 +95,8 @@ std::shared_ptr<ExpressionAverage> operator*(const ExpressionAverage &fh, double
     return std::make_shared<ExpressionAverage>(fh.fun1, c * fh.k1, c * fh.k2);
 }
 
-
-std::list<std::shared_ptr<ExpressionVirtual>> cross(const FunFEM<Mesh3> &f1, const Normal &n) {
+// does n x f1
+std::list<std::shared_ptr<ExpressionVirtual>> cross(const Normal &n, const FunFEM<Mesh3> &f1) {
 
     return {std::make_shared<ExpressionNormalCrossX3>(f1), std::make_shared<ExpressionNormalCrossY3>(f1),
              std::make_shared<ExpressionNormalCrossZ3>(f1)};

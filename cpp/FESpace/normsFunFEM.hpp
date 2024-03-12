@@ -502,6 +502,13 @@ template <typename M> double L2norm(const ExpressionVirtual &fh, const M &Th) {
     return sqrt(val);
 }
 
+template <typename M> double L2norm(const std::shared_ptr<ExpressionVirtual> &fh, const M &Th) {
+
+    double val = L2norm_2(fh, Th);
+
+    return sqrt(val);
+}
+
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
@@ -783,7 +790,7 @@ template <typename Mesh> double maxNorm(const std::shared_ptr<ExpressionVirtual>
     typedef typename FElement::Rd Rd;
     typedef typename QF::QuadraturePoint QuadraturePoint;
 
-    const QF &qf(*QF_Simplex<typename FElement::RdHat>(0));
+    const QF &qf(*QF_Simplex<typename FElement::RdHat>(5));
     What_d Fop = Fwhatd(op_id);
 
     double val = 0.;

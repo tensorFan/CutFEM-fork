@@ -10,13 +10,14 @@ option(USE_MPI "Perform a parallel computation" OFF)
 option(USE_OMP "Perform a parallel omp computation" OFF)
 option(USE_UMFPACK "Found the UMFpack library" ON)
 option(USE_LAPACK "Found the lapacke library" OFF)
+option(USE_SCALAPACK "Found the scalapacke library" OFF) 
 option(USE_MUMPS "Found the MUMPS library" OFF)
 
 option(CUTFEM_BUILD_DEBUG "Build to allow debugging" OFF)
 option(CUTFEM_BUILD_TESTS "Build and run library tests" OFF)
-option(CUTFEM_BUILD_PYTHON_WRAPPER "Build a library for Python" ON)
-option(CUTFEM_BUILD_LIBRARY "Build the libraries" OFF)
-option(CUTFEM_BUILD_MAIN "Build main file" OFF)
+option(CUTFEM_BUILD_PYTHON_WRAPPER "Build a library for Python" OFF)
+option(CUTFEM_BUILD_LIBRARY "Build the libraries" ON)
+option(CUTFEM_BUILD_MAIN "Build main file" ON)
 option(CUTFEM_BUILD_EXAMPLE "Build the cpp example" OFF)
 option(CUTFEM_CREATE_DOCS "Build library documentation (requires Doxygen and Graphviz/Dot to be installed)" ON)
 
@@ -32,6 +33,14 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
 
+# Find and configure ScaLAPACK
+if(USE_SCALAPACK)
+    find_package(SCALAPACK REQUIRED)
+    include_directories(${SCALAPACK_INCLUDE_DIRS})
+    list(APPEND LINK_LIBRARY ${SCALAPACK_LIBRARIES})
+endif()
+
+# find_package(MPI REQUIRED)
 
 if(${CUTFEM_BUILD_DEBUG})
 set(CMAKE_BUILD_TYPE Debug)

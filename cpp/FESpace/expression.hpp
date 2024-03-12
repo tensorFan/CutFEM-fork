@@ -976,7 +976,7 @@ public:
 //     ~ExpressionNormalCross3() {}
 // };
 
-std::list<std::shared_ptr<ExpressionVirtual>> cross(const FunFEM<Mesh3> &f1, const Normal &n);
+std::list<std::shared_ptr<ExpressionVirtual>> cross(const Normal &n, const FunFEM<Mesh3> &f1);
 
 // divS for 2d
 template <typeMesh M>

@@ -46,8 +46,24 @@ endif()
 
 if(${CUTFEM_BUILD_MAIN})
 
-set(EX_NAME maxwell3d)
+#set(EX_NAME darcy_3field)
+#add_executable(${EX_NAME}  mainFiles/darcy_3field.cpp )
+#target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+
+set(EX_NAME darcy_3field)
+add_executable(${EX_NAME}  mainFiles/darcy_3field.cpp )
+target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
+
+set(EX_NAME stokesRT)
+add_executable(${EX_NAME}  mainFiles/stokesRT.cpp )
+target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+
+set(EX_NAME maxwell3D)
 add_executable(${EX_NAME}  mainFiles/maxwell3D.cpp )
+target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+
+set(EX_NAME maxwell2D)
+add_executable(${EX_NAME}  mainFiles/maxwell.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 
 set(EX_NAME statbulk)

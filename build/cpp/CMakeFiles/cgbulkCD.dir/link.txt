@@ -1,0 +1,1 @@
+/usr/bin/c++    -std=c++20 -fPIC -O3 CMakeFiles/cgbulkCD.dir/mainFiles/cg_bulk_convection_diffusion.cpp.o -o ../bin/cgbulkCD  -Wl,-rpath,/home/darth/Documents/KTH/Projects/cutfem_2023+/build/lib ../lib/libproblem.so ../lib/libFESpace.so ../lib/libcommon.so ../lib/libsolver.so 

@@ -84,6 +84,19 @@ template <typename Mesh> class BaseCutFEM : public BaseFEM<Mesh> {
     virtual void addBorderContribution(const itemVFlist_t &VF, const Element &K, const BorderElement &BE, int ifac,
                                        const TimeSlab *In, int itq, double cst_time);
 
+    template <typename Fct>
+    void addLinear(const Fct &f, const itemVFlist_t &VF, const CutMesh &, const CBorder &b, std::list<int> label = {});
+    template <typename Fct>
+    void addBorderContribution(const Fct &f, const itemVFlist_t &VF, const Element &K, const BorderElement &BE, int ifac,
+                                        const TimeSlab *In, int itq, double cst_time);
+
+    // integral on intersected boundary for Lagrange variable Dirichlet condition
+    void addBilinearIntersection(const itemVFlist_t &VF, const CutMesh &, const CutMesh &, const CBorder &b, std::list<int> label = {});
+    void addLinearIntersection(const itemVFlist_t &VF, const CutMesh &, const CutMesh &, const CBorder &b, std::list<int> label = {});
+    void addIntersectedBorderContribution(const itemVFlist_t &VF, const CutMesh &, const Element &K, const BorderElement &BE, int ifac,
+                               const TimeSlab *In, int itq, double cst_time);
+
+    // set strong Dirichlet condition
     void setDirichlet(const FunFEM<Mesh> &gh, const CutMesh &Th, std::list<int> label = {});
 
     // integral on interface
@@ -115,6 +128,9 @@ template <typename Mesh> class BaseCutFEM : public BaseFEM<Mesh> {
     void addFaceStabilization(const itemVFlist_t &VF, const CutMesh &, int itq, const TimeSlab &In);
     void addFaceStabilizationSpecial(const itemVFlist_t &VF, const CutMesh &, int itq, const TimeSlab &In);
     void addFaceStabilization(const itemVFlist_t &VF, const CutMesh &, const MacroElement<Mesh> &);
+    void addFaceStabilization(const itemVFlist_t &VF, const CutMesh&, const MacroElementSurface<Mesh>& );
+
+
     void addFaceStabilization(const itemVFlist_t &VF, const CutMesh &, const TimeSlab &In,
                               const TimeMacroElement<Mesh> &);
     void addFaceStabilization(const itemVFlist_t &VF, const CutMesh &, const TimeSlab &In,
@@ -124,16 +140,16 @@ template <typename Mesh> class BaseCutFEM : public BaseFEM<Mesh> {
     template <typename L>
     void addFaceStabilization(const itemVFlist_t &VF, const CutMesh &, const TimeSlab &In,
                               const AlgoimMacro<Mesh, L> &);
-    template <typename L>
-    void addPatchStabilization(const itemVFlist_t &VF, const CutMesh &, const TimeSlab &In,
-                              const AlgoimMacro<Mesh, L> &);
-
+    
     void addFaceStabilization(const itemVFlist_t &VF, const CutMesh &, const TimeSlab &In,
                               const TimeMacroElementSurface<Mesh> &);
     void addFaceStabilizationRHS(const itemVFlist_t &VF, const CutMesh &Th, const MacroElement<Mesh> &macro);
 
     void addPatchStabilization(const itemVFlist_t &VF, const CutMesh &);
+    void addPatchStabilization(const itemVFlist_t &VF, const CutMesh &, const MacroElement<Mesh> &macro);
     void addPatchStabilization(const itemVFlist_t &VF, const CutMesh &, const TimeSlab &In);
+    template <typename L> void addPatchStabilization(const itemVFlist_t &VF, const CutMesh &, const TimeSlab &In,
+                              const AlgoimMacro<Mesh, L> &);
 
     // Lagrange multiplier
     void addLagrangeMultiplier(const itemVFlist_t &VF, double val, const CutMesh &);

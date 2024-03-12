@@ -201,13 +201,13 @@ template <typename Mesh> void ActiveMesh<Mesh>::truncate(const Interface<Mesh> &
             // Get the sign of the level set function in the element kb
             const SignElement<typename ActiveMesh<Mesh>::Element> signK = interface.get_SignElement(kb);
 
-            bool is_cut = interface.isCut(k); // is element k cut or not
+            bool is_cut = interface.isCut(kb); // is element k cut or not
 
             // Remove the Mesh::Element in the domain corresponding to sign_domain_remove
             //? How to do this with algoim, in cases where the level set has the same
             //? sign in all nodes, but still cuts the element?
             //! Suggestion: put something like, however this does not work well if one wants to remove the interface?
-            if ((signK.sign() == sign_domain_remove) && !is_cut) {
+            if (signK.sign() == sign_domain_remove && !is_cut) {
                 // if (signK.sign() == sign_domain_remove) {
 
                 it_k = idx_from_background_mesh_[d].erase(it_k);
@@ -995,7 +995,7 @@ template <typename Mesh> std::vector<int> ActiveMesh<Mesh>::idxAllElementFromBac
     }
 
     // Assert that the number of domains is less than 3.
-    assert(idx.size() > 0 && idx.size() < 3);
+    assert(idx.size() >= 0 && idx.size() < 3); // [ERIK: used to be     assert(idx.size() > 0 && idx.size() < 3);]
     return idx;
 }
 

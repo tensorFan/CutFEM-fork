@@ -26,7 +26,9 @@ NOTES:
 
 // #define PROBLEM_FITTED_MAXWELL
 
-#define PROBLEM_UNFITTED_MAXWELL
+#define PROBLEM_FITTED_MAXWELL_PRIMAL
+
+// #define PROBLEM_UNFITTED_MAXWELL
 
 //#define PROBLEM_UNFITTED_MAXWELL_PRIMAL
 
@@ -35,37 +37,65 @@ NOTES:
 #ifdef PROBLEM_FITTED_MAXWELL
 
   namespace Erik_Data_FITTED_MAXWELL {
+    R pi = M_PI;
     R mu = 1;
     R eps_r = 1;
     R k = 1;
     
+    // R fun_rhs(double *P, int i) {
+    //   R x = P[0];
+    //   R y = P[1];
+    //   if(i==0) return 0;
+    //   else return 0;
+    // }
+    // R fun_exact_u(double *P, int i) {
+    //   R x = P[0];
+    //   R y = P[1];
+    //   if(i==0)      return  20*x*pow(y,3);
+    //   else if(i==1) return 5*pow(x,4)-5*pow(y,4);
+    // }
+    // R fun_exact_p(double *P, int i) {
+    //   R x = P[0];
+    //   R y = P[1];
+    //   return 20*(3*pow(x,2)*y-pow(y,3));//-2.21664/sqrt(M_PI*interfaceRad*interfaceRad);
+    // }
+    // R fun_div(double *P, int i) {
+    //   R x = P[0];
+    //   R y = P[1];
+    //   return 0;
+    // }
+
     R fun_rhs(double *P, int i) {
-      R x = P[0];
-      R y = P[1];
-      if(i==0) return 0;
-      else return 0;
+      R x = P[0], y = P[1];
+      if (i == 0)
+          return pi*pi*sin(pi*y) - sin(pi*y);
+      else if (i == 1)
+          return 0;
     }
     R fun_exact_u(double *P, int i) {
-      R x = P[0];
-      R y = P[1];
-      if(i==0)      return  20*x*pow(y,3);
-      else if(i==1) return 5*pow(x,4)-5*pow(y,4);
+        R x = P[0], y = P[1];
+        if (i == 0)
+            return sin(pi*y);
+        else if (i == 1)
+            return 0;
     }
-    R fun_exact_p(double *P, int i) {
-      R x = P[0];
-      R y = P[1];
-      return 20*(3*pow(x,2)*y-pow(y,3));//-2.21664/sqrt(M_PI*interfaceRad*interfaceRad);
-    }
-    R fun_div(double *P, int i) {
-      R x = P[0];
-      R y = P[1];
-      return 0;
+    // R fun_exact_curlu(double *P, int i) {
+    //     R x = P[0], y = P[1], z = P[2];
+    //     if (i == 0)
+    //         return 0;
+    //     else if (i == 1)
+    //         return pi*cos(pi*z);
+    //     else
+    //         return 0;
+    // }
+    R fun_1(double *P, int i) {
+        return 1;
     }
   }
   using namespace Erik_Data_FITTED_MAXWELL;
 
   int main(int argc, char** argv ) {
-    typedef TestFunction<2> FunTest;
+    typedef TestFunction<Mesh2> FunTest;
     typedef FunFEM<Mesh2> Fun_h;
     typedef Mesh2 Mesh;
     typedef ActiveMeshT2 CutMesh;
@@ -73,21 +103,29 @@ NOTES:
     typedef CutFESpaceT2 CutSpace;
 
     const double cpubegin = CPUtime();
-    MPIcf cfMPI(argc,argv);
+    // MPIcf cfMPI(argc,argv);
 
-    int nx = 10;
-    int ny = 10;
+    int nx = 20;
+    int ny = 20;
     // int d = 2;
 
     std::vector<double> ul2, pl2, divmax, divl2, h, convu, convp;
 
-    int iters = 5;
+    int iters = 3;
     for(int i=0;i<iters;++i) { 
 
       std::cout << "\n ------------------------------------- " << std::endl;
-      Mesh Kh(nx, ny, 0., 0., 1., 1.);
+      // Mesh Kh(nx, ny, 0., 0., 1., 1.);
+      // int meshn = std::pow(2,i+1)*20;
+      // std::array<const char*, 3> paths = {"../cpp/mainFiles/meshes/square10.msh", 
+      // "../cpp/mainFiles/meshes/square20.msh", "../cpp/mainFiles/meshes/square40.msh"};
+      std::array<const char*, 3> paths = {"../cpp/mainFiles/meshes/square_hole_20.msh", 
+      "../cpp/mainFiles/meshes/square_hole_40.msh", "../cpp/mainFiles/meshes/square_hole_80.msh"};
+      const char *path = paths[i];
+      std::cout << path << std::endl; 
+      Mesh Kh(path);
+      nx = (int)std::sqrt(Kh.get_nb_element());
       const R hi = 1./(nx-1);
-      const R penaltyParam = 1e3/hi; // interesting: 1e-1/sqrt(hi) gets conv 1/1 down to 0.00625, otherwise 1e-1/hi p variable goes down to 0.5
 
 
       Lagrange2 FEvelocity(2);
@@ -100,7 +138,7 @@ NOTES:
 
       Fun_h fh(VELh, fun_rhs); // interpolates fun_rhs to fh of type Fun_h
       Fun_h u0(VELh, fun_exact_u);
-      Fun_h p0(SCAh, fun_exact_p); ExpressionFunFEM<Mesh> exactp(p0,0,op_id); 
+      // Fun_h p0(SCAh, fun_exact_p); ExpressionFunFEM<Mesh> exactp(p0,0,op_id); 
 
       CutFEM<Mesh2> maxwell(Uh); maxwell.add(Vh); maxwell.add(Wh);
 
@@ -125,7 +163,7 @@ NOTES:
         , Kh
       );
       maxwell.addLinear(
-        innerProduct(fh.expression(2), v)
+        innerProduct(fh.exprList(), v)
         , Kh
       );
       maxwell.addBilinear(
@@ -135,14 +173,23 @@ NOTES:
       // [Vorticity BC 2 (natural)]
       maxwell.addLinear(
         - innerProduct(u0*t,tau)              // + -> +
-        - innerProduct(p0.expression(), v*n)
+      //  - innerProduct(p0.expr(), v*n)
         , Kh, INTEGRAL_BOUNDARY
       );
+
+      // maxwell.addLagrangeMultiplier(
+      //     innerProduct(1, div(u)), 0
+      //     , Kh
+      //   );
+        // maxwell.addLagrangeMultiplier(
+        //   innerProduct(1, p), 0
+        //   , Kh
+        // );
       }
 
       // std::cout << integral(Khi,exactp,0) << std::endl;
       matlab::Export(maxwell.mat_, "mat"+std::to_string(i)+"Cut.dat");
-      maxwell.solve();
+      maxwell.solve("umfpack");
 
       // EXTRACT SOLUTION
       int nb_vort_dof = Uh.get_nb_dof();
@@ -155,28 +202,41 @@ NOTES:
       Fun_h ph(Wh, data_ph);
 
       // [Post process pressure]
-      R meanP = integral(Kh,exactp,0);
-      ExpressionFunFEM<Mesh> fem_p(ph,0,op_id);
-      R meanPfem = integral(Kh,fem_p,0);
-      // std::cout << meanP << std::endl;
-      CutFEM<Mesh2> post(Wh);
-      post.addLinear(
-        innerProduct(1,q)
-        , Kh
-      ); 
-      R area = post.rhs_.sum();
-      ph.v -= meanPfem/area;
-      ph.v += meanP/area;
+      // R meanP = integral(Kh,exactp,0);
+      // ExpressionFunFEM<Mesh> fem_p(ph,0,op_id);
+      // R meanPfem = integral(Kh,fem_p,0);
+      // // std::cout << meanP << std::endl;
+      // CutFEM<Mesh2> post(Wh);
+      // post.addLinear(
+      //   innerProduct(1,q)
+      //   , Kh
+      // ); 
+      // R area = post.rhs_.sum();
+      // ph.v -= meanPfem/area;
+      // ph.v += meanP/area;
+      
 
+      // ExpressionFunFEM<Mesh> dx_uh0(uh, 0, op_dx);
+      // ExpressionFunFEM<Mesh> dy_uh1(uh, 1, op_dy);
+      auto uh_0dx = dx(uh.expr(0));
+      auto uh_1dy = dy(uh.expr(1));
 
-      ExpressionFunFEM<Mesh> dx_uh0(uh, 0, op_dx);
-      ExpressionFunFEM<Mesh> dy_uh1(uh, 1, op_dy);
+      // Fun_h p0(Wh, fun_1);
+      // R area = integral(Kh,p0,0);
+      // CutFEM<Mesh2> post(Vh);
+      // post.addLinear(
+      //   innerProduct(1,div(v))
+      //   , Kh
+      // ); 
+      // R area = post.rhs_.sum();
+      // ph.v -= meanPfem/area;
+      // ph.v += meanP/area;
 
       // [Errors]
       {
         // Fun_h solw(Uh, fun_exact_w);
         Fun_h solu(Vh, fun_exact_u); Fun_h soluErr(Vh, fun_exact_u);
-        Fun_h solp(Wh, fun_exact_p);
+        // Fun_h solp(Wh, fun_exact_p);
         soluErr.v -= uh.v;
         soluErr.v.map(fabs);
         // Fun_h divSolh(Wh, fun_div);
@@ -186,7 +246,7 @@ NOTES:
         writer.add(wh, "vorticity" , 0, 1);
         writer.add(uh, "velocity" , 0, 2);
         writer.add(ph, "pressure" , 0, 1);
-        writer.add(dx_uh0+dy_uh1, "divergence");
+        writer.add(uh_0dx+uh_1dy, "divergence");
         // writer.add(femSol_0dx+femSol_1dy+fflambdah, "divergence");
         writer.add(solu, "velocityExact" , 0, 2);
         writer.add(soluErr, "velocityError" , 0, 2);
@@ -197,11 +257,9 @@ NOTES:
 
       // R errW      = L2normCut(wh,fun_exact_w,0,1);
       R errU      = L2norm(uh,fun_exact_u,0,2);
-      R errP      = L2norm(ph,fun_exact_p,0,1);
-      R errDiv    = L2norm(dx_uh0+dy_uh1,Kh);
-      R maxErrDiv = maxNorm(dx_uh0+dy_uh1,Kh);
-      // R errDiv    = L2normCut(femSol_0dx+femSol_1dy+fflambdah,fun_div,Khi);
-      // R maxErrDiv = maxNormCut(femSol_0dx+femSol_1dy+fflambdah,fun_div,Khi);
+      R errP      = 0; //L2norm(ph,fun_exact_p,0,1);
+      R errDiv    = L2norm(uh_0dx+uh_1dy,Kh);
+      R maxErrDiv = maxNorm(uh_0dx+uh_1dy,Kh);
 
 
       ul2.push_back(errU);
@@ -242,6 +300,241 @@ NOTES:
       // << std::setw(15) << std::setfill(' ') << convdivPr[i]
       // << std::setw(15) << std::setfill(' ') << divPrintLoc[i]
       // << std::setw(15) << std::setfill(' ') << convdivPrLoc[i]
+      << std::setw(15) << std::setfill(' ') << divmax[i]
+      // << std::setw(15) << std::setfill(' ') << convmaxdivPr[i]
+      << std::endl;
+    }
+
+  }
+#endif
+
+#ifdef PROBLEM_FITTED_MAXWELL_PRIMAL
+
+  namespace Erik_Data_FITTED_MAXWELL {
+    R pi = M_PI;
+    R mu = 1;
+    R eps = 1;
+    R k = 1;
+    
+    // R fun_rhs(double *P, int i) {
+    //   R x = P[0];
+    //   R y = P[1];
+    //   if(i==0) return 0;
+    //   else return 0;
+    // }
+    // R fun_exact_u(double *P, int i) {
+    //   R x = P[0];
+    //   R y = P[1];
+    //   if(i==0)      return  20*x*pow(y,3);
+    //   else if(i==1) return 5*pow(x,4)-5*pow(y,4);
+    // }
+    // R fun_exact_p(double *P, int i) {
+    //   R x = P[0];
+    //   R y = P[1];
+    //   return 20*(3*pow(x,2)*y-pow(y,3));//-2.21664/sqrt(M_PI*interfaceRad*interfaceRad);
+    // }
+    // R fun_div(double *P, int i) {
+    //   R x = P[0];
+    //   R y = P[1];
+    //   return 0;
+    // }
+
+    R fun_rhs(double *P, int i) {
+      R x = P[0], y = P[1];
+      if (i == 0)
+          return pi*pi*sin(pi*y) - sin(pi*y);
+      else if (i == 1)
+          return 0;
+    }
+    R fun_exact_u(double *P, int i) {
+        R x = P[0], y = P[1];
+        if (i == 0)
+            return sin(pi*y);
+        else if (i == 1)
+            return 0;
+    }
+    R fun_exact_curlu(double *P, int i) {
+        R x = P[0], y = P[1];
+        return -pi*cos(pi*y);
+    }
+    R fun_1(double *P, int i) {
+        return 1;
+    }
+  }
+  using namespace Erik_Data_FITTED_MAXWELL;
+
+  int main(int argc, char** argv ) {
+    typedef TestFunction<Mesh2> FunTest;
+    typedef FunFEM<Mesh2> Fun_h;
+    typedef Mesh2 Mesh;
+    typedef ActiveMeshT2 CutMesh;
+    typedef FESpace2   Space;
+    typedef CutFESpaceT2 CutSpace;
+
+    const double cpubegin = CPUtime();
+    // MPIcf cfMPI(argc,argv);
+
+    int nx = 20;
+    int ny = 20;
+    // int d = 2;
+
+    std::vector<double> ul2, pl2, divmax, divl2, h, convu, convp;
+
+    int iters = 3;
+    for(int i=0;i<iters;++i) { 
+
+      std::cout << "\n ------------------------------------- " << std::endl;
+      Mesh Kh(nx, ny, 0., 0., 1., 1.);
+      // std::array<const char*, 3> paths = {"../cpp/mainFiles/meshes/square10.msh", 
+      // "../cpp/mainFiles/meshes/square20.msh", "../cpp/mainFiles/meshes/square40.msh"};
+      // std::array<const char*, 3> paths = {"../cpp/mainFiles/meshes/square_hole_20.msh", 
+      // "../cpp/mainFiles/meshes/square_hole_40.msh", "../cpp/mainFiles/meshes/square_hole_80.msh"};
+      // const char *path = paths[i];
+      // std::cout << path << std::endl; 
+      // Mesh Kh(path);
+      nx = (int)std::sqrt(Kh.get_nb_element());
+      ny = nx;
+      const R hi = 1./(nx-1);
+
+
+      Lagrange2 FEvelocity(2);
+      Space VELh(Kh, FEvelocity);
+      Space SCAh(Kh, DataFE<Mesh>::P2);
+
+      Space Vh(Kh, DataFE<Mesh2>::RT0); 
+      Space Wh(Kh, DataFE<Mesh2>::P0);
+
+      Fun_h fh(VELh, fun_rhs); // interpolates fun_rhs to fh of type Fun_h
+      Fun_h u0(VELh, fun_exact_u);
+      Fun_h curlu0(VELh, fun_exact_curlu);
+      // Fun_h p0(SCAh, fun_exact_p); ExpressionFunFEM<Mesh> exactp(p0,0,op_id); 
+
+      CutFEM<Mesh2> maxwell(Vh); //maxwell.add(Wh);
+
+      Normal n;
+      Tangent t;
+      /* Syntax:
+      FunTest (fem space, #components, place in space)
+      */
+      FunTest u(Vh,2,0), v(Vh,2,0), p(Wh,1,0), q(Wh,1,0);
+
+      {
+      // [Bulk]
+      maxwell.addBilinear( // -mu Delta u + grad p
+        innerProduct(1./mu*1./eps*rotgrad(u), rotgrad(v))           // + -> -
+        - innerProduct(k*k*u, v)
+        , Kh
+      );
+      maxwell.addLinear(
+        innerProduct(fh.exprList(), v)
+        , Kh
+      );
+      // [Vorticity BC 2 (natural)]
+      maxwell.addLinear(
+        - innerProduct(curlu0.expr(),v*t)              // + -> +
+        , Kh, INTEGRAL_BOUNDARY
+      );
+      }
+
+      // std::cout << integral(Khi,exactp,0) << std::endl;
+      matlab::Export(maxwell.mat_, "mat"+std::to_string(i)+"Cut.dat");
+      maxwell.solve("umfpack");
+
+      // EXTRACT SOLUTION
+      int nb_flux_dof = Vh.get_nb_dof();
+      Rn_ data_uh = maxwell.rhs_(SubArray(nb_flux_dof,0));// Rn_ data_uh = maxwell.rhs_(SubArray(nb_vort_dof+nb_flux_dof,nb_vort_dof));
+      // Rn_ data_ph = maxwell.rhs_(SubArray(Wh.get_nb_dof(),nb_flux_dof));// Rn_ data_ph = maxwell.rhs_(SubArray(maxwell_.get_nb_dof(),nb_vort_dof+nb_flux_dof));
+      Fun_h uh(Vh, data_uh);
+      // Fun_h ph(Wh, data_ph);
+
+      // [Post process pressure]
+      // R meanP = integral(Kh,exactp,0);
+      // ExpressionFunFEM<Mesh> fem_p(ph,0,op_id);
+      // R meanPfem = integral(Kh,fem_p,0);
+      // // std::cout << meanP << std::endl;
+      // CutFEM<Mesh2> post(Wh);
+      // post.addLinear(
+      //   innerProduct(1,q)
+      //   , Kh
+      // ); 
+      // R area = post.rhs_.sum();
+      // ph.v -= meanPfem/area;
+      // ph.v += meanP/area;
+      
+
+      auto uh_0dx = dx(uh.expr(0));
+      auto uh_1dy = dy(uh.expr(1));
+
+      // Fun_h p0(Wh, fun_1);
+      // R area = integral(Kh,p0,0);
+      // CutFEM<Mesh2> post(Vh);
+      // post.addLinear(
+      //   innerProduct(1,div(v))
+      //   , Kh
+      // ); 
+      // R area = post.rhs_.sum();
+      // ph.v -= meanPfem/area;
+      // ph.v += meanP/area;
+
+      // [Errors]
+      {
+        // Fun_h solw(Uh, fun_exact_w);
+        Fun_h solu(Vh, fun_exact_u); Fun_h soluErr(Vh, fun_exact_u);
+        // Fun_h solp(Wh, fun_exact_p);
+        soluErr.v -= uh.v;
+        soluErr.v.map(fabs);
+        // Fun_h divSolh(Wh, fun_div);
+        // ExpressionFunFEM<Mesh> femDiv(divSolh, 0, op_id);
+
+        Paraview<Mesh> writer(Kh, "maxwell_"+std::to_string(i)+".vtk");
+        writer.add(uh, "magfield" , 0, 2);
+        // writer.add(ph, "lagmult" , 0, 1);
+        writer.add(uh_0dx+uh_1dy, "divergence");
+        writer.add(solu, "magfield_exact" , 0, 2);
+        writer.add(soluErr, "magfield_error" , 0, 2);
+      }
+
+      // R errW      = L2normCut(wh,fun_exact_w,0,1);
+      R errU      = L2norm(uh,fun_exact_u,0,2);
+      R errP      = 0; //L2norm(ph,fun_exact_p,0,1);
+      R errDiv    = L2norm(uh_0dx+uh_1dy,Kh);
+      R maxErrDiv = maxNorm(uh_0dx+uh_1dy,Kh);
+
+
+      ul2.push_back(errU);
+      pl2.push_back(errP);
+      divl2.push_back(errDiv);
+      divmax.push_back(maxErrDiv);
+      h.push_back(1./nx);
+      if(i==0) {convu.push_back(0); convp.push_back(0);}
+      else {
+        convu.push_back( log(ul2[i]/ul2[i-1])/log(h[i]/h[i-1]));
+        convp.push_back(log(pl2[i]/pl2[i-1])/log(h[i]/h[i-1]));
+      }
+
+      nx *= 2;
+      ny *= 2;
+    }
+    std::cout << "\n" << std::left
+    << std::setw(10) << std::setfill(' ') << "h"
+    << std::setw(15) << std::setfill(' ') << "err p"
+    << std::setw(15) << std::setfill(' ') << "conv p"
+    << std::setw(15) << std::setfill(' ') << "err u"
+    << std::setw(15) << std::setfill(' ') << "conv u"
+    << std::setw(15) << std::setfill(' ') << "err divu"
+    // << std::setw(15) << std::setfill(' ') << "conv divu"
+    << std::setw(15) << std::setfill(' ') << "err maxdivu"
+    // << std::setw(15) << std::setfill(' ') << "conv maxdivu"
+    << "\n" << std::endl;
+    for(int i=0;i<h.size();++i) {
+      std::cout << std::left
+      << std::setw(10) << std::setfill(' ') << h[i]
+      << std::setw(15) << std::setfill(' ') << pl2[i]
+      << std::setw(15) << std::setfill(' ') << convp[i]
+      << std::setw(15) << std::setfill(' ') << ul2[i]
+      << std::setw(15) << std::setfill(' ') << convu[i]
+      << std::setw(15) << std::setfill(' ') << divl2[i]
+      // << std::setw(15) << std::setfill(' ') << convdivPr[i]
       << std::setw(15) << std::setfill(' ') << divmax[i]
       // << std::setw(15) << std::setfill(' ') << convmaxdivPr[i]
       << std::endl;
@@ -300,7 +593,7 @@ NOTES:
     typedef CutFESpaceT2 CutSpace;
 
     const double cpubegin = CPUtime();
-    MPIcf cfMPI(argc,argv);
+    // MPIcf cfMPI(argc,argv);
 
     int nx = 11;
     int ny = 11;
@@ -366,7 +659,7 @@ NOTES:
         innerProduct(rotgrad(w), v)           // + -> -
         - innerProduct(k*k*eps_r*u, v)
         - innerProduct(p, div(v))
-//        + innerProduct(cross(fh,n)*taux, v)
+        // + innerProduct(cross(fh,n)*taux, v)
         , Khi
       );
       maxwell.addLinear(
@@ -448,7 +741,6 @@ NOTES:
       ExpressionFunFEM<Mesh> dx_uh0(uh, 0, op_dx);
       ExpressionFunFEM<Mesh> dy_uh1(uh, 1, op_dy);
       auto uh_0dx = dx(uh.expr(0));
-
       auto uh_1dy = dy(uh.expr(1));
 
   

@@ -1,0 +1,41 @@
+file(REMOVE_RECURSE
+  "../../lib/libcommon.pdb"
+  "../../lib/libcommon.so"
+  "CMakeFiles/common.dir/AlgoimInterface.cpp.o"
+  "CMakeFiles/common.dir/AlgoimInterface.cpp.o.d"
+  "CMakeFiles/common.dir/GenericMesh.cpp.o"
+  "CMakeFiles/common.dir/GenericMesh.cpp.o.d"
+  "CMakeFiles/common.dir/Mesh1dn.cpp.o"
+  "CMakeFiles/common.dir/Mesh1dn.cpp.o.d"
+  "CMakeFiles/common.dir/Mesh2dn.cpp.o"
+  "CMakeFiles/common.dir/Mesh2dn.cpp.o.d"
+  "CMakeFiles/common.dir/Mesh3dn.cpp.o"
+  "CMakeFiles/common.dir/Mesh3dn.cpp.o.d"
+  "CMakeFiles/common.dir/SparseMatMap.cpp.o"
+  "CMakeFiles/common.dir/SparseMatMap.cpp.o.d"
+  "CMakeFiles/common.dir/base_interface.cpp.o"
+  "CMakeFiles/common.dir/base_interface.cpp.o.d"
+  "CMakeFiles/common.dir/cut_mesh.cpp.o"
+  "CMakeFiles/common.dir/cut_mesh.cpp.o.d"
+  "CMakeFiles/common.dir/cut_method.cpp.o"
+  "CMakeFiles/common.dir/cut_method.cpp.o.d"
+  "CMakeFiles/common.dir/dataStruct1D.cpp.o"
+  "CMakeFiles/common.dir/dataStruct1D.cpp.o.d"
+  "CMakeFiles/common.dir/dataStruct2D.cpp.o"
+  "CMakeFiles/common.dir/dataStruct2D.cpp.o.d"
+  "CMakeFiles/common.dir/dataStruct3D.cpp.o"
+  "CMakeFiles/common.dir/dataStruct3D.cpp.o.d"
+  "CMakeFiles/common.dir/geometry.cpp.o"
+  "CMakeFiles/common.dir/geometry.cpp.o.d"
+  "CMakeFiles/common.dir/global.cpp.o"
+  "CMakeFiles/common.dir/global.cpp.o.d"
+  "CMakeFiles/common.dir/interface_levelSet.cpp.o"
+  "CMakeFiles/common.dir/interface_levelSet.cpp.o.d"
+  "CMakeFiles/common.dir/logger.cpp.o"
+  "CMakeFiles/common.dir/logger.cpp.o.d"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/common.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

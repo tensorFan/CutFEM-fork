@@ -1,0 +1,1 @@
+/usr/bin/c++    -std=c++20 -fPIC -O3 CMakeFiles/paper.dir/mainFiles/paper.cpp.o -o ../bin/paper  -Wl,-rpath,/home/darth/Documents/KTH/Projects/cutfem_2023+/build/lib ../lib/libproblem.so ../lib/libFESpace.so ../lib/libcommon.so ../lib/libsolver.so 

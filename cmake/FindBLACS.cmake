@@ -9,7 +9,7 @@
 #  BLACS_FOUND        True if MUMPS is found
 #  BLACS_LIBRARIES    METIS_librarie
 
-set (BLACS_DIR "/afs/kth.se/home/f/r/frachon/lib/gcc/lib")
+# set (BLACS_DIR "/afs/kth.se/home/f/r/frachon/lib/gcc/lib")
 
 set(BLACS_FOUND "NO")
 

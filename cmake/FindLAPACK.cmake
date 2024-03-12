@@ -21,6 +21,7 @@ PATHS
 /usr/local/opt/lapack/include/
 /usr/include/
 /usr/lib/lapack
+/usr/lib/
 
 )
 
@@ -28,7 +29,7 @@ PATHS
 
 # otherwise look for standard places
 find_path(LAPACK_LIBRARY_DIR
-NAMES liblapacke.dylib
+NAMES liblapack.so
 PATHS
 /opt/homebrew/Cellar/lapack/3.10.1_1
 /usr/local/opt/lapack/lib/

@@ -405,7 +405,7 @@ template <typename Mesh> void MacroElementSurface<Mesh>::findRootElement() {
         int kn       = Th.ElementAdj(k, je);
         assert(kn != -1);
         int kn_loc = interface.idxFaceOfElement(kn);
-        assert(kn != -1);
+        assert(kn_loc != -1);
         int kk = (k < kn) ? k_loc : kn_loc;
         int ke = (k < kn) ? ie : je;
         if (pRoot != macro_element.end()) { // already exist

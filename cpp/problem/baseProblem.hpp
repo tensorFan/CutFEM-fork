@@ -167,6 +167,8 @@ template <typename Mesh> class BaseFEM : public ShapeOfProblem<Mesh>, public Qua
     void addBilinear(const itemVFlist_t &VF, const CutMesh &);
     void addLinear(const itemVFlist_t &VF, const Mesh &);
     void addElementContribution(const itemVFlist_t &VF, const int k, const TimeSlab *In, int itq, double cst_time);
+    void addElementContributionExact(const itemVFlist_t &VF, const int k, const TimeSlab* In, int itq, double cst_time, R (*f)(const Rd, int i, int dd));
+
 
     // integral on innerFace
     void addBilinear(const itemVFlist_t &VF, const Mesh &, const CFacet &b);
@@ -186,6 +188,10 @@ template <typename Mesh> class BaseFEM : public ShapeOfProblem<Mesh>, public Qua
     void addBorderContribution(const itemVFlist_t &VF, const Element &K, const BorderElement &BE, int ifac,
                                const TimeSlab *In, int itq, double cst_time);
 
+    // exact integral on boundary
+    template <typename Fct>
+    void addBorderContribution(const Fct &f, const itemVFlist_t &VF, const Element &K, const BorderElement &BE, int ifac,
+                               const TimeSlab *In, int itq, double cst_time);
     void setDirichlet(const FunFEM<Mesh> &, const Mesh &, std::list<int> label = {});
 
     // integral on interface
@@ -196,6 +202,8 @@ template <typename Mesh> class BaseFEM : public ShapeOfProblem<Mesh>, public Qua
                      std::list<int> label = {});
     void addBilinear(const itemVFlist_t &VF, const TimeInterface<Mesh> &gamma, const TimeSlab &In, int itq,
                      std::list<int> label = {});
+    template <typename Fct>
+    void addLinear(const Fct &f, const itemVFlist_t &VF, const Interface<Mesh> &gamma, std::list<int> label = {});
     template <typename Fct>
     void addLinear(const Fct &f, const itemVFlist_t &VF, const TimeInterface<Mesh> &gamma, const TimeSlab &In,
                    std::list<int> label);

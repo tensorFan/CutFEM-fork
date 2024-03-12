@@ -31,7 +31,7 @@ find_path (MUMPS_INCLUDE_DIR
   ~/lib/include)
 
 find_path(MUMPS_LIBRARY_DIR
-  NAMES libmumps_common.dylib libdmumps.dylib libpord.dylib
+  NAMES libmumps_common.so libdmumps.so libpord.so
 #  NAMES libmumps_common.a libdmumps.a libpord.a
 
   PATHS

@@ -18,16 +18,16 @@ set(SCALAPACK_FOUND "NO")
 #if SCALAPACK_DIR is specified
 if(SCALAPACK_DIR)
   find_path(SCALAPACK_LIBRARY_DIR 
-#    NAMES libscalapack.so
-    NAMES libscalapack-openmpi.so
+    NAMES libscalapack.so
+#    NAMES libscalapack-openmpi.so
     PATHS ${SCALAPACK_DIR} 
     NO_DEFAULT_PATH)
 endif()
 
 # otherwise look for standard places
 find_path(SCALAPACK_LIBRARY_DIR
-#  NAMES libscalapack.so
-NAMES libscalapack-openmpi.so
+  NAMES libscalapack.so
+#  NAMES libscalapack-openmpi.so
   PATHS 
   /opt/SCALAPACK/lib
   /usr/local/SCALAPACK/lib
@@ -39,8 +39,8 @@ if(SCALAPACK_LIBRARY_DIR)
   set(SCALAPACK_FOUND YES)
 
   find_library(SCALAPACK_LIBRARY 
-#    NAMES scalapack
-NAMES scalapack-openmpi
+    NAMES scalapack
+#   NAMES scalapack-openmpi
     PATHS ${SCALAPACK_LIBRARY_DIR} 
     NO_DEFAULT_PATH)
 

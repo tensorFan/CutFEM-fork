@@ -87,8 +87,8 @@ void TypeOfFE_Ned0_kind1::get_Coef_Pi_h(const GbaseFElement<Mesh> &K,
         R3 E = T.EdgeOrientation(e) * T.Edge(e); //  exterior and  ||N|| = 2* area f
         for (int q = 0; q < QFE.n; ++q, ++p) {
             for (int c = 0; c < 3; c++, i++) {
-                // v[i] = E[c] * QFE[q].a;   //! Original
-                v[i] = E[c] * QFE[q].a / (T.N_notNormalized(0).norm() / 2);      //! Mine
+                v[i] = E[c] * QFE[q].a;   //! Original
+                // v[i] = E[c] * QFE[q].a / (T.N_notNormalized(0).norm() / 2);      //! Mine
             }
         }
         // ffassert(i==M.ncoef && M.np == p );
@@ -119,8 +119,8 @@ void TypeOfFE_Ned0_kind1::FB(const What_d whatd, const Element &K, const R3 &PHa
             int i0 = Element::nvedge[i][0], i1 = Element::nvedge[i][1];
             if (se[i] < 0)
                 std::swap(i0, i1);
-            // R3 wi              = l[i0] * D[i1] - l[i1] * D[i0];   //! Original
-            R3 wi              = (l[i0] * D[i1] - l[i1] * D[i0]) * cc; //! Mine
+            R3 wi              = l[i0] * D[i1] - l[i1] * D[i0];   //! Original
+            // R3 wi              = (l[i0] * D[i1] - l[i1] * D[i0]) * cc; //! Mine
             bfMat(i, 0, op_id) = wi.x;
             bfMat(i, 1, op_id) = wi.y;
             bfMat(i, 2, op_id) = wi.z;
@@ -134,22 +134,22 @@ void TypeOfFE_Ned0_kind1::FB(const What_d whatd, const Element &K, const R3 &PHa
             if (se[i] < 0)
                 std::swap(i0, i1);
             if (whatd & Fop_dx) {
-                // R3 wi              = D[i0].x * D[i1] - D[i1].x * D[i0];   //! Original
-                R3 wi              = (D[i0].x * D[i1] - D[i1].x * D[i0]) * cc; // ! Mine
+                R3 wi              = D[i0].x * D[i1] - D[i1].x * D[i0];   //! Original
+                // R3 wi              = (D[i0].x * D[i1] - D[i1].x * D[i0]) * cc; // ! Mine
                 bfMat(i, 0, op_dx) = wi.x;
                 bfMat(i, 1, op_dx) = wi.y;
                 bfMat(i, 2, op_dx) = wi.z;
             }
             if (whatd & Fop_dy) {
-                // R3 wi              = D[i0].y * D[i1] - D[i1].y * D[i0];  //! Original
-                R3 wi              = (D[i0].y * D[i1] - D[i1].y * D[i0]) * cc; //! Mine
+                R3 wi              = D[i0].y * D[i1] - D[i1].y * D[i0];  //! Original
+                // R3 wi              = (D[i0].y * D[i1] - D[i1].y * D[i0]) * cc; //! Mine
                 bfMat(i, 0, op_dy) = wi.x;
                 bfMat(i, 1, op_dy) = wi.y;
                 bfMat(i, 2, op_dy) = wi.z;
             }
             if (whatd & Fop_dz) {
-                // R3 wi              = D[i0].z * D[i1] - D[i1].z * D[i0];  //! Original
-                R3 wi              = (D[i0].z * D[i1] - D[i1].z * D[i0]) * cc; //! Mine
+                R3 wi              = D[i0].z * D[i1] - D[i1].z * D[i0];  //! Original
+                // R3 wi              = (D[i0].z * D[i1] - D[i1].z * D[i0]) * cc; //! Mine
                 bfMat(i, 0, op_dz) = wi.x;
                 bfMat(i, 1, op_dz) = wi.y;
                 bfMat(i, 2, op_dz) = wi.z;

@@ -766,7 +766,7 @@ template <typeMesh mesh_t> TestFunction<mesh_t> grad(const TestFunction<mesh_t> 
 }
 
 /**
- * @brief Compute the three-dimensional curl of a TestFunction
+ * @brief Compute the three-dimensional curl of a TestFunction, ie nabla x T
  * 
  * @tparam D Physical dimension (=3)
  * @param T TestFunction
@@ -812,11 +812,11 @@ template <typeMesh mesh_t> TestFunction<mesh_t> curl(const TestFunction<mesh_t> 
         int irow = i;
         int jrow = 0;
 
-        rotU1.push({irow, jrow}, uj); // push duj/dxk
-        rotU2.push({irow, jrow}, uk); // push duk/dxj
+        rotU1.push({irow, jrow}, uk); // push duk/dxj
+        rotU2.push({irow, jrow}, uj); // push duj/dxk
     }
 
-    return rotU1 - rotU2; // return duj/dxk - duk/dxj
+    return rotU1 - rotU2; // return duk/dxj-duj/dxk | example comp x: duz/dy - duy/dz
 }
 
 /**
@@ -834,7 +834,7 @@ template <typeMesh mesh_t> TestFunction<mesh_t> rotgrad(const TestFunction<mesh_
     assert(M == 1);             // We do not want to take rotgrad of matrices
     TestFunction<mesh_t> gradU;      // Temporary variable to store rotgrad of T
 
-    assert(T.isScalar());       // only implemented when T is scalar (for now)
+    // assert(T.isScalar());       // only implemented when T is scalar (for now)
 
     // Iterate over number of components of T
     for (int i = 0; i < N; ++i) {
@@ -1120,14 +1120,14 @@ template <typeMesh mesh_t> TestFunction<mesh_t> dyS(const TestFunction<mesh_t> &
 }
 
 /**
- * @brief Compute the cross product of a normal and a TestFunction
+ * @brief Compute the cross product of a normal and a TestFunction, ie T x n
  * 
  * @tparam mesh_t Mesh
  * @param n Normal
  * @param T Test function
  * @return TestFunction<mesh_t> of dimension 3 
  */
-template <typeMesh mesh_t> TestFunction<mesh_t> cross(const Normal& n, const TestFunction<mesh_t> &T) {
+template <typeMesh mesh_t> TestFunction<mesh_t> cross(const TestFunction<mesh_t> &T, const Normal& n) {
     // T = [u0, u1, u2]
     int D       = mesh_t::D;
     auto [N, M] = T.size();
@@ -1167,15 +1167,15 @@ template <typeMesh mesh_t> TestFunction<mesh_t> cross(const Normal& n, const Tes
         int irow = i;
         int jrow = 0;
 
-        rotU1.push({irow, jrow}, uj); // push duj/dxk
-        rotU2.push({irow, jrow}, uk); // push duk/dxj
+        rotU1.push({irow, jrow}, uj); // push nk uj
+        rotU2.push({irow, jrow}, uk); // push nj uk
     }
 
-    return rotU1 - rotU2; // return duj/dxk - duk/dxj
+    return rotU1 - rotU2; // return nk uj - nj uk | example x-comp: nz uy - ny uz
 
 }
 
-template <typeMesh mesh_t> TestFunction<mesh_t> cross(const TestFunction<mesh_t> &T, const Normal& n) {return -1*cross(n, T);}
+template <typeMesh mesh_t> TestFunction<mesh_t> cross(const Normal& n, const TestFunction<mesh_t> &T) {return -1*cross(T, n);}
 
 template <typeMesh mesh_t>
 TestFunction<mesh_t> average(const TestFunction<mesh_t> &U, const TestFunction<mesh_t> &V, int c1, int c2) {

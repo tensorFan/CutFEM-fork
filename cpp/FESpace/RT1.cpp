@@ -148,6 +148,7 @@ class TypeOfFE_RT1_2d : public InitTypeOfRTk_2d, public GTypeOfFE<Mesh2> {
         for (int i = 0; i < 3; i++) {
             R2 E(-T.Edge(i).perp());
             R eOrientation = arrEdgeOrient[i];
+            // eOrientation *= 1. / sqrt(T.measure());
 
             for (int p = 0; p < QFE.n; ++p) {
                 R l0 = QFE[p].X(), l1 = 1 - QFE[p].X();
@@ -261,10 +262,10 @@ void TypeOfFE_RT1_2d::FB_Freefem(const What_d whatd, const Element &K, const Rd 
     R2 phi_dy[3] = {X_dy, X_dy, X_dy};
 
     R Kmap[2][2]; // Kmap: K -> Khat
-    Kmap[0][0] = 1 / triMeas2 * (Q[2].y - Q[0].y);
-    Kmap[0][1] = -1 / triMeas2 * (Q[2].x - Q[0].x);
-    Kmap[1][0] = -1 / triMeas2 * (Q[1].y - Q[0].y);
-    Kmap[1][1] = 1 / triMeas2 * (Q[1].x - Q[0].x);
+    Kmap[0][0] = 1. / triMeas2 * (Q[2].y - Q[0].y);
+    Kmap[0][1] = -1. / triMeas2 * (Q[2].x - Q[0].x);
+    Kmap[1][0] = -1. / triMeas2 * (Q[1].y - Q[0].y);
+    Kmap[1][1] = 1. / triMeas2 * (Q[1].x - Q[0].x);
 
     // R l0 = 1 - Phat.x - Phat.y, l1 = Phat.x, l2 = Phat.y; // [reference
     // triangle barycentric coords] R refBaryc[3] = {l0, l1, l2};
@@ -276,7 +277,6 @@ void TypeOfFE_RT1_2d::FB_Freefem(const What_d whatd, const Element &K, const Rd 
     int lI[8][3]; // store l_k
     R cI[8][3];   // store c_k
     int dof     = 0;
-    // double sb = sqrt(K.measure());
     // double aa = K.measure();
     double s[4] = {1., 1., 1., 1.}; //{K.lenEdge(0)/aa, K.lenEdge(1)/aa, K.lenEdge(2)/aa, sb};
 
@@ -284,6 +284,7 @@ void TypeOfFE_RT1_2d::FB_Freefem(const What_d whatd, const Element &K, const Rd 
         // int i = e;
         int ii[2]      = {(e + 1) % 3, (e + 2) % 3};
         R eOrientation = arrEdgeOrient[e] / triMeas2;
+        // eOrientation *= sqrt(K.measure());
         if (eOrientation < 0) {
             std::swap(ii[0], ii[1]);
         }
@@ -304,7 +305,7 @@ void TypeOfFE_RT1_2d::FB_Freefem(const What_d whatd, const Element &K, const Rd 
     } // [now dof = 6, next code piece does bubbles dof=6,7]
 
     // FB  (x-Q_i) l_i l_j  =
-    R s8 = 8 / triMeas2, s01 = s8;
+    R s8 = 8. / triMeas2, s01 = s8;
     R cbb[] = {s8, 2 * s01, -s01, s8}; // { [ 8, 16], [ -8, 8] }
 
     // [the 2 bubbles]

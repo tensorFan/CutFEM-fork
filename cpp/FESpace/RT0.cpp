@@ -111,18 +111,19 @@ void TypeOfFE_RT0_2d::FB(const What_d whatd, const Element &K, const R2 &PHat, R
     bfMat = 0.;             // set to zeros Basis function matrix: rows dofs; cols id, dx, dy
     R2 P(K(PHat));
     R2 a(K[0]), b(K[1]), c(K[2]);
-    R scaling = 1. / (2 * K.measure());
-    double s  = sqrt(K.measure());
-    R const0  = scaling * K.EdgeOrientation(0) * s;
-    R const1  = scaling * K.EdgeOrientation(1) * s;
-    R const2  = scaling * K.EdgeOrientation(2) * s;
+    R denom = 1. / (2 * K.measure());
+    R const0 = K.Edge(0).norm()*denom*K.EdgeOrientation(0);
+    R const1 = K.Edge(1).norm()*denom*K.EdgeOrientation(1);
+    R const2 = K.Edge(2).norm()*denom*K.EdgeOrientation(2);
+    // R const0 = denom*K.EdgeOrientation(0);
+    // R const1 = denom*K.EdgeOrientation(1);
+    // R const2 = denom*K.EdgeOrientation(2);
 
     // whatd = 0,1,2
     if (whatd & Fop_D0) { // checks whether whatd = 0, ie function and no derivative ?
         // RN_ baseFuns0(bfMat('.',0,op_id)); // Pointer to (all rows, 1st col) of
         // bfMat RN_ baseFuns1(bfMat('.',1,op_id)); // Pointer to (all rows, 2nd
         // col) of bfMat
-
         bfMat(0, 0, op_id) = const0 * (P.x - a.x); // first component, first basis fun
         bfMat(0, 1, op_id) = const0 * (P.y - a.y); // second comp, first basis fun
 
@@ -132,32 +133,29 @@ void TypeOfFE_RT0_2d::FB(const What_d whatd, const Element &K, const R2 &PHat, R
         bfMat(2, 0, op_id) = const2 * (P.x - c.x);
         bfMat(2, 1, op_id) = const2 * (P.y - c.y);
     }
-
     if (whatd & Fop_dx) {            // here first comp gets differentiated away to 0
         bfMat(0, 0, op_dx) = const0; // first basis fun, first component
         bfMat(1, 0, op_dx) = const1;
         bfMat(2, 0, op_dx) = const2;
     }
-
     if (whatd & Fop_dy) {            // here second comp gets differentiated away to 0
         bfMat(0, 1, op_dy) = const0; // first basis fun, second component
         bfMat(1, 1, op_dy) = const1;
         bfMat(2, 1, op_dy) = const2;
     }
-
     // some weird assertion, probably not necessary
 }
 
 // Initialises v as a vector containing at index k the coeff alpha_k
 void TypeOfFE_RT0_2d::get_Coef_Pi_h(const GbaseFElement<Mesh> &K, KN_<double> &v) const {
     const Element &T = K.T;
-    double s         = 1. / sqrt(T.measure());
     for (int i = 0, k = 0; i < 3; i++) {
         R2 E(T.Edge(i));
-        R sgn = T.EdgeOrientation(i);
+        // R sgn = T.EdgeOrientation(i);
+        R sgn = 1./E.norm()*T.EdgeOrientation(i); 
 
-        v[k++] = sgn * E.y * s;  // on first run, k=0 and then incremented
-        v[k++] = -sgn * E.x * s; // -.-, k=1 and then incremented to 2
+        v[k++] = sgn * E.y;  // on first run, k=0 and then incremented
+        v[k++] = -sgn * E.x; // -.-, k=1 and then incremented to 2
     }
 }
 
@@ -240,48 +238,71 @@ void TypeOfFE_RT0m_2d::FB(const What_d whatd, const Element &K, const R2 &PHat, 
     bfMat = 0.;             // set to zeros Basis function matrix: rows dofs; cols id, dx, dy
     R2 P(K(PHat));
     R2 a(K[0]), b(K[1]), c(K[2]);
-    R scaling = 1. / (2 * K.measure());
-    double s  = sqrt(K.measure());
-    R const0  = scaling * K.EdgeOrientation(0) * s;
-    R const1  = scaling * K.EdgeOrientation(1) * s;
-    R const2  = scaling * K.EdgeOrientation(2) * s;
+    R denom = 1. / (2 * K.measure());
+    // R const0 = K.Edge(0).norm()*denom*K.EdgeOrientation(0);
+    // R const1 = K.Edge(1).norm()*denom*K.EdgeOrientation(1);
+    // R const2 = K.Edge(2).norm()*denom*K.EdgeOrientation(2);
+    R const0 = denom*K.EdgeOrientation(0);
+    R const1 = denom*K.EdgeOrientation(1);
+    R const2 = denom*K.EdgeOrientation(2);
 
-    // whatd = 0,1,2
-    if (whatd & Fop_D0) {
-        bfMat(0, 0, op_id) = -PHat.x; // first component, first basis fun
-        bfMat(0, 1, op_id) = -PHat.y; // second comp, first basis fun
+    if(whatd & Fop_D0) { // checks whether whatd = 0, ie function and no derivative ?
+    // RN_ baseFuns0(bfMat('.',0,op_id)); // Pointer to (all rows, 1st col) of bfMat
+    // RN_ baseFuns1(bfMat('.',1,op_id)); // Pointer to (all rows, 2nd col) of bfMat
 
-        bfMat(1, 0, op_id) = (PHat.x - 1); // first comp, second basis fun
-        bfMat(1, 1, op_id) = PHat.y;
+    bfMat(0,0,op_id) = const0*(P.x - a.x); // first component, first basis fun
+    bfMat(0,1,op_id) = const0*(P.y - a.y); // second comp, first basis fun
 
-        bfMat(2, 0, op_id) = -PHat.x;
-        bfMat(2, 1, op_id) = 1 - PHat.y;
+    bfMat(1,0,op_id) = const1*(P.x - b.x); // first comp, second basis fun
+    bfMat(1,1,op_id) = const1*(P.y - b.y); // [???] there is a MINUS sign on these for freefem!!
+
+    bfMat(2,0,op_id) = const2*(P.x - c.x);
+    bfMat(2,1,op_id) = const2*(P.y - c.y);
     }
-    // piola.transform_phi(K, bfMat);
-
-    if (whatd & Fop_dx) {        // here first comp gets differentiated away to 0
-        bfMat(0, 0, op_dx) = -1; // first basis fun, first component
-        bfMat(1, 0, op_dx) = 1;
-        bfMat(2, 0, op_dx) = -1;
+    if(whatd & Fop_dx) { // here first comp gets differentiated away to 0
+        bfMat(0,0,op_dx) = const0; // first basis fun, first component
+        bfMat(1,0,op_dx) = const1;
+        bfMat(2,0,op_dx) = const2;
     }
-
-    if (whatd & Fop_dy) {        // here second comp gets differentiated away to 0
-        bfMat(0, 1, op_dy) = -1; // first basis fun, second component
-        bfMat(1, 1, op_dy) = 1;
-        bfMat(2, 1, op_dy) = -1;
+    if(whatd & Fop_dy) { // here second comp gets differentiated away to 0
+        bfMat(0,1,op_dy) = const0; // first basis fun, second component
+        bfMat(1,1,op_dy) = const1;
+        bfMat(2,1,op_dy) = const2;
     }
+    // // whatd = 0,1,2
+    // if (whatd & Fop_D0) {
+    //     bfMat(0, 0, op_id) = -PHat.x; // first component, first basis fun
+    //     bfMat(0, 1, op_id) = -PHat.y; // second comp, first basis fun
+
+    //     bfMat(1, 0, op_id) = (PHat.x - 1); // first comp, second basis fun
+    //     bfMat(1, 1, op_id) = PHat.y;
+
+    //     bfMat(2, 0, op_id) = -PHat.x;
+    //     bfMat(2, 1, op_id) = 1 - PHat.y;
+    // }
+    // // piola.transform_phi(K, bfMat);
+    // if (whatd & Fop_dx) {        // here first comp gets differentiated away to 0
+    //     bfMat(0, 0, op_dx) = -1; // first basis fun, first component
+    //     bfMat(1, 0, op_dx) = 1;
+    //     bfMat(2, 0, op_dx) = -1;
+    // }
+    // if (whatd & Fop_dy) {        // here second comp gets differentiated away to 0
+    //     bfMat(0, 1, op_dy) = -1; // first basis fun, second component
+    //     bfMat(1, 1, op_dy) = 1;
+    //     bfMat(2, 1, op_dy) = -1;
+    // }
 }
 
 // Initialises v as a vector containing at index k the coeff alpha_k
 void TypeOfFE_RT0m_2d::get_Coef_Pi_h(const GbaseFElement<Mesh> &K, KN_<double> &v) const {
     const Element &T = K.T;
-    double s         = 1. / sqrt(T.measure());
     for (int i = 0, k = 0; i < 3; i++) {
         R2 E(T.Edge(i));
         R sgn = T.EdgeOrientation(i);
+        // R sgn = 1./E.norm()*T.EdgeOrientation(i); 
 
-        v[k++] = sgn * E.y * s;  // on first run, k=0 and then incremented
-        v[k++] = -sgn * E.x * s; // -.-, k=1 and then incremented to 2
+        v[k++] = sgn * E.y;  // on first run, k=0 and then incremented
+        v[k++] = -sgn * E.x; // -.-, k=1 and then incremented to 2
     }
 }
 

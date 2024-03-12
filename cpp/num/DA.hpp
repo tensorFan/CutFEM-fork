@@ -403,19 +403,19 @@ DA<V_t, N> &DA<V_t, N>::operator*=(const DA<V_t, N> &y) {
 
 // // }
 
-// template <class V_t,int N>
-// DA<V_t,N> sin (const DA<V_t,N>& x)
-// {   DA<V_t,N> r; r.val=sin(x.val);
-//   for(int i=0; i<N;++i) r.d[i]=x.d[i]*cos(x.val);
-//   return r;
-// }
+template <class V_t,int N>
+DA<V_t,N> sin (const DA<V_t,N>& x)
+{   DA<V_t,N> r; r.val=sin(x.val);
+  for(int i=0; i<N;++i) r.d[i]=x.d[i]*cos(x.val);
+  return r;
+}
 
-// template <class V_t,int N>
-// DA<V_t,N> cos (const DA<V_t,N>& x)
-// {   DA<V_t,N> r; r.val=cos(x.val);
-//   for(int i=0; i<N;++i) r.d[i]=(-1)*x.d[i]*sin(x.val);
-//   return r;
-// }
+template <class V_t,int N>
+DA<V_t,N> cos (const DA<V_t,N>& x)
+{   DA<V_t,N> r; r.val=cos(x.val);
+  for(int i=0; i<N;++i) r.d[i]=(-1)*x.d[i]*sin(x.val);
+  return r;
+}
 
 // template <class V_t,int N>
 // DA<V_t,N> atan (const DA<V_t,N>& x)
