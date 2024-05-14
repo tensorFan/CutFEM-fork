@@ -111,6 +111,8 @@ void TypeOfFE_RT0_2d::FB(const What_d whatd, const Element &K, const R2 &PHat, R
     bfMat = 0.;             // set to zeros Basis function matrix: rows dofs; cols id, dx, dy
     R2 P(K(PHat));
     R2 a(K[0]), b(K[1]), c(K[2]);
+
+    // Current scaling: h*(h/h^2) = 1
     R denom = 1. / (2 * K.measure());
     R const0 = K.Edge(0).norm()*denom*K.EdgeOrientation(0);
     R const1 = K.Edge(1).norm()*denom*K.EdgeOrientation(1);

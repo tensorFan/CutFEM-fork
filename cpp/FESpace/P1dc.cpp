@@ -143,16 +143,16 @@ class TypeOfFE_P1dcScLagrange2d : public GTypeOfFE<Mesh2> {
       }
    }
 
-   // void Pi_h_alpha(const baseFElement &K, KN_< double > &v) const {
-   //   for (int i = 0; i < 3; ++i) v[i] = 1;
-   // }
-   void get_Coef_Pi_h(const GbaseFElement<Mesh> &K, KN_<double> &v) const {
-      const Element &T = K.T;
-      double s         = T.measure();
-      v[0]             = s;
-      v[1]             = s;
-      v[2]             = s;
+   void Pi_h_alpha(const GbaseFElement<Mesh> &K, KN_< double > &v) const {
+     for (int i = 0; i < 3; ++i) v[i] = 1;
    }
+   // void get_Coef_Pi_h(const GbaseFElement<Mesh> &K, KN_<double> &v) const {
+   //    const Element &T = K.T;
+   //    double s         = T.measure();
+   //    v[0]             = s;
+   //    v[1]             = s;
+   //    v[2]             = s;
+   // }
 
    void FB(const What_d, const Element &, const Rd &, RNMK_ &) const;
 };
@@ -173,7 +173,8 @@ void TypeOfFE_P1dcScLagrange2d::FB(const What_d whatd, const Element &K,
 
    assert(val.N() >= Element::nv);
    assert(val.M() == 1);
-   double scaling = 1. / K.measure();
+   // double scaling = 1. / K.measure();
+   double scaling = 1.;
    val            = 0;
    RN_ f0(val('.', 0, op_id));
 

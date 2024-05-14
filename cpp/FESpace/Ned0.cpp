@@ -119,6 +119,7 @@ void TypeOfFE_Ned0_kind1::FB(const What_d whatd, const Element &K, const R3 &PHa
             int i0 = Element::nvedge[i][0], i1 = Element::nvedge[i][1];
             if (se[i] < 0)
                 std::swap(i0, i1);
+
             R3 wi              = l[i0] * D[i1] - l[i1] * D[i0];   //! Original
             // R3 wi              = (l[i0] * D[i1] - l[i1] * D[i0]) * cc; //! Mine
             bfMat(i, 0, op_id) = wi.x;
@@ -139,6 +140,16 @@ void TypeOfFE_Ned0_kind1::FB(const What_d whatd, const Element &K, const R3 &PHa
                 bfMat(i, 0, op_dx) = wi.x;
                 bfMat(i, 1, op_dx) = wi.y;
                 bfMat(i, 2, op_dx) = wi.z;
+                // std::cout << "Element: " << K[0] << ", " << K[1] << ", " << K[2] << ", " << K[3] << std::endl;
+                // std::cout << "(i0, i1)= " << i0 << ", " << i1 << std::endl;
+                // std::cout << "Koordinates of vertex i0: " << K[i0] << std::endl;
+                // std::cout << "grad(phi_i0), grad(phi_i1): " << D[i0] << ", " << D[i1] << std::endl;
+                // std::cout << "phi_i0, phi_i1: " << l[i0] << ", " << l[i1] << std::endl;
+                // std::cout << "PHat: " << PHat << std::endl;
+                // //std::cout << 1. - K[i0].x - K[i0].y - K[i0].z << std::endl;
+                // std::cout << 1. - PHat.sum() << std::endl;
+                // std::cout << wi << std::endl;
+                // getchar();
             }
             if (whatd & Fop_dy) {
                 R3 wi              = D[i0].y * D[i1] - D[i1].y * D[i0];  //! Original

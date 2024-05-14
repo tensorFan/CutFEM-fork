@@ -50,8 +50,6 @@ extern long verbosity;
 #include "../parallel/cfmpi.hpp"
 #endif
 
-enum class MeshFormat { mesh_gmsh, mesh_freefem };
-
 struct CBorder {
     CBorder() {}
 };
