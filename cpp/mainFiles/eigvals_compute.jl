@@ -21,11 +21,12 @@ function construct_linear_map(A, B)
     LinearMap{eltype(A)}(a, size(A, 1), ismutating = true)
 end
 
-A = 0
+num_nodes = [343, 2197, 15625];
+A = 0;
+eig_list = 0;
 for i in 0:0
     mat = readdlm("build/"*"mat"*string(i)*".dat");
     matrhs = readdlm("build/"*"mat"*string(i)*"RHS.dat");
-
     # mat = readdlm("build/"*"mat"*string(i)*"Cut.dat");
     # matrhs = readdlm("build/"*"mat"*string(i)*"CutRHS.dat");
 
@@ -34,21 +35,29 @@ for i in 0:0
     B = sparse(matrhs[:, 1], matrhs[:, 2], matrhs[:, 3]);
     # print(size(A))
     # print(size(B))
+    diagC = diagm(diag(A+B));
+    A = diagC \ A;
+    B = diagC \ B;
 
-    # Compute the eigenvalues of Ax=λBx
-    # Target the largest eigenvalues of the inverted problem
+    ## Compute the eigenvalues of Ax=λBx
+    # Target the largest eigenvalues of the inverted problem, then invert to find smallest of non-inverted problem.
     decomp, = partialschur(
         construct_linear_map(A, B),
-        nev = 4, # nbr of eigenvalues
-        tol = 1e-6,
-        restarts = 200,
+        nev = num_nodes[i+1]+20+15, # For standard wave formulation: nbr of NONZERO eigenvalues (remove the first #dim_lagrange eigenvalues)
+        # nev = size(A,1), 
+        tol = 1e-16,
+        restarts = fld(size(A,1), 2),
+        # restarts = size(A,1),
         which = LM(),
     )
     λs_inv, X = partialeigen(decomp)
-
-    # Eigenvalues have to be inverted to find the smallest eigenvalues of the non-inverted problem.
     λs = 1 ./ λs_inv
-    print(sort(abs.(λs)))
+    λs = abs.(λs)
+
+    λs = λs[ λs .> 10^(-10)] # sort out the eigenvalues that are too close to zero
+    eig_list = sort( λs )
+    print((eig_list/eig_list[1]).^2)
 
     @printf "\n"
 end
+

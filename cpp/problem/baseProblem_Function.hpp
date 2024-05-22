@@ -963,6 +963,44 @@ void BaseFEM<M>::addBorderContribution(const Fct &f, const itemVFlist_t &VF, con
     }
 }
 
+template <typename Mesh> // gh is just to get the relevant FEM space
+void BaseFEM<Mesh>::setBoundaryEdgesToZero(const FunFEM<Mesh> &gh, const Mesh &mesh) {
+    const FESpace &Vh(gh.getSpace());
+    // Iterate over all boundary elements in the mesh
+    for (int idx_be = mesh.first_boundary_element(); idx_be < mesh.last_boundary_element(); idx_be += mesh.next_boundary_element()) {
+        int ifac;
+        const int k = mesh.BoundaryElement(idx_be, ifac);
+
+        const Element &K(mesh[k]);
+        const BorderElement &BE(mesh.be(idx_be));
+        // const FElement &FK(Vh[k]);
+
+        // Iterate over each edge of the boundary face/element
+        for (int e = 0; e < BorderElement::nea; ++e) {
+            int v1 = BorderElement::nvedge[e][0];
+            int v2 = BorderElement::nvedge[e][1];
+            if (v1 > v2) std::swap(v1, v2);  // Ensure v1 < v2 for consistent edge representation
+
+            // Get the global degrees of freedom for this edge
+            int col_start = this->mapIdx0_[&Vh];
+            int col_end = Vh.nbDoF;
+            for (int comp_idx = 0; comp_idx < Vh.N; ++comp_idx) {
+                const FElement &FK = Vh[comp_idx];
+                for (int j = FK.dfcbegin(comp_idx); j < FK.dfcend(comp_idx); ++j) {
+                    int global_dof = FK.loc2glb(j);
+                    if (global_dof == v1 || global_dof == v2) {
+                        // Set the corresponding row in the matrix to zero
+                        for (int col = col_start; col < col_end; ++col) {
+                            (*this->pmat_[0])[std::make_pair(global_dof, col)] = 0.0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 template <typename Mesh>
 void BaseFEM<Mesh>::setDirichlet(const FunFEM<Mesh> &gh, const Mesh &Th, std::list<int> label) {
 

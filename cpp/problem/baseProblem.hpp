@@ -192,6 +192,7 @@ template <typename Mesh> class BaseFEM : public ShapeOfProblem<Mesh>, public Qua
     template <typename Fct>
     void addBorderContribution(const Fct &f, const itemVFlist_t &VF, const Element &K, const BorderElement &BE, int ifac,
                                const TimeSlab *In, int itq, double cst_time);
+    void setBoundaryEdgesToZero(const FunFEM<Mesh> &, const Mesh &);
     void setDirichlet(const FunFEM<Mesh> &, const Mesh &, std::list<int> label = {});
 
     // integral on interface
