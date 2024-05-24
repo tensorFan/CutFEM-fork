@@ -17,14 +17,17 @@
 
 // f = 1/eps curl j => div f = 0 !
 // #define FITTED_WAVE_EIGEN
+#define UNFITTED_WAVE_EIGEN
 // #define FITTED_WAVE
 // #define UNFITTED_WAVE
 
 // #define FITTED_KIKUCHI_EIGEN
+// #define UNFITTED_KIKUCHI_EIGEN
 // #define FITTED_KIKUCHI
 // #define UNFITTED_KIKUCHI
 
-# define FITTED_3FIELD_EIGEN
+// # define FITTED_3FIELD_EIGEN
+// # define UNFITTED_3FIELD_EIGEN
 // # define FITTED_3FIELD
 // #define UNFITTED_3FIELD
 
@@ -224,6 +227,221 @@
             // << std::setw(15) << std::setfill(' ') << convmaxdivPr[i]
             << std::endl;
         }
+    }
+#endif
+
+#ifdef UNFITTED_WAVE_EIGEN
+
+    using namespace globalVariable;
+    namespace Data_CubeLevelset { // f = 1/eps curl j => div f = 0 !
+        R k = 1.;
+        R eps = 1.;
+        R mu = 1.;
+
+        double shift = 0.5*M_PI;
+        R sdRoundBox( double* p, double* b, double r ) {
+            R qx = std::abs(p[0]) - b[0] + r;
+            R qy = std::abs(p[1]) - b[1] + r;
+            R qz = std::abs(p[2]) - b[2] + r;
+
+            R val = sqrt(pow(std::max(qx,0.0),2)+pow(std::max(qy,0.0),2)+pow(std::max(qz,0.0),2)) + std::min(std::max(qx,std::max(qy,qz)),0.0) - r;
+            // std::cout << val << std::endl;
+            return val;
+        }
+        R fun_levelSet(double *P, int i, int dom) {
+            double Pnew[3] = {P[0]-shift, P[1]-shift, P[2]-shift};
+
+            // half-dimensions of box 
+            // double b[3] = {0.5*M_PI, 0.5*M_PI, 0.5*M_PI}; // if using cutfem mesh
+            double sh_int = 1e-12;
+            double b[3] = {0.5*M_PI - sh_int, 0.5*M_PI - sh_int, 0.5*M_PI - sh_int}; // if using GMSH mesh
+
+            // smoothing radius
+            double r = 0.025;
+            return sdRoundBox(Pnew, b, 0.0);
+        }
+        R fun_levelSetPLANE(double *P, int i, int dom) {
+            return P[2] - (M_PI-1e-12);
+        }
+
+
+        // Eriks example
+        R fun_rhs(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0)
+                return pi*pi*sin(pi*z) - sin(pi*z);
+            else if (i == 1)
+                return 0;
+            else
+                return 0;
+        }
+        R fun_exact_u(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0)
+                return sin(pi*z);
+            else if (i == 1)
+                return 0;
+            else
+                return 0;
+        }
+        R fun_exact_curlu(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0)
+                return 0;
+            else if (i == 1)
+                return pi*cos(pi*z);
+            else
+                return 0;
+        }
+        R fun_exact_p(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            return x*(x-1)-y*(y-1);
+        }
+
+        R fun_closed_form(double *P, int i, int dom) { // = grad 1/r
+            R x = P[0], y = P[1], z = P[2];
+            R r = sqrt(x*x + y*y + z*z);
+            R r3 = r*r*r;
+            if (i == 0)
+                return x/r3;
+            else if (i == 1)
+                return y/r3;
+            else
+                return z/r3;
+        }
+
+        R fun_0(double *P, int i, int dom) {
+            return 0;
+        }
+
+    }
+
+    using namespace Data_CubeLevelset;
+    int main(int argc, char **argv) {
+
+        typedef TestFunction<Mesh3> FunTest;
+        typedef FunFEM<Mesh3> Fun_h;
+        typedef Mesh3 Mesh;
+        typedef ActiveMeshT3 CutMesh;
+        typedef FESpace3 Space;
+        typedef CutFESpaceT3 CutSpace;
+        const double cpubegin = CPUtime();
+
+        //MPIcf cfMPI(argc, argv);
+
+        const int d = 3;
+
+        int nx = 7;
+        int ny = 7;
+        int nz = 7;
+
+        std::vector<double> ul2, pl2, divmax, divl2, h, convu, convp;
+
+        int iters = 2;
+        for (int i = 0; i < iters; ++i) {
+            // R sh = 0.234225;
+            Mesh3 Kh(nx, ny, nz, 0, 0, 0, M_PI, M_PI, M_PI); // see Mesh3dn.hpp
+            // Mesh3 Kh("../cpp/mainFiles/meshes/cube_"+std::to_string(i), MeshFormat::mesh_gmsh);
+            // Mesh3 Kh("../cpp/mainFiles/meshes/cube_hole_"+std::to_string(i), MeshFormat::mesh_gmsh);
+            // Kh.info();
+            const R hi = 1. / (nx - 1); // 1./(nx-1)
+
+            Lagrange3 VelocitySpace(2);
+            Space Uh_(Kh, DataFE<Mesh>::Ned0); // Nedelec order 0 type 1
+            Space Vel_h(Kh, VelocitySpace);
+            // Space Uh(Khi, DataFE<Mesh>::Ned0); // Nedelec order 0 type 1
+            // Space Velh(Khi, VelocitySpace); Normal n;
+
+            // CutFEM setup
+            Space Lh(Kh, DataFE<Mesh>::P1);
+            // Fun_h levelSet(Lh, fun_levelSet);
+            Fun_h levelSet(Lh, fun_levelSetPLANE);
+            InterfaceLevelSet<Mesh> interface(Kh, levelSet);
+            Normal n;
+            // [Remove exterior]
+            ActiveMesh<Mesh> Khi(Kh);
+            Khi.truncate(interface, 1);
+            Khi.info();
+            // Cut spaces
+            CutSpace Velh(Khi, Vel_h);
+            CutSpace Uh(Khi, Uh_);
+
+            // Interpolate data
+            Fun_h fh(Velh, fun_rhs);
+            Fun_h u0(Velh, fun_exact_u);
+            Fun_h not_exact_form(Velh, fun_closed_form);
+
+            // Init system matrix & assembly
+            CutFEM<Mesh> maxwell3D(Uh);
+
+            /* Syntax:
+            FunTest (fem space, #components, place in space)
+            */
+            FunTest u(Uh, 3, 0), v(Uh, 3, 0);
+
+            // std::getchar();
+            Fun_h fun0(Uh, fun_exact_u);
+            Paraview<Mesh> writer(Khi, "maxwell_" + std::to_string(i) + ".vtk");
+            writer.add(fun0, "vol", 0, 1);
+
+            R mui = 1./mu;
+            R epsi = 1./eps;
+            maxwell3D.addBilinear( 
+                +innerProduct(epsi * mui * curl(u), curl(v))
+                // -innerProduct(k * k * u, v)
+            , Khi);
+            // BC
+            // Essential n x E
+            R pp = 1e2;
+            maxwell3D.addBilinear( 
+                +innerProduct(epsi * mui * curl(u), cross(n, v)) //fitted: -
+                -innerProduct(epsi * mui * cross(n, u), curl(v))
+                +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
+            , interface);
+            maxwell3D.addBilinear( 
+                +innerProduct(epsi * mui * curl(u), cross(n, v)) //fitted: -
+                -innerProduct(epsi * mui * cross(n, u), curl(v))
+                +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
+            , Khi, INTEGRAL_BOUNDARY);
+            // [Stabilization]
+            double tau_a = 1e-2;
+            maxwell3D.addPatchStabilization(
+                // A block
+                // +innerProduct(tau_a  * jump(u), jump(v)) 
+                +innerProduct(tau_a * jump(curl(u)), jump(curl(v)))
+            , Khi);
+
+            matlab::Export(maxwell3D.mat_[0], "A" + std::to_string(i) + ".dat");
+            // Eigenvalue problem
+            CutFEM<Mesh> massRHS(Uh);
+            massRHS.addBilinear( 
+                +innerProduct(u, v)
+            , Khi);
+            massRHS.addPatchStabilization(
+                // A block
+                +innerProduct(tau_a  * jump(u), jump(v)) 
+                // +innerProduct(tau_a * jump(curl(u)), jump(curl(v)))
+            , Khi);
+
+            matlab::Export(massRHS.mat_[0], "B" + std::to_string(i) + ".dat");
+            nx = 2 * nx - 1;
+            ny = 2 * ny - 1;
+            nz = 2 * nz - 1;
+            continue;
+        }
+        std::cout << "\n"
+        << std::left << std::setw(10) << std::setfill(' ') << "h" << std::setw(15) << std::setfill(' ')
+        << "err p" << std::setw(15) << std::setfill(' ') << "conv p" << std::setw(15) << std::setfill(' ')
+        << "err u" << std::setw(15) << std::setfill(' ') << "conv u" << std::setw(15) << std::setfill(' ')
+        << "err divu"
+        // << std::setw(15) << std::setfill(' ') << "conv divu"
+        // << std::setw(15) << std::setfill(' ') << "err_new divu"
+        // << std::setw(15) << std::setfill(' ') << "convLoc divu"
+        << std::setw(15) << std::setfill(' ')
+        << "err maxdivu"
+        // << std::setw(15) << std::setfill(' ') << "conv maxdivu"
+        << "\n"
+        << std::endl;
     }
 #endif
 
@@ -718,14 +936,14 @@
             maxwell3D.addLinear(
                 +innerProduct(fh.exprList(), v)
             , Khi);
-            // R pp = 1e2;
+            R pp = 1e2;
             // maxwell3D.addBilinear( 
-            //     -innerProduct(1./mu * curl(u), cross(n, v))
-            //     +innerProduct(1./mu * cross(n, u), curl(v))
+            //     +innerProduct(1./mu * curl(u), cross(n, v))
+            //     -innerProduct(1./mu * cross(n, u), curl(v))
             //     +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
             // , interface);
             // maxwell3D.addLinear(
-            //     +innerProduct(cross(n, u0), 1./mu * curl(v))
+            //     -innerProduct(cross(n, u0), 1./mu * curl(v))
             //     +innerProduct(cross(n, u0), 1./hi*pp*cross(n, v))
             // , interface);
             maxwell3D.addLinear( // so weird: unfitted changes the sign
@@ -959,9 +1177,11 @@
 
             // Eigenvalue problem
             FEM<Mesh> massRHS(Uh); massRHS.add(Wh);
+            R el_area = hi*hi*hi;
+            R regularizer = 1e-12/el_area;
             massRHS.addBilinear( 
                 +innerProduct(u, v)
-                +innerProduct(1e-12*p, q)
+                +innerProduct(regularizer*p, q)
             , Kh);
             // massRHS.addBilinear( 
             //     +innerProduct(1./mu * 1./eps * 0.5 * curl(u), cross(n, v))
@@ -1057,6 +1277,237 @@
             // << std::setw(15) << std::setfill(' ') << convmaxdivPr[i]
             << std::endl;
         }
+    }
+#endif
+
+#ifdef UNFITTED_KIKUCHI_EIGEN
+
+    using namespace globalVariable;
+    namespace Data_CubeLevelset { // f = 1/eps curl j => div f = 0 !
+        R k = 1.;
+        R eps = 1.;
+        R mu = 1.;
+
+        double shift = 0.5*M_PI;
+        R sdRoundBox( double* p, double* b, double r ) {
+            R qx = std::abs(p[0]) - b[0] + r;
+            R qy = std::abs(p[1]) - b[1] + r;
+            R qz = std::abs(p[2]) - b[2] + r;
+
+            R val = sqrt(pow(std::max(qx,0.0),2)+pow(std::max(qy,0.0),2)+pow(std::max(qz,0.0),2)) + std::min(std::max(qx,std::max(qy,qz)),0.0) - r;
+            // std::cout << val << std::endl;
+            return val;
+        }
+        R fun_levelSet(double *P, int i, int dom) {
+            double Pnew[3] = {P[0]-shift, P[1]-shift, P[2]-shift};
+
+            // half-dimensions of box 
+            // double b[3] = {0.5*M_PI, 0.5*M_PI, 0.5*M_PI}; // if using cutfem mesh
+            double sh_int = 1e-12;
+            double b[3] = {0.5*M_PI - sh_int, 0.5*M_PI - sh_int, 0.5*M_PI - sh_int}; // if using GMSH mesh
+
+            // smoothing radius
+            double r = 0.025;
+            return sdRoundBox(Pnew, b, 0.0);
+        }
+        R fun_levelSetPLANE(double *P, int i, int dom) {
+            return P[2] - (M_PI-1e-12);
+        }
+
+
+        // Eriks example
+        R fun_rhs(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0)
+                return pi*pi*sin(pi*z) - sin(pi*z);
+            else if (i == 1)
+                return 0;
+            else
+                return 0;
+        }
+        R fun_exact_u(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0)
+                return sin(pi*z);
+            else if (i == 1)
+                return 0;
+            else
+                return 0;
+        }
+        R fun_exact_curlu(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0)
+                return 0;
+            else if (i == 1)
+                return pi*cos(pi*z);
+            else
+                return 0;
+        }
+        R fun_exact_p(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            return x*(x-1)-y*(y-1);
+        }
+
+        R fun_closed_form(double *P, int i, int dom) { // = grad 1/r
+            R x = P[0], y = P[1], z = P[2];
+            R r = sqrt(x*x + y*y + z*z);
+            R r3 = r*r*r;
+            if (i == 0)
+                return x/r3;
+            else if (i == 1)
+                return y/r3;
+            else
+                return z/r3;
+        }
+
+        R fun_0(double *P, int i, int dom) {
+            return 0;
+        }
+
+    }
+
+    using namespace Data_CubeLevelset;
+    int main(int argc, char **argv) {
+
+        typedef TestFunction<Mesh3> FunTest;
+        typedef FunFEM<Mesh3> Fun_h;
+        typedef Mesh3 Mesh;
+        typedef ActiveMeshT3 CutMesh;
+        typedef FESpace3 Space;
+        typedef CutFESpaceT3 CutSpace;
+        const double cpubegin = CPUtime();
+
+        //MPIcf cfMPI(argc, argv);
+
+        const int d = 3;
+
+        int nx = 7;
+        int ny = 7;
+        int nz = 7;
+
+        std::vector<double> ul2, pl2, divmax, divl2, h, convu, convp;
+
+        int iters = 2;
+        for (int i = 0; i < iters; ++i) {
+            // R sh = 0.234225;
+            Mesh3 Kh(nx, ny, nz, 0, 0, 0, M_PI, M_PI, M_PI); // see Mesh3dn.hpp
+            // Mesh3 Kh("../cpp/mainFiles/meshes/cube_"+std::to_string(i), MeshFormat::mesh_gmsh);
+            // Mesh3 Kh("../cpp/mainFiles/meshes/cube_hole_"+std::to_string(i), MeshFormat::mesh_gmsh);
+            // Kh.info();
+            const R hi = 1. / (nx - 1); // 1./(nx-1)
+
+            Lagrange3 VelocitySpace(2);
+            Space Uh_(Kh, DataFE<Mesh>::Ned0); // Nedelec order 0 type 1
+            Space Wh_(Kh, DataFE<Mesh>::P1);
+            Space Vel_h(Kh, VelocitySpace);
+            // Space Uh(Khi, DataFE<Mesh>::Ned0); // Nedelec order 0 type 1
+            // Space Velh(Khi, VelocitySpace); Normal n;
+
+            // CutFEM setup
+            Space Lh(Kh, DataFE<Mesh>::P1);
+            // Fun_h levelSet(Lh, fun_levelSet);
+            Fun_h levelSet(Lh, fun_levelSetPLANE);
+            InterfaceLevelSet<Mesh> interface(Kh, levelSet);
+            Normal n;
+            // [Remove exterior]
+            ActiveMesh<Mesh> Khi(Kh);
+            Khi.truncate(interface, 1);
+            Khi.info();
+            // Cut spaces
+            CutSpace Velh(Khi, Vel_h);
+            CutSpace Uh(Khi, Uh_);
+            CutSpace Wh(Khi, Wh_);
+
+            // Interpolate data
+            Fun_h fh(Velh, fun_rhs);
+            Fun_h u0(Velh, fun_exact_u);
+            Fun_h not_exact_form(Velh, fun_closed_form);
+
+            // Init system matrix & assembly
+            CutFEM<Mesh> maxwell3D(Uh); maxwell3D.add(Wh);
+
+            /* Syntax:
+            FunTest (fem space, #components, place in space)
+            */
+            FunTest u(Uh, 3, 0), v(Uh, 3, 0);
+            FunTest p(Wh, 1, 0), q(Wh, 1, 0);
+
+            // std::getchar();
+            Fun_h fun0(Uh, fun_exact_u);
+            Paraview<Mesh> writer(Khi, "maxwell_" + std::to_string(i) + ".vtk");
+            writer.add(fun0, "vol", 0, 1);
+
+            R mui = 1./mu;
+            R epsi = 1./eps;
+            maxwell3D.addBilinear( 
+                +innerProduct(epsi * mui * curl(u), curl(v))
+                // -innerProduct(k * k * u, v)
+
+                -innerProduct(grad(p), v)
+                -innerProduct(u, grad(q))
+            , Khi);
+            // BC
+            // Essential n x E
+            R pp = 1e2;
+            maxwell3D.addBilinear( 
+                +innerProduct(epsi * mui * curl(u), cross(n, v)) //fitted: -
+                -innerProduct(epsi * mui * cross(n, u), curl(v))
+                +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
+
+                +innerProduct(p, 1./hi*pp*q)
+            , interface);
+            maxwell3D.addBilinear( // if using plane levelset
+                -innerProduct(epsi * mui * curl(u), cross(n, v)) //fitted: -
+                +innerProduct(epsi * mui * cross(n, u), curl(v))
+                +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
+
+                +innerProduct(p, 1./hi*pp*q)
+            , Khi, INTEGRAL_BOUNDARY);
+            // [Stabilization]
+            double tau_a = 1e0; //1e-2
+            double tau_p = 1e0; //1e-2
+            maxwell3D.addPatchStabilization(
+                // A block
+                // +innerProduct(tau_a  * jump(u), jump(v)) 
+                +innerProduct(tau_a * jump(curl(u)), jump(curl(v)))
+
+                +innerProduct(tau_p * jump(p), jump(q))
+            , Khi);
+
+            matlab::Export(maxwell3D.mat_[0], "A" + std::to_string(i) + ".dat");
+            // Eigenvalue problem
+            CutFEM<Mesh> massRHS(Uh); massRHS.add(Wh);
+            R el_area = hi*hi*hi;
+            R regularizer = 1e-12/el_area;
+            massRHS.addBilinear( 
+                +innerProduct(u, v)
+                +innerProduct(regularizer*p, q)
+            , Khi);
+            massRHS.addPatchStabilization(
+                // A block
+                +innerProduct(tau_a  * jump(u), jump(v)) 
+                // +innerProduct(tau_a * jump(curl(u)), jump(curl(v)))
+            , Khi);
+
+            matlab::Export(massRHS.mat_[0], "B" + std::to_string(i) + ".dat");
+            nx = 2 * nx - 1;
+            ny = 2 * ny - 1;
+            nz = 2 * nz - 1;
+            continue;
+        }
+        std::cout << "\n"
+        << std::left << std::setw(10) << std::setfill(' ') << "h" << std::setw(15) << std::setfill(' ')
+        << "err p" << std::setw(15) << std::setfill(' ') << "conv p" << std::setw(15) << std::setfill(' ')
+        << "err u" << std::setw(15) << std::setfill(' ') << "conv u" << std::setw(15) << std::setfill(' ')
+        << "err divu"
+        // << std::setw(15) << std::setfill(' ') << "conv divu"
+        // << std::setw(15) << std::setfill(' ') << "err_new divu"
+        // << std::setw(15) << std::setfill(' ') << "convLoc divu"
+        << std::setw(15) << std::setfill(' ')
+        << "err maxdivu"
+        // << std::setw(15) << std::setfill(' ') << "conv maxdivu"
+        << "\n"
+        << std::endl;
     }
 #endif
 
@@ -1823,6 +2274,10 @@
             FunTest w(Uh, 3, 0), tau(Uh, 3, 0);
             FunTest u(Vh, 3, 0), v(Vh, 3, 0), p(Wh, 1, 0), q(Wh, 1, 0);
 
+            Fun_h fun0(Wh, fun_0);
+            Paraview<Mesh> writer(Kh, "maxwell_" + std::to_string(i) + ".vtk");
+            writer.add(fun0, "vol", 0, 1);
+
             // [Bulk]
             // Eq 1
             maxwell3D.addBilinear( // w = curl u
@@ -1980,6 +2435,260 @@
             // << std::setw(15) << std::setfill(' ') << convmaxdivPr[i]
             << std::endl;
         }
+    }
+#endif
+
+#ifdef UNFITTED_3FIELD_EIGEN
+
+    using namespace globalVariable;
+    namespace Data_CubeLevelset { // f = 1/eps curl j => div f = 0 !
+        R k = 1.;
+        R eps = 1.;
+        R mu = 1.;
+
+        double shift = 0.5*M_PI;
+        R sdRoundBox( double* p, double* b, double r ) {
+            R qx = std::abs(p[0]) - b[0] + r;
+            R qy = std::abs(p[1]) - b[1] + r;
+            R qz = std::abs(p[2]) - b[2] + r;
+
+            R val = sqrt(pow(std::max(qx,0.0),2)+pow(std::max(qy,0.0),2)+pow(std::max(qz,0.0),2)) + std::min(std::max(qx,std::max(qy,qz)),0.0) - r;
+            // std::cout << val << std::endl;
+            return val;
+        }
+        R fun_levelSet(double *P, int i, int dom) {
+            double Pnew[3] = {P[0]-shift, P[1]-shift, P[2]-shift};
+
+            // half-dimensions of box 
+            // double b[3] = {0.5*M_PI, 0.5*M_PI, 0.5*M_PI}; // if using cutfem mesh
+            double sh_int = 0.1+1e-12;
+            double b[3] = {0.5*M_PI - sh_int, 0.5*M_PI - sh_int, 0.5*M_PI - sh_int}; // if using GMSH mesh
+
+            // smoothing radius
+            double r = 0.025;
+            return sdRoundBox(Pnew, b, 0.4);
+        }
+        R fun_levelSetPLANE(double *P, int i, int dom) {
+            return P[2] - (M_PI-1e-1);
+        }
+
+        // Eriks example
+        R fun_rhs(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0)
+                return pi*pi*sin(pi*z) - sin(pi*z);
+            else if (i == 1)
+                return 0;
+            else
+                return 0;
+        }
+        R fun_exact_u(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0)
+                return sin(pi*z);
+            else if (i == 1)
+                return 0;
+            else
+                return 0;
+        }
+        R fun_exact_curlu(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0)
+                return 0;
+            else if (i == 1)
+                return pi*cos(pi*z);
+            else
+                return 0;
+        }
+        R fun_exact_p(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            return x*(x-1)-y*(y-1);
+        }
+
+        R fun_closed_form(double *P, int i, int dom) { // = grad 1/r
+            R x = P[0], y = P[1], z = P[2];
+            R r = sqrt(x*x + y*y + z*z);
+            R r3 = r*r*r;
+            if (i == 0)
+                return x/r3;
+            else if (i == 1)
+                return y/r3;
+            else
+                return z/r3;
+        }
+
+        R fun_0(double *P, int i, int dom) {
+            return 0;
+        }
+
+    }
+
+    using namespace Data_CubeLevelset;
+    int main(int argc, char **argv) {
+
+        typedef TestFunction<Mesh3> FunTest;
+        typedef FunFEM<Mesh3> Fun_h;
+        typedef Mesh3 Mesh;
+        typedef ActiveMeshT3 CutMesh;
+        typedef FESpace3 Space;
+        typedef CutFESpaceT3 CutSpace;
+        const double cpubegin = CPUtime();
+
+        //MPIcf cfMPI(argc, argv);
+
+        const int d = 3;
+
+        int nx = 7;
+        int ny = 7;
+        int nz = 7;
+
+        std::vector<double> ul2, pl2, divmax, divl2, h, convu, convp;
+
+        int iters = 2;
+        for (int i = 0; i < iters; ++i) {
+            // R sh = 0.234225;
+            Mesh3 Kh(nx, ny, nz, 0, 0, 0, M_PI, M_PI, M_PI); // see Mesh3dn.hpp
+            // Mesh3 Kh("../cpp/mainFiles/meshes/cube_"+std::to_string(i), MeshFormat::mesh_gmsh);
+            // Mesh3 Kh("../cpp/mainFiles/meshes/cube_hole_"+std::to_string(i), MeshFormat::mesh_gmsh);
+            // Kh.info();
+            const R hi = 1. / (nx - 1); // 1./(nx-1)
+
+            Space Uh_(Kh, DataFE<Mesh>::Ned0); // Nedelec order 0 type 1
+            Space Vh_(Kh, DataFE<Mesh>::RT0);
+            Space Wh_(Kh, DataFE<Mesh>::P0);
+
+            Lagrange3 VelocitySpace(2);
+            Space Vel_h(Kh, VelocitySpace);
+
+            Space Lh(Kh, DataFE<Mesh>::P1);
+            // Fun_h levelSet(Lh, fun_levelSet);
+            Fun_h levelSet(Lh, fun_levelSetPLANE);
+            InterfaceLevelSet<Mesh> interface(Kh, levelSet);
+            Normal n;
+
+            // [Remove exterior]
+            ActiveMesh<Mesh> Khi(Kh);
+            Khi.truncate(interface, 1);
+            Khi.info();
+
+            CutSpace Velh(Khi, Vel_h);
+            CutSpace Uh(Khi, Uh_);
+            CutSpace Vh(Khi, Vh_);
+            CutSpace Wh(Khi, Wh_);
+
+            // Interpolate data
+            Fun_h fh(Velh, fun_rhs);
+            Fun_h u0(Velh, fun_exact_u);
+            Fun_h not_exact_form(Velh, fun_closed_form);
+
+            // Init system matrix & assembly
+            CutFEM<Mesh> maxwell3D(Uh); maxwell3D.add(Vh); maxwell3D.add(Wh);
+
+            /* Syntax:
+            FunTest (fem space, #components, place in space)
+            */
+            FunTest w(Uh, 3, 0), tau(Uh, 3, 0);
+            FunTest u(Vh, 3, 0), v(Vh, 3, 0), p(Wh, 1, 0), q(Wh, 1, 0);
+
+            // std::getchar();
+            Fun_h fun0(Wh, fun_0);
+            Paraview<Mesh> writer(Khi, "maxwell_" + std::to_string(i) + ".vtk");
+            writer.add(fun0, "vol", 0, 1);
+
+            // [Bulk]
+            // Eq 1
+            maxwell3D.addBilinear( // w = curl u
+                -innerProduct(eps * mu * w, tau) 
+                +innerProduct(u, curl(tau))
+            , Khi);
+            // Essential BC (natural BC has no matrix terms)
+            R pp = 1e2;
+            maxwell3D.addBilinear(
+                +innerProduct(u, cross(n,tau))
+                -innerProduct(cross(n,w), v)
+                -innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
+            , interface);
+            maxwell3D.addBilinear(
+                +innerProduct(u, cross(n,tau))
+                -innerProduct(cross(n,w), v)
+                -innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
+            , Khi, INTEGRAL_BOUNDARY);
+            // Eq 2
+            maxwell3D.addBilinear( // mu Delta u + grad p
+                +innerProduct(curl(w), v)
+                // -innerProduct(k * k * u, v)
+                +innerProduct(p, div(v))
+            , Khi);
+            // Eq 3
+            maxwell3D.addBilinear(
+                +innerProduct(div(u), q)
+            , Khi);
+            // [Stabilization]
+            double tau_w = 1e0;
+            double tau_m = 1e0;
+            double tau_a = 1e0;
+            double tau_b = 1e0;
+            maxwell3D.addPatchStabilization(
+                // W block
+                +innerProduct(tau_w  * jump(w), jump(tau)) 
+                // M blocks
+                +innerProduct(tau_m * jump(curl(w)), jump(v))                       // M block
+                -innerProduct(tau_m * jump(u), jump(curl(tau)))                     // -M^T block
+                // B blocks
+                +innerProduct(tau_b * jump(p), jump(div(v)))                     // -B^T block
+                -innerProduct(tau_b * jump(div(u)), jump(q))                     // B_0 block
+            , Khi);
+
+            // IF using cube with hole mesh
+            // maxwell3D.addLagrangeMultiplier(
+            //     +innerProduct(not_exact_form.exprList(), u), 0
+            // , Kh);
+            // FEM<Mesh> lagr(Uh); lagr.add(Vh); lagr.add(Wh);
+            // lagr.addLinear(innerProduct(not_exact_form.exprList(), u), Kh);
+            // Rn lag_row(lagr.rhs_); 
+            // lagr.rhs_ = 0.; 
+            // lagr.addLinear(innerProduct(not_exact_form.exprList(), v), Kh);
+            // maxwell3D.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
+
+            matlab::Export(maxwell3D.mat_[0], "A" + std::to_string(i) + ".dat");
+
+            // Eigenvalue problem
+            FEM<Mesh> massRHS(Uh); massRHS.add(Vh); massRHS.add(Wh);
+            R el_area = hi*hi*hi;
+            R regularizer = 1e-12/el_area;
+            massRHS.addBilinear( 
+                +innerProduct(u, v)
+                +innerProduct(w, regularizer*tau)
+                +innerProduct(p, regularizer*q)
+            , Khi);
+            maxwell3D.addPatchStabilization(
+                +innerProduct(tau_m * jump(u), jump(v))
+            , Khi);
+
+            // IF using cube with hole mesh
+            // massRHS.addLagrangeMultiplier(
+            //     -innerProduct(not_exact_form.exprList(), 0*v), 0
+            // , Kh);
+            matlab::Export(massRHS.mat_[0], "B" + std::to_string(i) + ".dat");
+            
+            nx = 2 * nx - 1;
+            ny = 2 * ny - 1;
+            nz = 2 * nz - 1;
+            continue;
+        }
+        std::cout << "\n"
+        << std::left << std::setw(10) << std::setfill(' ') << "h" << std::setw(15) << std::setfill(' ')
+        << "err p" << std::setw(15) << std::setfill(' ') << "conv p" << std::setw(15) << std::setfill(' ')
+        << "err u" << std::setw(15) << std::setfill(' ') << "conv u" << std::setw(15) << std::setfill(' ')
+        << "err divu"
+        // << std::setw(15) << std::setfill(' ') << "conv divu"
+        // << std::setw(15) << std::setfill(' ') << "err_new divu"
+        // << std::setw(15) << std::setfill(' ') << "convLoc divu"
+        << std::setw(15) << std::setfill(' ')
+        << "err maxdivu"
+        // << std::setw(15) << std::setfill(' ') << "conv maxdivu"
+        << "\n"
+        << std::endl;
     }
 #endif
 
