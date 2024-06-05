@@ -549,6 +549,83 @@ template <typename Mesh> void ActiveMesh<Mesh>::createSurfaceMesh(const Interfac
     }
 }
 
+template <typename Mesh>
+void ActiveMesh<Mesh>::createBoundaryAndSurfaceMesh(const Interface<Mesh> &interface) {
+
+    int dom_size = this->get_nb_domain();
+    idx_element_domain.resize(0);
+
+    {
+        for (int d = 0; d < dom_size; ++d) {
+            idx_in_background_mesh_[d].resize(0);
+            int nt_max = idx_from_background_mesh_[d].size();
+            idx_in_background_mesh_[d].reserve(nt_max);
+        }
+    }
+
+    std::vector<int> nt(dom_size, 0);
+    for (int d = 0; d < dom_size; ++d) {
+        for (auto it_k = idx_from_background_mesh_[d].begin(); it_k != idx_from_background_mesh_[d].end();) {
+
+            int kb = it_k->first;
+            int k = it_k->second;
+
+            auto it_gamma = interface_id_[0].find(std::make_pair(d, k));
+            bool is_cut = interface.isCut(kb);
+
+            // Check if the element is on the boundary
+            bool is_boundary = false;
+            int ifac;
+            int idx_be = this -> Th.BoundaryElement(kb, ifac);
+            is_boundary = idx_be >= 0; // Check if the element is on the boundary, be = BorderElement
+            // std :: cout << idx_be << std :: endl;
+
+            // REMOVE THE Mesh::Element IN THE INPUT DOMAIN IF NOT CUT AND NOT ON BOUNDARY
+            if (!is_cut && !is_boundary) {
+                it_k = idx_from_background_mesh_[d].erase(it_k);
+                continue;
+            } // IF NOT CUT AND ON BOUNDARY, DONT REDO INTERFACE
+            if (!is_cut && is_boundary) {
+                it_k++;
+                nt[d]++;
+                continue;
+            }
+
+            // SAVE AND ERASE OLD INTERFACES
+            int nb_interface = (it_gamma == interface_id_[0].end()) ? 0 : it_gamma->second.size();
+            std::vector<const Interface<Mesh> *> old_interface(nb_interface);
+            std::vector<int> ss(nb_interface);
+            for (int i = 0; i < nb_interface; ++i)
+                old_interface[i] = it_gamma->second[i].first;
+            for (int i = 0; i < nb_interface; ++i)
+                ss[i] = it_gamma->second[i].second;
+            if (it_gamma != interface_id_[0].end()) {
+                auto ittt = interface_id_[0].erase(it_gamma);
+            }
+
+            // SET NEW INDICES AND PUT BACK INTERFACES
+            idx_in_background_mesh_[d].push_back(kb);
+            it_k->second = nt[d];
+            for (int i = 0; i < nb_interface; ++i) {
+                interface_id_[0][std::make_pair(d, nt[d])].push_back(std::make_pair(old_interface[i], ss[i]));
+            }
+            // IS CUT OR ON BOUNDARY SO NEED TO ADD INTERFACE AND SIGN
+            interface_id_[0][std::make_pair(d, nt[d])].push_back(std::make_pair(&interface, 0));
+            nt[d]++;
+            it_k++;
+        }
+    }
+
+    idx_element_domain.push_back(0);
+    for (int d = 0; d < dom_size; ++d) {
+        idx_in_background_mesh_[d].resize(nt[d]);
+        idx_in_background_mesh_[d].shrink_to_fit();
+        int sum_nt = idx_element_domain[d] + nt[d];
+        idx_element_domain.push_back(sum_nt);
+    }
+}
+
+
 template <typename Mesh> void ActiveMesh<Mesh>::createSurfaceMesh(const TimeInterface<Mesh> &interface) {
 
     int n_tid           = interface.size();

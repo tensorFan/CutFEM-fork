@@ -809,13 +809,10 @@ void BaseFEM<M>::addBorderContribution(const itemVFlist_t &VF, const Element &K,
     Rd normal    = K.N(ifac);
 
     // U and V HAS TO BE ON THE SAME MESH
-    const FESpace &Vh(VF.get_spaceV(0));
-    int kb                = Vh.Th(K);
-    std::vector<int> idxK = Vh.idxAllElementFromBackMesh(kb, -1);
-    // assert(idxK.size() == 1);
-    // if(idxK.size() != 1) return;
-    // when many subdomain are involve. Cut element but not cut boundary
-    int k                 = idxK[subDomId]; // VF[0].onWhatElementIsTestFunction (idxK);
+    // const FESpace &Vhu(VF.get_spaceV(0));
+    // int kb                = Vhu.Th(K);
+    // std::vector<int> idxK = Vhu.idxAllElementFromBackMesh(kb, -1);
+    // int k                 = idxK[subDomId]; // VF[0].onWhatElementIsTestFunction (idxK);
 
     // GET THE QUADRATURE RULE
     const QFB &qfb(this->get_quadrature_formular_dK());
@@ -832,8 +829,14 @@ void BaseFEM<M>::addBorderContribution(const itemVFlist_t &VF, const Element &K,
         // assert(Vhv.get_nb_element() == Vhu.get_nb_element());
         bool same = (VF.isRHS() || (&Vhu == &Vhv));
 
-        const FElement &FKu(Vhu[k]);
-        const FElement &FKv(Vhv[k]);
+        int kb                = Vhu.Th(K); // same background index for U and V
+        std::vector<int> idxKu = Vhu.idxAllElementFromBackMesh(kb, -1);
+        std::vector<int> idxKv = Vhv.idxAllElementFromBackMesh(kb, -1);
+        int ku                 = idxKu[subDomId]; // VF[0].onWhatElementIsTestFunction (idxK);
+        int kv                 = idxKv[subDomId]; // VF[0].onWhatElementIsTestFunction (idxK);
+
+        const FElement &FKu(Vhu[ku]);
+        const FElement &FKv(Vhv[kv]);
         int domain = FKv.get_domain();
         this->initIndex(FKu, FKv);
 

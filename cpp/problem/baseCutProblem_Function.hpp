@@ -761,8 +761,9 @@ void BaseCutFEM<M>::addBilinear(const itemVFlist_t &VF, const CutMesh &cutTh, co
             // std::cout << std::endl;
 
             // CHECK IF IT IS A CUT EDGE
-            if (cutTh.isCutFace(idxK[0], ifac, 0))
+            if (cutTh.isCutFace(idxK[0], ifac, 0)) {
                 addBorderContribution(VF, K, BE, ifac, nullptr, 0, 1.);
+            }
             else {
                 if (idxK.size() == 1) {
                     BaseFEM<M>::addBorderContribution(VF, K, BE, ifac, nullptr, 0, 1.);

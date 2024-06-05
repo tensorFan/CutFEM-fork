@@ -46,6 +46,11 @@ class LagrangeDC2 : public BaseFE_Array<Mesh2, ContinuityType::discontinuous> {
     LagrangeDC2(int k);
 };
 
+class LagrangeDC3 : public BaseFE_Array<Mesh3, ContinuityType::discontinuous> {
+  public:
+    LagrangeDC3(int k);
+};
+
 // class TaylorHood2 : public GTypeOfFESum<Mesh2> {
 //     typedef KN<const GTypeOfFE<Mesh2> *> FEarray;
 //     static const GTypeOfFE<Mesh2> *FE_[3];

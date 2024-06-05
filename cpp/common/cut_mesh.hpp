@@ -183,6 +183,13 @@ template <typename Mesh> class ActiveMesh {
     void createSurfaceMesh(const Interface<Mesh> &interface);
 
     /**
+     * @brief Create an active mesh of elements touching the boundary, or are cut by interface.
+     *
+     * @param interface Interface<Mesh> object.
+     */
+    void createBoundaryAndSurfaceMesh(const Interface<Mesh> &interface);
+
+    /**
      * @brief Create an active mesh of a time-dependent surface.
      *
      * @param interface TimeInterface<Mesh> object.
