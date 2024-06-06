@@ -2143,7 +2143,7 @@
 
 
 #ifdef FITTED_3FIELD_EIGEN
-    bool usingLagrangeMultiplierBC = true;
+    bool usingLagrangeMultiplierBC = false;
 
     using namespace globalVariable;
     namespace Data_CubeHole { // f = 1/eps curl j => div f = 0 !
@@ -2326,31 +2326,32 @@
             , Kh);
 
             if (!usingLagrangeMultiplierBC) {
-                // Essential BC (natural BC has no matrix terms)
-                R pp = 1e2;
-                maxwell3D.addBilinear(
-                    +innerProduct(u, cross(n,tau))
-                    +innerProduct(cross(n,w), v)
-                    -innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
-                , Kh, INTEGRAL_BOUNDARY);
                 // For PETSc
                 maxwell3D.addBilinear(
                     +innerProduct(0*u,v)
                     +innerProduct(0*p,q)
                 , Kh);
+                // Essential BC Nitsche
+                // R pp = 1e2;
+                // maxwell3D.addBilinear(
+                //     +innerProduct(u, cross(n,tau))
+                //     +innerProduct(cross(n,w), v)
+                //     -innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
+                // , Kh, INTEGRAL_BOUNDARY);
+                // Essential BC strong
+                Fun_h fun0(Wh, fun_0);
+                maxwell3D.setDirichletHcurl(fun0, Kh);
+                
                 // RHS MAT
-                CutFEM<Mesh> massRHS(Uh); massRHS.add(Vh); massRHS.add(Wh);
-                R el_area = hi*hi*hi;
-                R regularizer = 1e-12/el_area;
+                R regularizer = 1e-12/(hi*hi*hi);
                 massRHS.addBilinear( 
                     +innerProduct(u, v)
                     +innerProduct(w, regularizer*tau)
                     +innerProduct(p, regularizer*q)
                 , Kh);
             } else { // Lagrange multiplier for boundary condition
-                InterfaceLevelSet<Mesh> interface(Kh_, levelSet);
-                Normal n;
                 ActiveMesh<Mesh> Khsurf(Kh_); // Remove interior
+                // InterfaceLevelSet<Mesh> interface(Kh_, levelSet); Normal n;
                 // Khsurf.createSurfaceMesh(interface);
                 Khsurf.createBoundaryMesh();
                 Khsurf.info();
@@ -2365,7 +2366,8 @@
                 maxwell3D.addBilinear(
                     +innerProduct(p_itf, cross(n,tau))
                     +innerProduct(cross(n,w), q_itf)
-                , Kh, INTEGRAL_BOUNDARY);
+                    // +innerProduct(p_itf, q_itf)
+                , Kh_, INTEGRAL_BOUNDARY);
                 // For PETSc
                 maxwell3D.addBilinear(
                     +innerProduct(0*u,v)
@@ -2383,7 +2385,6 @@
                     +innerProduct(p, regularizer*q)
                 , Kh);
                 massRHS.add(WWWh_itf);
-                R regularizer_itf = 1e-12/(hi*hi); // divide by area
                 massRHS.addBilinear(
                     +innerProduct(p_itf, regularizer*q_itf)
                 , Khsurf);

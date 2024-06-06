@@ -97,7 +97,8 @@ template <typename Mesh> class BaseCutFEM : public BaseFEM<Mesh> {
                                const TimeSlab *In, int itq, double cst_time);
 
     // set strong Dirichlet condition
-    void setDirichlet(const FunFEM<Mesh> &gh, const CutMesh &Th, std::list<int> label = {});
+    void setDirichletHdiv(const FunFEM<Mesh> &gh, const CutMesh &Th, std::list<int> label = {});
+    void setDirichletHcurl(const FunFEM<Mesh> &gh, const CutMesh &Th, std::list<int> label = {});
 
     // integral on interface
     using BaseFEM<Mesh>::addBilinear;

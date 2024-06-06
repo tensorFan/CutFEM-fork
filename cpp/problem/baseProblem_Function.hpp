@@ -832,12 +832,14 @@ void BaseFEM<M>::addBorderContribution(const itemVFlist_t &VF, const Element &K,
         int kb                = Vhu.Th(K); // same background index for U and V
         std::vector<int> idxKu = Vhu.idxAllElementFromBackMesh(kb, -1);
         std::vector<int> idxKv = Vhv.idxAllElementFromBackMesh(kb, -1);
+        if (idxKu.empty() || idxKv.empty()) // Erik June 2024: if there is no backmesh element, skip
+            continue;
         int ku                 = idxKu[subDomId]; // VF[0].onWhatElementIsTestFunction (idxK);
         int kv                 = idxKv[subDomId]; // VF[0].onWhatElementIsTestFunction (idxK);
 
         const FElement &FKu(Vhu[ku]);
         const FElement &FKv(Vhv[kv]);
-        int domain = FKv.get_domain();
+        int domain = FKv.get_domain(); 
         this->initIndex(FKu, FKv);
 
         // BF MEMORY MANAGEMENT -
@@ -1050,9 +1052,7 @@ void BaseFEM<Mesh>::setDirichlet(const FunFEM<Mesh> &gh, const Mesh &Th, std::li
                         int id_face = id_item - K.nv;
                         if (id_face == ifac) {
                             int df_glob = FK.loc2glb(df);
-                            // dof2set.insert({df_glob, gh(df_glob)});
                             dof2set.insert({df_glob, gh(df_glob)});
-
                             // std::cout << df_glob << std::endl;
                         }
                     } else {
