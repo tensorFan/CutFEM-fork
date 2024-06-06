@@ -550,6 +550,62 @@ template <typename Mesh> void ActiveMesh<Mesh>::createSurfaceMesh(const Interfac
 }
 
 template <typename Mesh>
+void ActiveMesh<Mesh>::createBoundaryMesh() {
+
+    int dom_size = this->get_nb_domain();
+    idx_element_domain.resize(0);
+
+    {     // Resize and reserve space for boundary elements, if has two domains? Perhaps unnecessary
+        for (int d = 0; d < dom_size; ++d) {
+            idx_in_background_mesh_[d].resize(0);
+            int nt_max = idx_from_background_mesh_[d].size();
+            idx_in_background_mesh_[d].reserve(nt_max);
+        }
+    }
+
+    std::vector<int> nt(dom_size, 0);
+    for (int d = 0; d < dom_size; ++d) {
+        for (auto it_k = idx_from_background_mesh_[d].begin(); it_k != idx_from_background_mesh_[d].end();) {
+
+            int kb = it_k->first;
+            int k = it_k->second;
+
+            // Check if the element is on the boundary
+            bool is_boundary = false;
+            int ifac;
+            int idx_be;
+            for (idx_be = this->Th.first_boundary_element(); idx_be < this->Th.last_boundary_element();
+                idx_be += this->Th.next_boundary_element()) {
+                if (idx_be == k) {
+                    kb = this->Th.BoundaryElement(idx_be, ifac);
+                    is_boundary = true;
+                    break;
+                }
+            }
+
+            // REMOVE THE Mesh::Element IN THE INPUT DOMAIN IF NOT CUT AND NOT ON BOUNDARY
+            if (!is_boundary) {
+                it_k = idx_from_background_mesh_[d].erase(it_k);
+                continue;
+            } 
+            // If on the boundary, keep the element and increment the counter
+            idx_in_background_mesh_[d].push_back(kb);
+            it_k->second = nt[d];
+            nt[d]++;
+            it_k++;
+        }
+    }
+    // Finalize element domain indices
+    idx_element_domain.push_back(0);
+    for (int d = 0; d < dom_size; ++d) {
+        idx_in_background_mesh_[d].resize(nt[d]);
+        idx_in_background_mesh_[d].shrink_to_fit();
+        int sum_nt = idx_element_domain[d] + nt[d];
+        idx_element_domain.push_back(sum_nt);
+    }
+}
+
+template <typename Mesh>
 void ActiveMesh<Mesh>::createBoundaryAndSurfaceMesh(const Interface<Mesh> &interface) {
 
     int dom_size = this->get_nb_domain();
