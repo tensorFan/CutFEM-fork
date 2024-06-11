@@ -816,6 +816,60 @@ template <typename Mesh> double maxNorm(const std::shared_ptr<ExpressionVirtual>
     return val_receive;
 }
 
+// max norm over also edges
+template <typename Mesh> double maxNormEdges(const std::shared_ptr<ExpressionVirtual> &fh, const Mesh &Th, const GFESpace<Mesh> &P1_h) {
+
+    typedef GFESpace<Mesh> FESpace;
+    typedef typename FESpace::FElement FElement;
+    typedef typename ActiveMesh<Mesh>::Element Element;
+    typedef typename FElement::QF QF;
+    typedef typename FElement::Rd Rd;
+    typedef typename QF::QuadraturePoint QuadraturePoint;
+
+    const QF &qf(*QF_Simplex<typename FElement::RdHat>(5));
+    What_d Fop = Fwhatd(op_id);
+
+    double val = 0.;
+
+    for (int k = Th.first_element(); k < Th.last_element(); k += Th.next_element()) {
+        const Element &K(Th[k]);
+        const FElement &FK_vertex(P1_h[k]);
+
+        for (int ipq = 0; ipq < qf.getNbrOfQuads(); ++ipq) {
+
+            QuadraturePoint ip(qf[ipq]); // integration point
+            Rd mip = K.mapToPhysicalElement(ip);
+
+            val = std::max(val, fabs(fh->eval(k, mip)));
+        }
+
+        for (int e = 0; e < Element::ne; ++e) { // Loop over edges of the element (six in case of 3D)
+            int v1 = Element::nvedge[e][0];
+            int v2 = Element::nvedge[e][1];
+
+            // Get the physical coordinates of the vertices
+            const R3& vertex1 = Th.vertices[FK_vertex.loc2glb(v1)];
+            const R3& vertex2 = Th.vertices[FK_vertex.loc2glb(v2)];
+
+            for (int t_=25; t_<100; t_=t_+25) {
+                R t = 0.01*t_;
+                R3 point = vertex1*t + vertex2*(1-t);
+
+                val = std::max(val, fabs(fh->eval(k, point)));
+            }
+
+        }
+    }
+    double val_receive = 0;
+#ifdef USE_MPI
+    MPIcf::AllReduce(val, val_receive, MPI_MAX);
+#else
+    val_receive = val;
+#endif
+
+    return val_receive;
+}
+
 /*---------------------------- cut local L2 norm ----------------------------
 Integrates only over elements whose edges are not part of the stabilised edges,
 thereby neglecting elements messed up by the mcdonald stab

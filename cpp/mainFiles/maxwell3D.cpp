@@ -18,7 +18,7 @@
 // f = 1/eps curl j => div f = 0 !
 // #define FITTED_WAVE_EIGEN
 // #define UNFITTED_WAVE_EIGEN
-// #define FITTED_WAVE
+#define FITTED_WAVE
 // #define UNFITTED_WAVE
 
 // #define FITTED_KIKUCHI_EIGEN
@@ -26,7 +26,7 @@
 // #define FITTED_KIKUCHI
 // #define UNFITTED_KIKUCHI
 
-# define FITTED_3FIELD_EIGEN
+// # define FITTED_3FIELD_EIGEN
 // # define UNFITTED_3FIELD_EIGEN
 // # define FITTED_3FIELD
 // #define UNFITTED_3FIELD
@@ -114,7 +114,7 @@
             Fun_h curlu0(Velh, fun_exact_curlu);
 
             // Init system matrix & assembly
-            FEM<Mesh> maxwell3D(Uh);
+            CutFEM<Mesh> maxwell3D(Uh);
 
             /* Syntax:
             FunTest (fem space, #components, place in space)
@@ -130,14 +130,16 @@
                 // -innerProduct(k * k * u, v)
             , Kh);
             // BC
-            // Essential n x E
-            R pp = 1e0;
-            maxwell3D.addBilinear( 
-                -innerProduct(epsi * mui * curl(u), cross(n, v))
-                +innerProduct(epsi * mui * cross(n, u), curl(v))
-                +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
-            , Kh, INTEGRAL_BOUNDARY);
-            // Natural (only adds to RHS)
+            // Essential n x E (Nitsche)
+            // R pp = 1e0;
+            // maxwell3D.addBilinear( 
+            //     -innerProduct(epsi * mui * curl(u), cross(n, v))
+            //     +innerProduct(epsi * mui * cross(n, u), curl(v))
+            //     +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
+            // , Kh, INTEGRAL_BOUNDARY);
+            // Essential n x E (strong)
+            Fun_h fun0(Uh, fun_0);
+            maxwell3D.setDirichletHcurl(fun0, Kh);
 
             matlab::Export(maxwell3D.mat_[0], "A" + std::to_string(i) + ".dat");
             // Eigenvalue problem
@@ -580,7 +582,7 @@
 
         std::vector<double> ul2, pl2, divmax, divl2, h, convu, convp;
 
-        int iters = 2;
+        int iters = 1;
         for (int i = 0; i < iters; ++i) {
 
             // Mesh3 Kh(nx, ny, nz, 0., 0., 0., 1., 1., 1.);
@@ -624,20 +626,20 @@
             , Kh);
             // BC
             // Essential
-            // R pp = 1e2;
-            // maxwell3D.addBilinear( 
-            //     -innerProduct(1./mu * curl(u), cross(n, v))
-            //     -innerProduct(1./mu * cross(n, u), curl(v))
-            //     +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
-            // , Kh, INTEGRAL_BOUNDARY);
-            // maxwell3D.addLinear(
-            //     -innerProduct(cross(n, u0), 1./mu * curl(v))
-            //     +innerProduct(cross(n, u0), 1./hi*pp*cross(n, v))
-            // , Kh, INTEGRAL_BOUNDARY);
-            // Natural
-            maxwell3D.addLinear(
-                -innerProduct(cross(n, curlu0), epsi * mui * v)
+            R pp = 1e2;
+            maxwell3D.addBilinear( 
+                -innerProduct(epsi * mui * curl(u), cross(n, v))
+                -innerProduct(epsi * mui * cross(n, u), curl(v))
+                +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
             , Kh, INTEGRAL_BOUNDARY);
+            maxwell3D.addLinear(
+                -innerProduct(cross(n, u0), epsi * mui * curl(v))
+                +innerProduct(cross(n, u0), 1./hi*pp*cross(n, v))
+            , Kh, INTEGRAL_BOUNDARY);
+            // Natural
+            // maxwell3D.addLinear(
+            //     -innerProduct(cross(n, curlu0), epsi * mui * v)
+            // , Kh, INTEGRAL_BOUNDARY);
 
             matlab::Export(maxwell3D.mat_[0], "mat" + std::to_string(i) + "Cut.dat");
             maxwell3D.solve("umfpack");
@@ -677,7 +679,8 @@
 
             R errU      = L2norm(uh, fun_exact_u, 0, 3);
             R errDiv    = L2norm(uh_0dx + uh_1dy + uh_2dz, fun_0, Kh);
-            R maxErrDiv = maxNorm(uh_0dx + uh_1dy + uh_2dz, Kh);
+            Space P1_(Kh, DataFE<Mesh>::P1);
+            R maxErrDiv = maxNormEdges(uh_0dx + uh_1dy + uh_2dz, Kh, P1_);
             // R maxErrDiv = maxNorm(uh_0dx, Kh);
 
             h.push_back(hi);
@@ -2143,7 +2146,7 @@
 
 
 #ifdef FITTED_3FIELD_EIGEN
-    bool usingLagrangeMultiplierBC = false;
+    bool usingLagrangeMultiplierBC = true;
 
     using namespace globalVariable;
     namespace Data_CubeHole { // f = 1/eps curl j => div f = 0 !
@@ -2346,7 +2349,7 @@
                 R regularizer = 1e-12/(hi*hi*hi);
                 massRHS.addBilinear( 
                     +innerProduct(u, v)
-                    +innerProduct(w, regularizer*tau)
+                    +innerProduct(w, 0*tau)
                     +innerProduct(p, regularizer*q)
                 , Kh);
             } else { // Lagrange multiplier for boundary condition
@@ -2360,7 +2363,8 @@
                 Paraview<Mesh> writer(Khsurf, "maxwell_bdrymesh_" + std::to_string(i) + ".vtk");
                 writer.add(levelSet, "levelset", 0, 1);
 
-                LagrangeDC3 P0dc3(0); Space WWWh(Kh_, P0dc3); CutSpace WWWh_itf(Khsurf, WWWh);
+                LagrangeDC3 P0dc3(1); Space WWWh(Kh_, P0dc3); CutSpace WWWh_itf(Khsurf, WWWh);
+                // Lagrange3 P13(1); Space WWWh(Kh_, P13); CutSpace WWWh_itf(Khsurf, WWWh);
                 maxwell3D.add(WWWh_itf);
                 FunTest p_itf(WWWh_itf, 3, 0), q_itf(WWWh_itf, 3, 0);
                 maxwell3D.addBilinear(
