@@ -18,7 +18,7 @@
 // f = 1/eps curl j => div f = 0 !
 // #define FITTED_WAVE_EIGEN
 // #define UNFITTED_WAVE_EIGEN
-#define FITTED_WAVE
+// #define FITTED_WAVE
 // #define UNFITTED_WAVE
 
 // #define FITTED_KIKUCHI_EIGEN
@@ -28,7 +28,7 @@
 
 // # define FITTED_3FIELD_EIGEN
 // # define UNFITTED_3FIELD_EIGEN
-// # define FITTED_3FIELD
+# define FITTED_3FIELD
 // #define UNFITTED_3FIELD
 
 
@@ -604,7 +604,7 @@
             Fun_h curlu0(Velh, fun_exact_curlu);
 
             // Init system matrix & assembly
-            FEM<Mesh> maxwell3D(Uh);
+            CutFEM<Mesh> maxwell3D(Uh);
             // maxwell3D.add(Wh);
 
             /* Syntax:
@@ -682,6 +682,14 @@
             Space P1_(Kh, DataFE<Mesh>::P1);
             R maxErrDiv = maxNormEdges(uh_0dx + uh_1dy + uh_2dz, Kh, P1_);
             // R maxErrDiv = maxNorm(uh_0dx, Kh);
+
+            // Face jump errors as measure of weak divergence error
+            Space P0_(Kh, DataFE<Mesh>::P0); FunTest p(P0_, 1, 0), q(P0_, 1, 0);
+            CutFEM<Mesh> err_face_jumps(P0_);
+            err_face_jumps.addLinear(
+                +innerProduct(uh.exprList(), uh.exprList() * jump(q))
+            , Kh, INTEGRAL_INNER_FACET);
+            errDiv = sqrt(abs(err_face_jumps.rhs_.sum()));
 
             h.push_back(hi);
             ul2.push_back(errU);
@@ -2922,7 +2930,7 @@
 
         std::vector<double> ul2, pl2, divmax, divl2, h, convu, convp;
 
-        int iters = 2;
+        int iters = 1;
         for (int i = 0; i < iters; ++i) {
             // Mesh3 Kh(nx, ny, nz, 0., 0., 0., 1., 1., 1.);
             // Mesh3 Kh("../cpp/mainFiles/meshes/cube_"+std::to_string(i), MeshFormat::mesh_gmsh);
@@ -2992,24 +3000,6 @@
             // maxwell3D.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
 
             matlab::Export(maxwell3D.mat_[0], "mat" + std::to_string(i) + ".dat");
-
-            // Eigenvalue problem
-            // FEM<Mesh> massRHS(Uh); massRHS.add(Vh); massRHS.add(Wh);
-            // massRHS.addBilinear( 
-            //     +innerProduct(k * k * eps * u, v)
-            // , Kh);
-            // massRHS.addBilinear(
-            //     -innerProduct(w, 0*tau)
-            //     -innerProduct(p, 0*q)
-            // , Kh);
-            // massRHS.addLagrangeMultiplier(
-            //     -innerProduct(not_exact_form.exprList(), 0*v), 0
-            // , Kh);
-            // matlab::Export(massRHS.mat_[0], "mat" + std::to_string(i) + "RHS.dat");
-            // nx = 2 * nx - 1;
-            // ny = 2 * ny - 1;
-            // nz = 2 * nz - 1;
-            // continue;
             maxwell3D.solve("umfpack");
             
             // EXTRACT SOLUTION
@@ -3062,6 +3052,18 @@
             R errDiv    = L2norm(uh_0dx + uh_1dy + uh_2dz, fun_0, Kh);
             R maxErrDiv = maxNorm(uh_0dx + uh_1dy + uh_2dz, Kh);
             // R maxErrDiv = maxNorm(uh_0dx, Kh);
+
+            // Face jump errors as measure of weak divergence error
+            Space P0_(Kh, DataFE<Mesh>::P0); FunTest q0(P0_, 1, 0);
+            CutFEM<Mesh> err_face_jumps(P0_);
+            err_face_jumps.BaseFEM<Mesh>::addLinearSquareIntegrand(
+                // +innerProduct(1, jump(v*n))
+                +innerProduct(1, jump(q0))
+                // +innerProduct(1, jump(uh*n * q0))
+                // +innerProduct(1, jump(wh*n * q0))
+            , Kh, INTEGRAL_INNER_FACE_3D);
+            errDiv = sqrt(abs(err_face_jumps.rhs_.sum()));
+            // errDiv = abs(err_face_jumps.rhs_.sum());
 
             ul2.push_back(errU);
             pl2.push_back(errP);

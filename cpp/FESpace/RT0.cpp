@@ -382,11 +382,8 @@ void TypeOfFE_RT0_3d::FB(const What_d whatd, const Element &K, const R3 &PHat, R
     // "<<K.faceOrient(0)<< " " << K.faceOrient(1) << " " << K.faceOrient(2) << "
     // " << K.faceOrient(3) <<endl;
     R cc    = 1. / (d * K.measure()); //! Original
-    R cc2   = (d * K.measure());      //! Mine
-    // R ci[4] = {cc * K.faceOrient(0), cc * K.faceOrient(1), cc * K.faceOrient(2), cc * K.faceOrient(3)};   //!
-    // Original
-    R ci[4] = {cc * cc2 * K.faceOrient(0), cc * cc2 * K.faceOrient(1), cc * cc2 * K.faceOrient(2),
-               cc * cc2 * K.faceOrient(3)}; //! Mine
+    // R cc   = 1;      //! Mine
+    R ci[4] = {cc * K.faceOrient(0), cc * K.faceOrient(1), cc * K.faceOrient(2), cc * K.faceOrient(3)};
 
     if (whatd & Fop_D0) {
         R3 X  = K(PHat);

@@ -17,7 +17,54 @@ class TypeOfFE_Ned0_kind1 : public GTypeOfFE<Mesh3> {
 
     void FB(const What_d whatd, const Element &K, const R3 &PHat, RNMK_ &bfMat) const;
     void get_Coef_Pi_h(const GbaseFElement<Mesh> &K, KN_<double> &v) const; // ,int ocoef,int odf,int *nump  ) const;
+
+    // DefElement
+    struct defel_BFs { // DefElement BFs: https://defelement.com/elements/examples/tetrahedron-nedelec1-lagrange-1.html
+        // Define each phi function
+        R3 phi0(const R3& r) const {
+            return R3(0, -r.z, r.y);
+        }
+        R3 phi1(const R3& r) const {
+            return R3(-r.z, 0, r.x);
+        }
+        R3 phi2(const R3& r) const {
+            return R3(-r.y, r.x, 0);
+        }
+        R3 phi3(const R3& r) const {
+            return R3(r.z, r.z, -r.x - r.y + 1);
+        }
+        R3 phi4(const R3& r) const {
+            return R3(r.y, -r.x - r.z + 1, r.y);
+        }
+        R3 phi5(const R3& r) const {
+            return R3(-r.y - r.z + 1, r.x, r.x);
+        }
+        // Function pointer array to access the phi functions by index
+        std::array<std::function<R3(const R3&)>, 6> defel_BFs_arr;
+
+        // Constructor to initialize the function pointers
+        defel_BFs() {
+            defel_BFs_arr[0] = [this](const R3& r) { return phi0(r); };
+            defel_BFs_arr[1] = [this](const R3& r) { return phi1(r); };
+            defel_BFs_arr[2] = [this](const R3& r) { return phi2(r); };
+            defel_BFs_arr[3] = [this](const R3& r) { return phi3(r); };
+            defel_BFs_arr[4] = [this](const R3& r) { return phi4(r); };
+            defel_BFs_arr[5] = [this](const R3& r) { return phi5(r); };
+        }
+
+        // Function to call the appropriate phi function by index
+        R3 operator()(int index, const R3& r) const {
+            if (index < 0 || index >= defel_BFs_arr.size()) {
+                throw std::out_of_range("Index out of range");
+            }
+            return defel_BFs_arr[index](r);
+        }
+    };
+    private:
+    defel_BFs ref_funs; // Instance of defel_BFs struct
 };
+
+
 
 // int TypeOfFE_Ned0_kind1::dfon[]={0,1,0,0};
 int TypeOfFE_Ned0_kind1::Data[]{
@@ -110,11 +157,15 @@ void TypeOfFE_Ned0_kind1::FB(const What_d whatd, const Element &K, const R3 &PHa
     int se[] = {K.EdgeOrientation(0), K.EdgeOrientation(1), K.EdgeOrientation(2),
                 K.EdgeOrientation(3), K.EdgeOrientation(4), K.EdgeOrientation(5)};
 
-    R cc = K.N_notNormalized(0).norm() / 2; // area of face 0
+    // R cc = K.N_notNormalized(0).norm() / 2; // area of face 0
+
+    // // Covariant Piola mapping
+    // auto [Ainv, c] = createAffineMapInverse<3>(K); // Ainv, c automatically initialized and created
+    // KNM<R> Jtinv(3, 3);
+    // Jtinv = transposeKNM<3>(Ainv);
 
     if (whatd & Fop_D0) {
         R3 X = K(PHat);
-        // int k=0;
         for (int i = 0; i < 6; ++i) {
             int i0 = Element::nvedge[i][0], i1 = Element::nvedge[i][1];
             if (se[i] < 0)
@@ -125,8 +176,17 @@ void TypeOfFE_Ned0_kind1::FB(const What_d whatd, const Element &K, const R3 &PHa
             bfMat(i, 0, op_id) = wi.x;
             bfMat(i, 1, op_id) = wi.y;
             bfMat(i, 2, op_id) = wi.z;
-            // cout  << "Edge0 3d  "<<i << " "<< X << " " <<wi << " fo: " <<se[i] <<endl;
+
+            // // Check coincides with Fenics implementation
+            // std::cout << "FreeFEM function " << i << ": " << wi << " ---------------------" << std::endl;
+            // for (int j = 0; j < 6; ++j) {
+            //     // R3 phi = mult<3>(Jtinv, ref_funs(i, PHat));
+            //     R3 phi = mult<3>(Jtinv, ref_funs(j, applyAffineMap<3>(Ainv, c, X)));
+            //     std::cout << "Fenics defelement function " << j << ": " << phi << std::endl;// " || Fenics ref element: " << ref_funs(j, PHat) << std::endl;
+            // }
+            // std::cout << "---------------------------------" << std::endl;
         }
+        // std::getchar();
     }
 
     if (whatd & Fop_D1) {
@@ -140,16 +200,7 @@ void TypeOfFE_Ned0_kind1::FB(const What_d whatd, const Element &K, const R3 &PHa
                 bfMat(i, 0, op_dx) = wi.x;
                 bfMat(i, 1, op_dx) = wi.y;
                 bfMat(i, 2, op_dx) = wi.z;
-                // std::cout << "Element: " << K[0] << ", " << K[1] << ", " << K[2] << ", " << K[3] << std::endl;
-                // std::cout << "(i0, i1)= " << i0 << ", " << i1 << std::endl;
                 // std::cout << "Koordinates of vertex i0: " << K[i0] << std::endl;
-                // std::cout << "grad(phi_i0), grad(phi_i1): " << D[i0] << ", " << D[i1] << std::endl;
-                // std::cout << "phi_i0, phi_i1: " << l[i0] << ", " << l[i1] << std::endl;
-                // std::cout << "PHat: " << PHat << std::endl;
-                // //std::cout << 1. - K[i0].x - K[i0].y - K[i0].z << std::endl;
-                // std::cout << 1. - PHat.sum() << std::endl;
-                // std::cout << wi << std::endl;
-                // getchar();
             }
             if (whatd & Fop_dy) {
                 R3 wi              = D[i0].y * D[i1] - D[i1].y * D[i0];  //! Original

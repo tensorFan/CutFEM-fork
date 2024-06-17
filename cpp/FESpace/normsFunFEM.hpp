@@ -870,6 +870,9 @@ template <typename Mesh> double maxNormEdges(const std::shared_ptr<ExpressionVir
     return val_receive;
 }
 
+
+
+
 /*---------------------------- cut local L2 norm ----------------------------
 Integrates only over elements whose edges are not part of the stabilised edges,
 thereby neglecting elements messed up by the mcdonald stab

@@ -219,19 +219,8 @@ template <class mesh> struct DataFE {
 };
 
 template <int D> void jacobianLinearTransformation(KNM<R> &J, const Triangle2 &T);
-
 template <int D> void inverseJacobian(const KNM<R> &J, const double inv_detJ, KNM<R> &invJ);
-
 template <int D> double inverseDeterminant(const KNM<R> &J);
-
-template <int D>
-void piolatTransformation(const KN_<R> &Ji, double inv_detJ, const std::vector<std::vector<double>> &bf, RN_ &bfMat);
-
-template <int D> double piolatTransformation(const KN_<R> &Ji, double inv_detJ, std::vector<double> &phi);
-
-template <int D>
-void piolatTransformationGradient(int df, const KNM_<R> &J, const KNM_<R> &invJ, double inv_det_J,
-                                  const KNM_<R> &Dphi_ref, KNMK_<R> &bfMat);
 
 template <> inline void jacobianLinearTransformation<2>(KNM<R> &J, const Triangle2 &T) {
     R2 xv0  = T.at(0);
@@ -254,29 +243,83 @@ template <> inline double inverseDeterminant<2>(const KNM<R> &J) {
     return 1. / (J(0, 0) * J(1, 1) - J(0, 1) * J(1, 0));
 }
 
-// template <>
-// inline void
-// piolatTransformation<2>(const KN_<R> &Ji, double inv_detJ,
-//                         const std::vector<std::vector<double>> &bf_ref,
-//                         RN_ &bfMat) {
-//     int df = 0;
-//     for (const auto &phi : bf_ref) {
-//         bfMat[df++] =
-//             inv_detJ * (phi[0] * std::abs(Ji[0]) + phi[1] * std::abs(Ji[1]));
-//     }
-//     bfMat[9]  = inv_detJ * (bf_ref[9][0] * (Ji[0]) + bf_ref[9][1] * (Ji[1]));
-//     bfMat[10] = inv_detJ * (bf_ref[10][0] * (Ji[0]) + bf_ref[10][1] *
-//     (Ji[1])); bfMat[11] = inv_detJ * (bf_ref[11][0] * (Ji[0]) + bf_ref[11][1]
-//     * (Ji[1]));
-// }
+template <int D> auto transposeKNM(const KNM<R> &A);
+template <int D> auto mult(const KNM<R> &A, const R3 &b);
+template <int D> auto createAffineMap(const Tet &T);
+template <int D> auto applyAffineMap(const KNM<R> &A, const R3 &b, const R3 &x);
+template <int D> auto createAffineMapInverse(const Tet &T);
+
+template <> inline auto transposeKNM<3>(const KNM<R> &A) {
+    KNM<R> At(3, 3);
+    At(0, 0) = A(0, 0); At(0, 1) = A(1, 0); At(0, 2) = A(2, 0);
+    At(1, 0) = A(0, 1); At(1, 1) = A(1, 1); At(1, 2) = A(2, 1);
+    At(2, 0) = A(0, 2); At(2, 1) = A(1, 2); At(2, 2) = A(2, 2);
+    return At;
+}
+template <> inline auto mult<3>(const KNM<R> &A, const R3 &b) {
+    R3 result;
+    result[0] = A(0, 0) * b[0] + A(0, 1) * b[1] + A(0, 2) * b[2];
+    result[1] = A(1, 0) * b[0] + A(1, 1) * b[1] + A(1, 2) * b[2];
+    result[2] = A(2, 0) * b[0] + A(2, 1) * b[1] + A(2, 2) * b[2];
+    return result;
+}
+// For four points y_i, the mapping is b=y1, A(:,j) = y_{j+1}-y1. Check augmented matrix here https://en.wikipedia.org/wiki/Affine_transformation
+template <> inline auto createAffineMap<3>(const Tet &T) {
+    KNM<R> A(3, 3);
+    R3 y1  = T.at(0); R3 y2  = T.at(1); R3 y3  = T.at(2); R3 y4  = T.at(3);
+    A(0,0) = y2[0] - y1[0]; A(0,1) = y3[0] - y1[0]; A(0,2) = y4[0] - y1[0];
+    A(1,0) = y2[1] - y1[1]; A(1,1) = y3[1] - y1[1]; A(1,2) = y4[1] - y1[1];
+    A(2,0) = y2[2] - y1[2]; A(2,1) = y3[2] - y1[2]; A(2,2) = y4[2] - y1[2];
+    return std::make_tuple(A, y1); // tuple accessed as auto [A, y1] = createAffineMap<3>(T)
+}
+template <> inline auto applyAffineMap<3>(const KNM<R> &A, const R3 &b, const R3 &x) {
+    return mult<3>(A, x) + b;
+}
+template <> inline auto createAffineMapInverse<3>(const Tet &T) {
+    KNM<R> Ainv(3, 3); R3 c; // c = Ainv*b = Ainv * y1
+    R3 y1  = T.at(0); R3 y2  = T.at(1); R3 y3  = T.at(2); R3 y4  = T.at(3);
+    double detA = y1[2]*y2[1]*y3[0]-y1[1]*y2[2]*y3[0]-y1[2]*y2[0]*y3[1]+y1[0]*y2[2]*y3[1]+y1[1]*y2[0]*y3[2]-y1[0]*y2[1]*y3[2]-y1[2]*y2[1]*y4[0]+y1[1]*y2[2]*y4[0]+y1[2]*y3[1]*y4[0]-y2[2]*y3[1]*y4[0]-y1[1]*y3[2]*y4[0]+y2[1]*y3[2]*y4[0]+y1[2]*y2[0]*y4[1]-y1[0]*y2[2]*y4[1]-y1[2]*y3[0]*y4[1]+y2[2]*y3[0]*y4[1]+y1[0]*y3[2]*y4[1]-y2[0]*y3[2]*y4[1]-y1[1]*y2[0]*y4[2]+y1[0]*y2[1]*y4[2]+y1[1]*y3[0]*y4[2]-y2[1]*y3[0]*y4[2]-y1[0]*y3[1]*y4[2]+y2[0]*y3[1]*y4[2];
+    assert(detA != 0);
+    Ainv(0,0) = (-y1[2]*y3[1]+y1[1]*y3[2]+y1[2]*y4[1]-y3[2]*y4[1]-y1[1]*y4[2]+y3[1]*y4[2])/detA; Ainv(0,1) = (y1[2]*y3[0]-y1[0]*y3[2]-y1[2]*y4[0]+y3[2]*y4[0]+y1[0]*y4[2]-y3[0]*y4[2])/detA; Ainv(0,2) = (-y1[1]*y3[0]+y1[0]*y3[1]+y1[1]*y4[0]-y3[1]*y4[0]-y1[0]*y4[1]+y3[0]*y4[1])/detA;
+    Ainv(1,0) = (y1[2]*y2[1]-y1[1]*y2[2]-y1[2]*y4[1]+y2[2]*y4[1]+y1[1]*y4[2]-y2[1]*y4[2])/detA; Ainv(1,1) = (-y1[2]*y2[0]+y1[0]*y2[2]+y1[2]*y4[0]-y2[2]*y4[0]-y1[0]*y4[2]+y2[0]*y4[2])/detA; Ainv(1,2) = (y1[1]*y2[0]-y1[0]*y2[1]-y1[1]*y4[0]+y2[1]*y4[0]+y1[0]*y4[1]-y2[0]*y4[1])/detA;
+    Ainv(2,0) = (-y1[2]*y2[1]+y1[1]*y2[2]+y1[2]*y3[1]-y2[2]*y3[1]-y1[1]*y3[2]+y2[1]*y3[2])/detA; Ainv(2,1) = (y1[2]*y2[0]-y1[0]*y2[2]-y1[2]*y3[0]+y2[2]*y3[0]+y1[0]*y3[2]-y2[0]*y3[2])/detA; Ainv(2,2) = (-y1[1]*y2[0]+y1[0]*y2[1]+y1[1]*y3[0]-y2[1]*y3[0]-y1[0]*y3[1]+y2[0]*y3[1])/detA;
+    // c[0] = (-y1[2]*y3[1]*y4[0]+y1[1]*y3[2]*y4[0]+y1[2]*y3[0]*y4[1]-y1[0]*y3[2]*y4[1]-y1[1]*y3[0]*y4[2]+y1[0]*y3[1]*y4[2])/detA; //(y1[2]*y2[1]*y3[0]-y1[1]*y2[2]*y3[0]-y1[2]*y2[0]*y3[1]+y1[0]*y2[2]*y3[1]+y1[1]*y2[0]*y3[2]-y1[0]*y2[1]*y3[2]-y1[2]*y2[1]*y4[0]+y1[1]*y2[2]*y4[0]+y1[2]*y3[1]*y4[0]-y2[2]*y3[1]*y4[0]-y1[1]*y3[2]*y4[0]+y2[1]*y3[2]*y4[0]+y1[2]*y2[0]*y4[1]-y1[0]*y2[2]*y4[1]-y1[2]*y3[0]*y4[1]+y2[2]*y3[0]*y4[1]+y1[0]*y3[2]*y4[1]-y2[0]*y3[2]*y4[1]-y1[1]*y2[0]*y4[2]+y1[0]*y2[1]*y4[2]+y1[1]*y3[0]*y4[2]-y2[1]*y3[0]*y4[2]-y1[0]*y3[1]*y4[2]+y2[0]*y3[1]*y4[2])
+    // c[1] = (y1[2]*y2[1]*y4[0]-y1[1]*y2[2]*y4[0]-y1[2]*y2[0]*y4[1]+y1[0]*y2[2]*y4[1]+y1[1]*y2[0]*y4[2]-y1[0]*y2[1]*y4[2])/detA; //(y1[2]*y2[1]*y3[0]-y1[1]*y2[2]*y3[0]-y1[2]*y2[0]*y3[1]+y1[0]*y2[2]*y3[1]+y1[1]*y2[0]*y3[2]-y1[0]*y2[1]*y3[2]-y1[2]*y2[1]*y4[0]+y1[1]*y2[2]*y4[0]+y1[2]*y3[1]*y4[0]-y2[2]*y3[1]*y4[0]-y1[1]*y3[2]*y4[0]+y2[1]*y3[2]*y4[0]+y1[2]*y2[0]*y4[1]-y1[0]*y2[2]*y4[1]-y1[2]*y3[0]*y4[1]+y2[2]*y3[0]*y4[1]+y1[0]*y3[2]*y4[1]-y2[0]*y3[2]*y4[1]-y1[1]*y2[0]*y4[2]+y1[0]*y2[1]*y4[2]+y1[1]*y3[0]*y4[2]-y2[1]*y3[0]*y4[2]-y1[0]*y3[1]*y4[2]+y2[0]*y3[1]*y4[2]);
+    // c[2] = (-y1[2]*y2[1]*y3[0]+y1[1]*y2[2]*y3[0]+y1[2]*y2[0]*y3[1]-y1[0]*y2[2]*y3[1]-y1[1]*y2[0]*y3[2]+y1[0]*y2[1]*y3[2])/detA; //(y1[2]*y2[1]*y3[0]-y1[1]*y2[2]*y3[0]-y1[2]*y2[0]*y3[1]+y1[0]*y2[2]*y3[1]+y1[1]*y2[0]*y3[2]-y1[0]*y2[1]*y3[2]-y1[2]*y2[1]*y4[0]+y1[1]*y2[2]*y4[0]+y1[2]*y3[1]*y4[0]-y2[2]*y3[1]*y4[0]-y1[1]*y3[2]*y4[0]+y2[1]*y3[2]*y4[0]+y1[2]*y2[0]*y4[1]-y1[0]*y2[2]*y4[1]-y1[2]*y3[0]*y4[1]+y2[2]*y3[0]*y4[1]+y1[0]*y3[2]*y4[1]-y2[0]*y3[2]*y4[1]-y1[1]*y2[0]*y4[2]+y1[0]*y2[1]*y4[2]+y1[1]*y3[0]*y4[2]-y2[1]*y3[0]*y4[2]-y1[0]*y3[1]*y4[2]+y2[0]*y3[1]*y4[2]);
+    c = -mult<3>(Ainv, y1);
+    return std::make_tuple(Ainv, c); // Ainv is also inverse of Jacobian of the mapping x-> Ax+b
+}
+
+
+template <int D>
+void piolatTransformation(const KN_<R> &Ji, double inv_detJ, const std::vector<std::vector<double>> &bf, RN_ &bfMat);
+template <int D> double piolatTransformation(const KN_<R> &Ji, double inv_detJ, std::vector<double> &phi);
+template <int D>
+void piolatTransformationGradient(int df, const KNM_<R> &J, const KNM_<R> &invJ, double inv_det_J,
+                                  const KNM_<R> &Dphi_ref, KNMK_<R> &bfMat);
 template <>
-inline void piolatTransformation<2>(const KN_<R> &Ji, double inv_detJ, const std::vector<std::vector<double>> &bf_ref,
-                                    RN_ &bfMat) {
+inline void
+piolatTransformation<2>(const KN_<R> &Ji, double inv_detJ,
+                        const std::vector<std::vector<double>> &bf_ref,
+                        RN_ &bfMat) {
     int df = 0;
     for (const auto &phi : bf_ref) {
-        bfMat[df++] = inv_detJ * (phi[0] * (Ji[0]) + phi[1] * (Ji[1]));
+        bfMat[df++] =
+            inv_detJ * (phi[0] * std::abs(Ji[0]) + phi[1] * std::abs(Ji[1]));
     }
+    bfMat[9]  = inv_detJ * (bf_ref[9][0] * (Ji[0]) + bf_ref[9][1] * (Ji[1]));
+    bfMat[10] = inv_detJ * (bf_ref[10][0] * (Ji[0]) + bf_ref[10][1] *
+    (Ji[1])); bfMat[11] = inv_detJ * (bf_ref[11][0] * (Ji[0]) + bf_ref[11][1]
+    * (Ji[1]));
 }
+// template <>
+// inline void piolatTransformation<2>(const KN_<R> &Ji, double inv_detJ, const std::vector<std::vector<double>> &bf_ref,
+//                                     RN_ &bfMat) {
+//     int df = 0;
+//     for (const auto &phi : bf_ref) {
+//         bfMat[df++] = inv_detJ * (phi[0] * (Ji[0]) + phi[1] * (Ji[1]));
+//     }
+// }
 
 template <> inline double piolatTransformation<2>(const KN_<R> &Ji, double inv_detJ, std::vector<double> &phi) {
     return inv_detJ * (phi[0] * Ji[0] + phi[1] * Ji[1]);

@@ -20,8 +20,8 @@
 // #define FITTED_DARCY_EXAMPLE_NOTCIRCLE
 
 // #define DARCY_EXAMPLE_NOTCIRCLE
-#define DARCY_EXAMPLE_CIRCLE
-// #define DARCY_EXAMPLE_CIRCLE_SARA_TESTS
+// #define DARCY_EXAMPLE_CIRCLE
+#define DARCY_EXAMPLE_CIRCLE_SARA_TESTS
 // #define DARCY_EXAMPLE_TWO_BC_ANNULUS_PLUS_INTERFACE
 
 #ifdef FITTED_DARCY_EXAMPLE_NOTCIRCLE // ex 1
@@ -971,53 +971,52 @@
     R pie = M_PI;
     R shift = 0.5;
 
-    R fun_levelSet(const R2 P, const int i) {
-      return 0.45 - sqrt((P.x-shift)*(P.x-shift) + (P.y-shift)*(P.y-shift));
-    } // normal = 4*(x-1/2,y-1/2)
-
     // // [u+grad p = 0]
-    R fun_force(const R2 P, int compInd) {
-      return 0;
-    }
-    R fun_div(const R2 P, int compInd, int dom) {// is also exact divergence
-      return -8*pie*pie*sin(2*pie*P.x)*cos(2*pie*P.y);
-    }
-    R fun_exact_u(const R2 P, int compInd, int dom) {
-      R x = P.x;
-      R y = P.y;
-      if (compInd==0) {
-        return 2*pie*cos(2*pie*x)*cos(2*pie*y);
-      } else {
-        return -2*pie*sin(2*pie*x)*sin(2*pie*y);
-      }
-    }
-    R fun_exact_p(const R2 P, int compInd, int dom) {
-      return -sin(2*pie*P.x)*cos(2*pie*P.y);
-    }
-    R fun_exact_p_surf(const R2 P, int compInd) {
-      return -sin(2*pie*P.x)*cos(2*pie*P.y);
-    }
-
-    // [divu = 0, DOMAIN = CIRCLE WITH RADIUS 0.25 AT (0.5,0.5) ]
     // R fun_levelSet(const R2 P, const int i) {
-    //   return 0.25 - sqrt((P.x-shift)*(P.x-shift) + (P.y-shift)*(P.y-shift));
+    //   return 0.45 - sqrt((P.x-shift)*(P.x-shift) + (P.y-shift)*(P.y-shift));
     // } // normal = 4*(x-1/2,y-1/2)
     // R fun_force(const R2 P, int compInd) {
     //   return 0;
     // }
     // R fun_div(const R2 P, int compInd, int dom) {// is also exact divergence
-    //   return 0;
+    //   return -8*pie*pie*sin(2*pie*P.x)*cos(2*pie*P.y);
     // }
     // R fun_exact_u(const R2 P, int compInd, int dom) {
+    //   R x = P.x;
+    //   R y = P.y;
     //   if (compInd==0) {
-    //     return cos(P.x)*sinh(P.y);
+    //     return 2*pie*cos(2*pie*x)*cos(2*pie*y);
     //   } else {
-    //     return sin(P.x)*cosh(P.y);
+    //     return -2*pie*sin(2*pie*x)*sin(2*pie*y);
     //   }
     // }
     // R fun_exact_p(const R2 P, int compInd, int dom) {
-    //   return -sin(P.x)*sinh(P.y) - (cos(1) - 1)*(cosh(1) - 1);
+    //   return -sin(2*pie*P.x)*cos(2*pie*P.y);
     // }
+    // R fun_exact_p_surf(const R2 P, int compInd) {
+    //   return -sin(2*pie*P.x)*cos(2*pie*P.y);
+    // }
+
+    // [divu = 0, DOMAIN = CIRCLE WITH RADIUS 0.25 AT (0.5,0.5) ]
+    R fun_levelSet(const R2 P, const int i) {
+      return 0.25 - sqrt((P.x-shift)*(P.x-shift) + (P.y-shift)*(P.y-shift));
+    } // normal = 4*(x-1/2,y-1/2)
+    R fun_force(const R2 P, int compInd) {
+      return 0;
+    }
+    R fun_div(const R2 P, int compInd, int dom) {// is also exact divergence
+      return 0;
+    }
+    R fun_exact_u(const R2 P, int compInd, int dom) {
+      if (compInd==0) {
+        return cos(P.x)*sinh(P.y);
+      } else {
+        return sin(P.x)*cosh(P.y);
+      }
+    }
+    R fun_exact_p(const R2 P, int compInd, int dom) {
+      return -sin(P.x)*sinh(P.y) - (cos(1) - 1)*(cosh(1) - 1);
+    }
 
     // [u is linear, int_bdry u*n = pi/8]
     // R fun_force(const R2 P, int compInd) {
@@ -1057,7 +1056,7 @@
 
     std::vector<double> hPr,uPrint,pPrint,divPrint,divPrintLoc,maxDivPrint,lagrPrint,convuPr,convpPr,convdivPr,convdivPrLoc,convmaxdivPr,convLagrPr;
 
-    int iters = 4;
+    int iters = 3;
     for(int i=0; i<iters; ++i) {
         Mesh Kh(nx, ny, 0., 0., d_x+globalVariable::Epsilon, d_y+globalVariable::Epsilon);
 
@@ -1092,22 +1091,37 @@
         // MacroElement<Mesh> macro(Kh_i, 1);
         
         // SURFACE MESH
-        ActiveMesh<Mesh> Kh_itf(Kh);
-        Kh_itf.createSurfaceMesh(interface);
-        CutSpace Ph_itf(Kh_itf, Qh_itf);
+        // ActiveMesh<Mesh> Kh_itf(Kh);
+        // Kh_itf.createSurfaceMesh(interface);
+        // CutSpace Ph_itf(Kh_itf, Qh_itf);
         // MacroElementSurface<Mesh> macro_itf(Kh_itf, interface, 0.3); // 1
 
-        // Create CutFEM object
-        CutFEM<Mesh2> darcy(Wh); darcy.add(Ph); darcy.add(Ph_itf);
+        // Test functions
+        FunTest p(Ph,1), q(Ph,1), u(Wh,2), v(Wh,2);
+        // FunTest p_itf(Ph_itf,1), q_itf(Ph_itf,1);
 
         // Fun_h fv(Wh, fun_force);
-        Fun_h fq(P2h, fun_div);
+        Fun_h fq_(P2h, fun_div);
         Fun_h p0(P2h, fun_exact_p);
         Fun_h u0(W2h, fun_exact_u);
 
-        // [Params]
-        FunTest p(Ph,1), q(Ph,1), u(Wh,2), v(Wh,2);
-        FunTest p_itf(Ph_itf,1), q_itf(Ph_itf,1);
+        // Lerenfeld interpolation
+        CutFEM<Mesh2> cutfem_interp(Ph);
+        cutfem_interp.addBilinear(
+        +innerProduct(p, q)
+        , Kh_i
+        ); 
+        cutfem_interp.addPatchStabilization( // [h^(2k) h^(2k)]
+        +innerProduct(jump(p), jump(q))
+        , Kh_i
+        );
+        cutfem_interp.addLinear(
+        +innerProduct(fq_.expr(), q)
+        , Kh_i
+        ); 
+        cutfem_interp.solve("umfpack");
+        Rn_ data_div = cutfem_interp.rhs_(SubArray(Ph.get_nb_dof(),0));
+        Fun_h fq(Ph, data_div);
 
         // [Area]
         CutFEM<Mesh2> area_comp(P0h); FunTest q0(P0h,1);
@@ -1117,17 +1131,25 @@
         ); 
         R area = area_comp.rhs_.sum();
 
+        // Create CutFEM object
+        CutFEM<Mesh2> darcy(Wh); darcy.add(Ph); //darcy.add(Ph_itf);
         // [ASSEMBLY]
         darcy.addBilinear(
         +innerProduct(u, v)
-        -innerProduct(p, div(v))
-        +innerProduct(div(u), q)
         , Kh_i
+        );
+        darcy.addBilinear(
+        -innerProduct(p, div(v))
+        , Kh_i
+        );
+        darcy.addBilinear(
+        +innerProduct(div(u), q)
+        , Kh_i, INTEGRAL_EXTENSION, 1
         );
         darcy.addLinear(
         // innerProduct(fv.expression(2), v)
         +innerProduct(fq.exprList(), q)
-        , Kh_i
+        , Kh_i, INTEGRAL_EXTENSION, 1
         );
 
 
@@ -1139,48 +1161,62 @@
         FunTest grad2un = grad(grad(u)*n)*n;
         // FunTest grad2pn = grad(grad(p)*n)*n;
         // FunTest grad2divun = grad(grad(div(u))*n)*n;
-        FunTest grad2pitfn = grad(grad(p_itf)*n)*n;
+        // FunTest grad2pitfn = grad(grad(p_itf)*n)*n;
         darcy.addPatchStabilization( // [h^(2k) h^(2k)]
         +innerProduct(uPenParam*jump(u), jump(v)) 
         -innerProduct(pPenParam*jump(p), jump(div(v)))
-        +innerProduct(pPenParam*jump(div(u)), jump(q))
+        // +innerProduct(pPenParam*jump(div(u)), jump(q))
         , Kh_i
         // , macro
         );
-        darcy.addFaceStabilization(
-        // -innerProduct(itfPenParam*pow(h,-1)*jump(p_itf), jump(q_itf))
-        -innerProduct(itfPenParam*pow(h,3)*jump(grad(p_itf)*n), jump(grad(q_itf)*n)) 
-        -innerProduct(itfPenParam*pow(h,5)*jump(grad2pitfn), jump(grad2pitfn))
-        , Kh_itf
-        // , macro_itf
-        );
-        darcy.addBilinear(
-          // -innerProduct(itfPenParam*pow(h,0)*jump(p_itf), jump(q_itf))
-          -innerProduct(itfPenParam*pow(h,3)*jump(grad(p_itf)*n), jump(grad(q_itf)*n)) 
-          -innerProduct(itfPenParam*pow(h,5)*jump(grad2pitfn), jump(grad2pitfn))
-        , interface
-        );
+        // darcy.addFaceStabilization(
+        // // -innerProduct(itfPenParam*pow(h,-1)*jump(p_itf), jump(q_itf))
+        // -innerProduct(itfPenParam*pow(h,3)*jump(grad(p_itf)*n), jump(grad(q_itf)*n)) 
+        // -innerProduct(itfPenParam*pow(h,5)*jump(grad2pitfn), jump(grad2pitfn))
+        // , Kh_itf
+        // // , macro_itf
+        // );
+        // darcy.addBilinear(
+        //   // -innerProduct(itfPenParam*pow(h,0)*jump(p_itf), jump(q_itf))
+        //   -innerProduct(itfPenParam*pow(h,3)*jump(grad(p_itf)*n), jump(grad(q_itf)*n)) 
+        //   -innerProduct(itfPenParam*pow(h,5)*jump(grad2pitfn), jump(grad2pitfn))
+        // , interface
+        // );
         // darcy.BaseFEM::addBilinear(
         //   -innerProduct(itfPenParam*pow(h,3)*grad(p_itf)*n, grad(q_itf)*n) // scaling like the interface stab!
         // , Kh_itf
         // );
 
         // [Boundary conditions]
-        darcy.addBilinear(
-          +innerProduct(p_itf, v*n) 
-          +innerProduct(u*n, q_itf)
-          , interface
-        );
-        darcy.addLinear(fun_exact_u,
-          +innerProduct(1, q_itf*n)
+        // darcy.addBilinear(
+        //   +innerProduct(p_itf, v*n) 
+        //   +innerProduct(u*n, q_itf)
+        //   , interface
+        // );
+        // darcy.addLinear(fun_exact_u,
+        //   +innerProduct(1, q_itf*n)
+        //   , interface
+        // ); 
+        // R pp = 1e2;
+        // darcy.addBilinear(
+        //   +innerProduct(p, v*n) 
+        //   +innerProduct(u*n, pp * 1./h *v*n)
+        //   , interface
+        // );
+        // darcy.addLinear(
+        //   +innerProduct(u0*n, pp * 1./h *v*n)
+        //   , interface
+        // ); 
+        darcy.addLinear(
+          -innerProduct(p0.expr(), v*n)
           , interface
         ); 
 
         // [LAGRANGE MULT]
-        darcy.addLagrangeMultiplier(
-        +innerProduct(1, p), 0
-        , Kh_i
-        );
+        // darcy.addLagrangeMultiplier(
+        // +innerProduct(1, p), 0
+        // , Kh_i
+        // );
 
         // [Add to last diagonal entry of LHS]
         // int nb_dof = Wh.get_nb_dof()+Ph.get_nb_dof()+Ph_itf.get_nb_dof();
@@ -1189,20 +1225,21 @@
         matlab::Export(darcy.mat_[0], "mat"+std::to_string(i)+"Cut.dat");
         darcy.solve("umfpack");
 
-        std::cout << "Lagrange multiplier value: " << std::endl;
-        std::cout << darcy.rhs_(Wh.get_nb_dof()+Ph.get_nb_dof()+Ph_itf.get_nb_dof())<< std::endl;
+        // std::cout << "Lagrange multiplier value: " << std::endl;
+        // std::cout << darcy.rhs_(Wh.get_nb_dof()+Ph.get_nb_dof())<< std::endl;
+        // std::cout << darcy.rhs_(Wh.get_nb_dof()+Ph.get_nb_dof()+Ph_itf.get_nb_dof())<< std::endl;
 
         // EXTRACT SOLUTION
         int nbdof_vel = Wh.get_nb_dof();
         int nbdof_pres = Ph.get_nb_dof();
-        int nbdof_pres_itf = Ph_itf.get_nb_dof();
+        // int nbdof_pres_itf = Ph_itf.get_nb_dof();
         Rn_ data_uh = darcy.rhs_(SubArray(nbdof_vel,0));
         Rn_ data_ph = darcy.rhs_(SubArray(nbdof_pres,nbdof_vel));
-        Rn_ data_ph_itf = darcy.rhs_(SubArray(nbdof_pres_itf,nbdof_pres+nbdof_vel));
+        // Rn_ data_ph_itf = darcy.rhs_(SubArray(nbdof_pres_itf,nbdof_pres+nbdof_vel));
 
         Fun_h uh(Wh, data_uh);
         Fun_h ph(Ph, data_ph);
-        Fun_h ph_itf(Ph_itf, data_ph_itf);
+        // Fun_h ph_itf(Ph_itf, data_ph_itf);
         // std::cout << data_ph_itf << std::endl;
 
         auto uh_0dx = dx(uh.expr(0));
@@ -1221,7 +1258,7 @@
         R errDiv    = L2normCut (uh_0dx+uh_1dy,fun_div,Kh_i);
         R maxErrDiv = maxNormCut(uh_0dx+uh_1dy,fun_div,Kh_i);
         // R errLagr = L2normCut(ph_itf,fun_exact_p,0,1);
-        R errLagr = L2normSurf(ph_itf,fun_exact_p_surf,interface,0,1);
+        R errLagr = 0; //L2normSurf(ph_itf,fun_exact_p_surf,interface,0,1);
 
         // [PLOTTING]
         {

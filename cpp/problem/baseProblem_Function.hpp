@@ -453,7 +453,6 @@ template <typename Mesh> void BaseFEM<Mesh>::addBilinear(const itemVFlist_t &VF,
 template <typename Mesh> void BaseFEM<Mesh>::addLinear(const itemVFlist_t &VF, const Mesh &Th, const CFacet &b) {
     assert(VF.isRHS());
     for (int k = Th.first_element(); k < Th.last_element(); k += Th.next_element()) {
-
         for (int ifac = 0; ifac < Element::nea; ++ifac) { // loop over the edges / faces
 
             int jfac = ifac;
@@ -546,7 +545,6 @@ void BaseFEM<M>::addFaceContribution(const itemVFlist_t &VF, const std::pair<int
             Cint *= VF[l].evaluateFunctionOnBackgroundMesh(std::make_pair(kbu, kbv), std::make_pair(domain, domain),
                                                            mip, tid, normal);
             Cint *= coef * VF[l].c;
-
             if (In) {
                 if (VF.isRHS())
                     this->addToRHS(VF[l], *In, FKv, fv, Cint);
@@ -661,10 +659,29 @@ void BaseFEM<M>::addPatchContribution(const itemVFlist_t &VF, const int k, const
     }
 }
 
+template <typename Mesh> void BaseFEM<Mesh>::addLinearSquareIntegrand(const itemVFlist_t &VF, const Mesh &Th, const CFacet &b) {
+    assert(VF.isRHS());
+    for (int k = Th.first_element(); k < Th.last_element(); k += Th.next_element()) {
+        for (int ifac = 0; ifac < Element::nea; ++ifac) { // loop over the edges / faces
+
+            int jfac = ifac;
+            int kn   = Th.ElementAdj(k, jfac);
+            // ONLY INNER EDGE && LOWER INDEX TAKE CARE OF THE INTEGRATION
+            if (kn == -1 || kn < k)
+                continue;
+
+            std::pair<int, int> e1 = std::make_pair(k, ifac);
+            std::pair<int, int> e2 = std::make_pair(kn, jfac);
+            // CHECK IF IT IS A CUT EDGE
+
+            BaseFEM<Mesh>::addFaceContributionSquared(VF, e1, e2, nullptr, 0, 1.);
+        }
+    }
+}
+
 template <typename M>
-void BaseFEM<M>::addFaceContributionSpecial(const itemVFlist_t &VF, const std::pair<int, int> &e1,
-                                            const std::pair<int, int> &e2, const TimeSlab *In, int itq,
-                                            double cst_time) {
+void BaseFEM<M>::addFaceContributionSquared(const itemVFlist_t &VF, const std::pair<int, int> &e1,
+                                     const std::pair<int, int> &e2, const TimeSlab *In, int itq, double cst_time) {
 
     typedef typename FElement::RdHatBord RdHatBord;
 
@@ -736,15 +753,19 @@ void BaseFEM<M>::addFaceContributionSpecial(const itemVFlist_t &VF, const std::p
 
             Cint *= VF[l].evaluateFunctionOnBackgroundMesh(std::make_pair(kbu, kbv), std::make_pair(domain, domain),
                                                            mip, tid, normal);
+            Cint *= VF[l].evaluateFunctionOnBackgroundMesh(std::make_pair(kbu, kbv), std::make_pair(domain, domain),
+            mip, tid, normal);
             Cint *= coef * VF[l].c;
-
             if (In) {
                 if (VF.isRHS())
-                    assert(0);
+                    this->addToRHS(VF[l], *In, FKv, fv, Cint);
                 else
-                    this->addToMatrixSpecial(VF[l], *In, FKu, FKv, fu, fv, Cint, 1, 0);
+                    this->addToMatrix(VF[l], *In, FKu, FKv, fu, fv, Cint);
             } else {
-                assert(0);
+                if (VF.isRHS())
+                    this->addToRHS(VF[l], FKv, fv, Cint);
+                else
+                    this->addToMatrix(VF[l], FKu, FKv, fu, fv, Cint);
             }
         }
     }

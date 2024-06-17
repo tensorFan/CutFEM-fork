@@ -175,7 +175,8 @@ template <typename Mesh> class BaseFEM : public ShapeOfProblem<Mesh>, public Qua
     void addLinear(const itemVFlist_t &VF, const Mesh &, const CFacet &b);
     void addFaceContribution(const itemVFlist_t &VF, const std::pair<int, int> &e1, const std::pair<int, int> &e2,
                              const TimeSlab *In, int itq, double cst_time);
-    void addFaceContributionSpecial(const itemVFlist_t &VF, const std::pair<int, int> &e1, const std::pair<int, int> &e2,
+    void addLinearSquareIntegrand(const itemVFlist_t &VF, const Mesh &, const CFacet &b);
+    void addFaceContributionSquared(const itemVFlist_t &VF, const std::pair<int, int> &e1, const std::pair<int, int> &e2,
                              const TimeSlab *In, int itq, double cst_time);
 
     // integral on patches
