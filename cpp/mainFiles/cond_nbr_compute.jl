@@ -1,6 +1,6 @@
 using DelimitedFiles, SparseArrays, LinearAlgebra, Printf
 
-for i in 0:2
+for i in 0:4
     mat = readdlm("build/"*"mat"*string(i)*"Cut.dat");
     # mat = readdlm("build/"*"mat"*string(i)*"Cut.dat");
 

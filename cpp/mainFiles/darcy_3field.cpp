@@ -21,8 +21,9 @@
 
 // #define DARCY_EXAMPLE_NOTCIRCLE
 // #define DARCY_EXAMPLE_CIRCLE
-#define DARCY_EXAMPLE_CIRCLE_SARA_TESTS
+// #define DARCY_EXAMPLE_CIRCLE_SARA_TESTS
 // #define DARCY_EXAMPLE_TWO_BC_ANNULUS_PLUS_INTERFACE
+#define DARCY_2FIELD_EXAMPLE_TWO_BC_ANNULUS_PLUS_INTERFACE
 
 #ifdef FITTED_DARCY_EXAMPLE_NOTCIRCLE // ex 1
   namespace Data_Darcy_Square { // Example 1 of paper
@@ -1448,9 +1449,9 @@
       Fun_h levelSet_in(Lh, fun_levelSet_in);
       InterfaceLevelSet<Mesh> boundary_in(Kh, levelSet_in);
 
-      Space Vh(Kh, DataFE<Mesh>::RT1);
-      Space Qh(Kh, DataFE<Mesh>::P1dc);
-      Space Qh_itf(Kh, DataFE<Mesh>::P2dc);
+      Space Vh(Kh, DataFE<Mesh>::RT0);
+      Space Qh(Kh, DataFE<Mesh>::P0);
+      Space Qh_itf(Kh, DataFE<Mesh>::P1dc);
 
       // Space V2h(Kh, DataFE<Mesh>::RT2);
       Lagrange2 FEvelocity2(4); Space V2h(Kh, FEvelocity2);
@@ -1597,6 +1598,279 @@
         writer.add(fabs((uh_0dx+uh_1dy)-fq.expr()), "divergenceError");
         // writer.add(f_domain, "domain", 0, 1);
         writer.add(ph_itf, "Lagrange multiplier" , 0, 1);
+      }
+
+
+      h.push_back(h_i);
+      pPrint.push_back(errP);
+      uPrint.push_back(errU);
+      divPrint.push_back(errDiv);
+      maxDivPrint.push_back(maxErrDiv);
+      lagrPrint.push_back(errLagr);
+
+      if(i==0) {convpPr.push_back(0);convuPr.push_back(0);convdivPr.push_back(0);convdivPrLoc.push_back(0);convmaxdivPr.push_back(0);convLagrPr.push_back(0);}
+      else {
+        convpPr.push_back( log(pPrint[i]/pPrint[i-1])/log(h[i]/h[i-1]));
+        convuPr.push_back( log(uPrint[i]/uPrint[i-1])/log(h[i]/h[i-1]));
+        convdivPr.push_back( log(divPrint[i]/divPrint[i-1])/log(h[i]/h[i-1]));
+        convmaxdivPr.push_back( log(maxDivPrint[i]/maxDivPrint[i-1])/log(h[i]/h[i-1]));
+        convLagrPr.push_back( log(lagrPrint[i]/lagrPrint[i-1])/log(h[i]/h[i-1]));
+      }
+
+      nx = 2*nx-1;
+      ny = 2*ny-1;
+
+    }
+    std::cout << "\n" << std::left
+    << std::setw(10) << std::setfill(' ') << "h"
+    << std::setw(15) << std::setfill(' ') << "err_p"
+    << std::setw(15) << std::setfill(' ') << "conv p"
+    << std::setw(15) << std::setfill(' ') << "err u"
+    << std::setw(15) << std::setfill(' ') << "conv u"
+    << std::setw(15) << std::setfill(' ') << "err divu"
+    // << std::setw(15) << std::setfill(' ') << "conv divu"
+    << std::setw(15) << std::setfill(' ') << "err maxdivu"
+    // << std::setw(15) << std::setfill(' ') << "conv maxdivu"
+    << std::setw(15) << std::setfill(' ') << "err lagr"
+    << std::setw(15) << std::setfill(' ') << "conv lagr"
+    << "\n" << std::endl;
+    for(int i=0;i<uPrint.size();++i) {
+      std::cout << std::left
+      << std::setw(10) << std::setfill(' ') << h[i]
+      << std::setw(15) << std::setfill(' ') << pPrint[i]
+      << std::setw(15) << std::setfill(' ') << convpPr[i]
+      << std::setw(15) << std::setfill(' ') << uPrint[i]
+      << std::setw(15) << std::setfill(' ') << convuPr[i]
+      << std::setw(15) << std::setfill(' ') << divPrint[i]
+      // << std::setw(15) << std::setfill(' ') << convdivPr[i]
+      << std::setw(15) << std::setfill(' ') << maxDivPrint[i]
+      // << std::setw(15) << std::setfill(' ') << convmaxdivPr[i]
+      << std::setw(15) << std::setfill(' ') << lagrPrint[i]
+      << std::setw(15) << std::setfill(' ') << convLagrPr[i]
+      << std::endl;
+    }
+  }
+
+#endif
+
+#ifdef DARCY_2FIELD_EXAMPLE_TWO_BC_ANNULUS_PLUS_INTERFACE
+
+  namespace Data_Darcy_Two_Unfitted {
+    R d_x = 1.;
+    R d_y = 1.;
+    R shift = 0.5;
+    R inRad  = 0.15;
+    R interfaceRad = 0.3; // 0.350001
+    R outRad = 0.45; // 0.4901
+
+    R pie = M_PI;//3.14159265359;
+
+    R fun_levelSet_in(const R2 P, const int i) {
+      return sqrt((P.x-shift)*(P.x-shift) + (P.y-shift)*(P.y-shift)) - inRad;
+    }
+    R fun_levelSet(const R2 P, const int i) {
+      return sqrt((P.x-shift)*(P.x-shift) + (P.y-shift)*(P.y-shift)) - interfaceRad;
+    }
+    R fun_levelSet_out(const R2 P, const int i) {
+      return outRad - sqrt((P.x-shift)*(P.x-shift) + (P.y-shift)*(P.y-shift));
+    }
+    R fun_test(const R2 P,const int i, int d) {return d;}
+
+    // [Eriks Scotti example]
+    R rad2 = interfaceRad*interfaceRad;
+    R mu_G = 2*interfaceRad/(4*cos(rad2)+3); // xi0*mu_G = 1/8*2/3*1/4
+    R phat = (19*rad2+12*sin(rad2)+8*sin(2*rad2)+24*rad2*cos(rad2))/(4*rad2*(4*cos(rad2)+3));
+    R xi0 = 1./8;
+
+    R fun_force(const R2 P, int compInd) {
+      return 0;
+    }
+    R fun_div(const R2 P, int compInd, int dom) {// is also exact divergence
+      R r2 = (P.x-shift)*(P.x-shift) + (P.y-shift)*(P.y-shift);
+      if (dom==0) // r2>radius2
+        return 2./rad2*(2*r2*sin(r2)-2*cos(r2)-1);
+      else
+        return 4./rad2*(r2*sin(r2)-cos(r2)-1);
+    }
+    R fun_exact_u(const R2 P, int compInd, int dom) {
+      DA<R,2> X(P.x,0), Y(P.y,1);
+      DA<R,2> r2 = (X-shift)*(X-shift) + (Y-shift)*(Y-shift);
+      R cst = (dom==0)*3./2;
+      R mul = (dom==0)*2 + (dom==1)*1;
+      DA<R, 2> val = r2/(mul*rad2) + cst + sin(r2)/rad2;
+      return -val.d[compInd];
+    }
+    R fun_exact_p(const R2 P, int compInd, int dom) {
+      DA<R,2> X(P.x,0), Y(P.y,1);
+      DA<R,2> r2 = (X-shift)*(X-shift) + (Y-shift)*(Y-shift);
+      R cst = (dom==0)*3./2;
+      R mul = (dom==0)*2 + (dom==1)*1;
+      DA<R, 2> val = r2/(mul*rad2) + cst + sin(r2)/rad2;
+      return val.val;
+    }
+    R fun_exact_p_surf(const R2 P, int compInd) {
+      DA<R,2> X(P.x,0), Y(P.y,1);
+      DA<R,2> r2 = (X-shift)*(X-shift) + (Y-shift)*(Y-shift);
+      R cst = 3./2;
+      R mul = 2;
+      DA<R, 2> val = r2/(mul*rad2) + cst + sin(r2)/rad2;
+      return val.val;
+    }
+
+  }
+  using namespace Data_Darcy_Two_Unfitted;
+
+  int main(int argc, char** argv ) {
+    typedef TestFunction<Mesh2> FunTest;
+    typedef FunFEM<Mesh2> Fun_h;
+    typedef Mesh2 Mesh;
+    typedef ActiveMeshT2 CutMesh;
+    typedef FESpace2   Space;
+    typedef CutFESpaceT2 CutSpace;
+
+    // MPIcf cfMPI(argc,argv);
+    const double cpubegin = CPUtime();
+
+    int nx = 11; // 6
+    int ny = 11; // 6
+
+    std::vector<double> uPrint,pPrint,divPrint,divPrintLoc,maxDivPrint,h,lagrPrint,convuPr,convpPr,convdivPr,convdivPrLoc,convmaxdivPr,convLagrPr;
+
+    int iters = 5;
+
+    for(int i=0;i<iters;++i) {
+      std::cout << "Iteration " << i << std::endl;
+      Mesh Kh(nx, ny, 0., 0., d_x+globalVariable::Epsilon, d_y+globalVariable::Epsilon);
+      const R h_i = 1./(nx-1);
+      const R invh = 1./h_i;
+
+      Space Lh(Kh, DataFE<Mesh2>::P1);
+
+      Fun_h levelSet_out(Lh, fun_levelSet_out);
+      InterfaceLevelSet<Mesh> boundary_out(Kh, levelSet_out);
+
+      Fun_h levelSet(Lh, fun_levelSet);
+      InterfaceLevelSet<Mesh> interface(Kh, levelSet);
+
+      Fun_h levelSet_in(Lh, fun_levelSet_in);
+      InterfaceLevelSet<Mesh> boundary_in(Kh, levelSet_in);
+
+      Space Vh(Kh, DataFE<Mesh>::RT1);
+      Space Qh(Kh, DataFE<Mesh>::P1dc);
+
+      // Space V2h(Kh, DataFE<Mesh>::RT2);
+      Lagrange2 FEvelocity2(4); Space V2h(Kh, FEvelocity2);
+      Space Q2h(Kh, DataFE<Mesh>::P4);
+
+      // Cut mesh
+      ActiveMesh<Mesh> Kh_i(Kh);
+      Kh_i.truncate(boundary_in, -1);
+      Kh_i.truncate(boundary_out, -1);
+      Kh_i.add(interface, -1);
+
+      CutSpace Wh(Kh_i, Vh);
+      CutSpace Ph(Kh_i, Qh);
+      
+      CutSpace W2h(Kh_i, V2h);
+      CutSpace P2h(Kh_i, Q2h);
+
+      MacroElement<Mesh> macro(Kh_i, 1);
+
+      CutFEM<Mesh2> darcy(Wh); darcy.add(Ph);;
+
+      // We define fh on the cutSpace
+      Fun_h fq(P2h, fun_div);
+      Fun_h p0(P2h, fun_exact_p);
+      Fun_h u0(W2h, fun_exact_u);
+
+      Normal n;
+      Tangent t;
+      FunTest p(Ph,1), q(Ph,1), u(Wh,2), v(Wh,2);
+
+
+      // [ASSEMBLY]
+      darcy.addBilinear(
+        innerProduct(u, v)
+        -innerProduct(p, div(v))
+        +innerProduct(div(u), q)
+        , Kh_i
+      );
+      darcy.addLinear(
+        innerProduct(fq.expr(), q) 
+        , Kh_i
+      );
+
+      darcy.addBilinear(
+        innerProduct(mu_G*average(u*n), average(v*n))
+        +innerProduct(xi0*jump(u*n), mu_G*jump(v*n)) // b(p,v)-b(q,u) bdry terms
+      , interface);
+      darcy.addLinear(
+        -innerProduct(phat, jump(v*n))
+      , interface);
+
+      R pp = 1e-1;
+      darcy.addBilinear(
+        innerProduct(p, v*n)
+        +innerProduct(u*n, pp*invh * v*n)
+        ,boundary_out
+      );
+      darcy.addLinear(
+        +innerProduct(u0*n, pp*invh * v*n)
+        ,boundary_out
+      );
+
+      darcy.addLinear(
+        -innerProduct(p0.expr(), v*n) // Only on Gamma_N (pressure)
+        , boundary_in
+      );
+
+      double uPenParam = 1e0; // 1e-2
+      double pPenParam = 1e0; // 1e-2
+      darcy.addPatchStabilization( // [h^(2k) h^(2k)]
+        innerProduct(uPenParam*jump(u), jump(v)) 
+        -innerProduct(pPenParam*jump(p), jump(div(v)))
+        +innerProduct(pPenParam*jump(div(u)), jump(q))
+      , Kh_i
+      , macro
+      );
+      
+      matlab::Export(darcy.mat_[0], "mat"+std::to_string(i)+"Cut.dat");
+      // return 0;
+      darcy.solve("umfpack");
+
+      // EXTRACT SOLUTION
+      int nb_vel_dof = Wh.get_nb_dof();
+      int nb_pres_dof = Ph.get_nb_dof();
+      Rn_ data_uh = darcy.rhs_(SubArray(nb_vel_dof,0));
+      Rn_ data_ph = darcy.rhs_(SubArray(nb_pres_dof,nb_vel_dof));
+      Fun_h uh(Wh, data_uh);
+      Fun_h ph(Ph, data_ph);
+      
+      auto uh_0dx = dx(uh.expr(0));
+      auto uh_1dy = dy(uh.expr(1));
+
+      // L2 norm vel
+      R errU      = L2normCut(uh,fun_exact_u,0,2);
+      R errP      = L2normCut(ph,fun_exact_p,0,1);
+      R errDiv    = L2normCut (uh_0dx+uh_1dy,fun_div,Kh_i);
+      R maxErrDiv = maxNormCut(uh_0dx+uh_1dy,fun_div,Kh_i);
+      R errLagr   = 0;
+
+      // [PLOTTING]
+      {
+        // // Fun_h solh(Wh, fun_exact);
+        // // solh.v -= uh.v;
+        // // solh.v.map(fabs);
+        // Fun_h f_domain(Ph, fun_test);
+        Paraview<Mesh> writer(Kh_i, "darcyTwoBoundaries_"+std::to_string(i)+".vtk");
+        writer.add(uh, "velocity" , 0, 2);
+        writer.add(u0, "velocity" , 0, 2);
+        writer.add(ph, "pressure" , 0, 1);
+        writer.add(p0, "pressure" , 0, 1);
+        writer.add(uh_0dx+uh_1dy, "divergence");
+        // // writer.add(solh, "velocityError" , 0, 2);
+        writer.add(fabs((uh_0dx+uh_1dy)-fq.expr()), "divergenceError");
+        // writer.add(f_domain, "domain", 0, 1);
       }
 
 

@@ -2356,8 +2356,8 @@
                 // RHS MAT
                 R regularizer = 1e-12/(hi*hi*hi);
                 massRHS.addBilinear( 
-                    +innerProduct(u, v)
                     +innerProduct(w, 0*tau)
+                    +innerProduct(u, v)
                     +innerProduct(p, regularizer*q)
                 , Kh);
             } else { // Lagrange multiplier for boundary condition
@@ -2969,9 +2969,15 @@
                 -innerProduct(mu * eps * w, tau) 
                 +innerProduct(u, curl(tau))
             , Kh);
-            maxwell3D.addLinear(
-                -innerProduct(cross(n, u0), tau)
+            R pp = 1e2;
+            maxwell3D.addBilinear(
+                +innerProduct(u, cross(n,tau))
+                +innerProduct(cross(n,w), v)
+                -innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
             , Kh, INTEGRAL_BOUNDARY);
+            // maxwell3D.addLinear(
+            //     -innerProduct(cross(n, u0), tau)
+            // , Kh, INTEGRAL_BOUNDARY);
             // Eq 2
             maxwell3D.addBilinear( // mu Delta u + grad p
                 +innerProduct(curl(w), v)
@@ -3051,15 +3057,14 @@
             R errP      = L2norm(ph, fun_exact_p, 0, 1);
             R errDiv    = L2norm(uh_0dx + uh_1dy + uh_2dz, fun_0, Kh);
             R maxErrDiv = maxNorm(uh_0dx + uh_1dy + uh_2dz, Kh);
-            // R maxErrDiv = maxNorm(uh_0dx, Kh);
 
             // Face jump errors as measure of weak divergence error
             Space P0_(Kh, DataFE<Mesh>::P0); FunTest q0(P0_, 1, 0);
             CutFEM<Mesh> err_face_jumps(P0_);
             err_face_jumps.BaseFEM<Mesh>::addLinearSquareIntegrand(
                 // +innerProduct(1, jump(v*n))
-                +innerProduct(1, jump(q0))
-                // +innerProduct(1, jump(uh*n * q0))
+                // +innerProduct(1, jump(q0))
+                +innerProduct(1, jump(uh*n * q0))
                 // +innerProduct(1, jump(wh*n * q0))
             , Kh, INTEGRAL_INNER_FACE_3D);
             errDiv = sqrt(abs(err_face_jumps.rhs_.sum()));
