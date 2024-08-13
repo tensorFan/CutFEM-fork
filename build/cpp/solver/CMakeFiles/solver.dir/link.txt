@@ -1,1 +1,0 @@
-/usr/bin/c++ -fPIC    -std=c++20 -fPIC -O3 -shared -Wl,-soname,libsolver.so -o ../../lib/libsolver.so CMakeFiles/solver.dir/solver.cpp.o  /usr/lib/libumfpack.so /usr/lib/libcolamd.so /usr/lib/libamd.so 
