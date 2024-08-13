@@ -1,0 +1,26 @@
+* gnuplot *
+** in a cpp file **
+#include "../num/gnuplot.hpp"
+gnuplot::save(Kh);
+gnuplot::save(interface);
+// gnuplot::save(macro, extension);
+// gnuplot::save(macroInterface);
+ActiveMesh<Mesh> Khi(Kh);
+Khi.truncate(interface, 1);
+gnuplot::save(Khi);
+break;
+
+
+** in terminal **
+gnuplot
+
+>plot "Itf.dat" w l, "Vh1.dat" w l, "small2.dat" w l lc rgb "red"
+
+>
+set terminal pdfcairo enhanced color font 'Helvetica,10' size 5.0in,3.75in
+set output 'output.pdf'
+unset key
+plot "Th.dat" w l lc rgb "black" linewidth 2, \
+     "Gh.dat" w l lc rgb "blue" linewidth 2, \
+     "Thi.dat" w l lc rgb "red" linewidth 2
+set output

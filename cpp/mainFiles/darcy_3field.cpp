@@ -19,11 +19,11 @@
 
 // #define FITTED_DARCY_EXAMPLE_NOTCIRCLE
 
-// #define DARCY_EXAMPLE_NOTCIRCLE
-// #define DARCY_EXAMPLE_CIRCLE
+// #define DARCY_EXAMPLE_NOTCIRCLE // Ex 2
+#define DARCY_EXAMPLE_CIRCLE // Ex 1
 // #define DARCY_EXAMPLE_CIRCLE_SARA_TESTS
-// #define DARCY_EXAMPLE_TWO_BC_ANNULUS_PLUS_INTERFACE
-#define DARCY_2FIELD_EXAMPLE_TWO_BC_ANNULUS_PLUS_INTERFACE
+// #define DARCY_EXAMPLE_TWO_BC_ANNULUS_PLUS_INTERFACE // Ex 3
+// #define DARCY_2FIELD_EXAMPLE_TWO_BC_ANNULUS_PLUS_INTERFACE
 
 #ifdef FITTED_DARCY_EXAMPLE_NOTCIRCLE // ex 1
   namespace Data_Darcy_Square { // Example 1 of paper
@@ -274,7 +274,7 @@
 
 #endif
 
-#ifdef DARCY_EXAMPLE_NOTCIRCLE // ex 1
+#ifdef DARCY_EXAMPLE_NOTCIRCLE // ex 2
   namespace Data_Darcy_Square { // Example 1 of paper
     R d_x = 1.;
     R d_y = 0.5;
@@ -420,7 +420,7 @@
         // [GHOST PENALTY]
         double uPenParam = 1e0; // 1e0 
         double pPenParam = 1e0; // 1e0
-        double itfPenParam = 1e-2; // 1e-2
+        double itfPenParam = 1e0; // 1e-2
         darcy.addPatchStabilization( // [h^(2k) h^(2k)]
         +innerProduct(uPenParam*jump(u), jump(v)) 
         -innerProduct(pPenParam*jump(p), jump(div(v)))
@@ -438,15 +438,15 @@
         // , macro_itf
         );
         darcy.addBilinear(
-        // -innerProduct(itfPenParam*pow(h,1)*(p_itf), (q_itf))
+        // -innerProduct(itfPenParam*pow(h,-1)*(p_itf), (q_itf))
         -innerProduct(itfPenParam*pow(h,1)*(grad(p_itf)*n), (grad(q_itf)*n)) 
-        // -innerProduct(itfPenParam*pow(h,3)*(grad2pitfn), (grad2pitfn))
+        -innerProduct(itfPenParam*pow(h,3)*(grad2pitfn), (grad2pitfn))
         , interface
         );
         darcy.addBilinearIntersection(
-        // -innerProduct(itfPenParam*pow(h,1)*(p_itf), (q_itf))
+        // -innerProduct(itfPenParam*pow(h,-1)*(p_itf), (q_itf))
         -innerProduct(itfPenParam*pow(h,1)*(grad(p_itf)*n), (grad(q_itf)*n)) 
-        // -innerProduct(itfPenParam*pow(h,3)*(grad2pitfn), (grad2pitfn))
+        -innerProduct(itfPenParam*pow(h,3)*(grad2pitfn), (grad2pitfn))
         , Kh_itf, Kh_i, INTEGRAL_BOUNDARY
         );
         // darcy.BaseFEM::addBilinear( 
@@ -475,7 +475,7 @@
         );
 
         Fun_h u00(Wh, fun_exact_u);
-        darcy.setDirichlet(u00, Kh_i); 
+        darcy.setDirichletHdiv(u00, Kh_i); 
 
         // [LAGRANGE MULT]
         darcy.addLagrangeMultiplier(
@@ -614,7 +614,98 @@
 
 #endif
 
-#ifdef DARCY_EXAMPLE_CIRCLE // ex 2
+#ifdef DARCY_EXAMPLE_CIRCLE // ex 1
+  namespace Data_Circle_ZeroVel {
+    R d_x = 1.;
+    R d_y = 1.;
+    R pie = M_PI;
+    R shift = 0.5;
+    R RAD = 0.45;
+    R lambda = 1e2;
+    R fun_levelSet(const R2 P, const int i) {
+      return RAD - sqrt((P.x-shift)*(P.x-shift) + (P.y-shift)*(P.y-shift));
+    } 
+    R fun_normal(const R2 P, const int i) {
+      if (i==0) return (P.x-shift)*(P.x-shift)/sqrt((P.x-shift)*(P.x-shift) + (P.y-shift)*(P.y-shift));
+      else return (P.y-shift)*(P.y-shift)/sqrt((P.x-shift)*(P.x-shift) + (P.y-shift)*(P.y-shift));
+    }
+
+    R fun_force(const R2 P, int compInd, int dom) {
+      R x = P.x; R y = P.y;
+      if (compInd == 0) return 0;
+      else return lambda*(1-y+3*y*y);
+    }
+    R fun_div(const R2 P, int compInd, int dom) {// is also exact divergence
+      return 0;
+    }
+    R fun_exact_u(const R2 P, int compInd, int dom) { // = -grad p + f
+      R x = P.x; R y = P.y;
+      if (compInd == 0) return 0;
+      else return 0; // = -1e12*(3y*y-y+1)+fy
+    }
+    R fun_exact_p(const R2 P, int compInd, int dom) {
+      R x = P.x; R y = P.y;
+      return lambda*(pow(y,3)-y*y/2+y-7/12);
+    }
+    R fun_exact_p_surf(const R2 P, int compInd) {
+      R x = P.x; R y = P.y;
+      return lambda*(pow(y,3)-y*y/2+y-7/12);
+    }
+
+    // wild boundary variation
+    // R fun_force(const R2 P, int compInd, int dom) {
+    //   R x = P.x; R y = P.y;
+    //   R r = sqrt((x-shift)*(x-shift) + (y-shift)*(y-shift));
+    //   if (compInd == 0) return sin(1.0/pow(RAD+0.1-r,1.6)*r);
+    //   else return -sin(1.0/pow(RAD+0.1-r,1.6)*r);
+    // }
+    // R fun_div(const R2 P, int compInd, int dom) {// is also exact divergence
+    //   double x = P.x;
+    //   double y = P.y;
+    //   double r = std::sqrt((x - shift) * (x - shift) + (y - shift) * (y - shift));
+    //   double denominator = std::pow(0.1 + RAD - r, 1.6);
+    //   double common_term = std::cos(r / denominator);
+
+    //   // Compute partial derivatives
+    //   double df_dx = (1.6 * (x - shift) / std::pow(0.1 + RAD - r, 2.6) + (x - shift) / (r * denominator)) * common_term;
+    //   double df_dy = -(1.6 * (y - shift) / std::pow(0.1 + RAD - r, 2.6) + (y - shift) / (r * denominator)) * common_term;
+
+    //   // Sum the components to get the divergence
+    //   return df_dx + df_dy;
+    // }
+    // R fun_exact_u(const R2 P, int compInd, int dom) {
+    //   return fun_force(P, compInd, dom);
+    // }
+    // R fun_exact_p(const R2 P, int compInd, int dom) {
+    //   R x = P.x; R y = P.y;
+    //   return 1;
+    // }
+    // R fun_exact_p_surf(const R2 P, int compInd) {
+    //   return 1;
+    // }
+
+    // u=0
+    // R fun_force(const R2 P, int compInd, int dom) {
+    //   return 0;
+    // }
+    // R fun_div(const R2 P, int compInd, int dom) {// is also exact divergence
+    //   R x = P.x; R y = P.y;
+    //   return 0;
+    // }
+    // R fun_exact_u(const R2 P, int compInd, int dom) {
+    //   R x = P.x; R y = P.y;
+    //   if (compInd == 0) return 0;
+    //   if (compInd == 1) return 0;
+    //   else return 0;
+    // }
+    // R fun_exact_p(const R2 P, int compInd, int dom) {
+    //   R x = P.x; R y = P.y;
+    //   return 1e12;
+    // }
+    // R fun_exact_p_surf(const R2 P, int compInd) {
+    //   return 1e12;
+    // }
+  }
   namespace Data_Darcy_Circle {
     R d_x = 1.;
     R d_y = 1.;
@@ -692,6 +783,7 @@
     // }
 
   }
+  // using namespace Data_Circle_ZeroVel;
   using namespace Data_Darcy_Circle;
 
   int main(int argc, char** argv ) {
@@ -725,7 +817,7 @@
 
         Space Vh(Kh, DataFE<Mesh>::RT1);
         Space Qh(Kh, DataFE<Mesh>::P1dc);
-        Space Qh_itf(Kh, DataFE<Mesh>::P2dc);
+        Space Qh_itf(Kh, DataFE<Mesh>::P1dc);
 
         Space Lh(Kh, DataFE<Mesh2>::P1);
         Fun_h levelSet(Lh, fun_levelSet);
@@ -755,7 +847,7 @@
         CutFEM<Mesh2> darcy(Wh); darcy.add(Ph); darcy.add(Ph_itf);
 
         Fun_h normal_phi(W2h, fun_normal);
-        // Fun_h fv(Wh, fun_force);
+        Fun_h fv(W2h, fun_force);
         Fun_h fq(P2h, fun_div);
         Fun_h p0(P2h, fun_exact_p);
         Fun_h u0(W2h, fun_exact_u);
@@ -780,7 +872,7 @@
         , Kh_i
         );
         darcy.addLinear(
-        // innerProduct(fv.expression(2), v)
+        +innerProduct(fv.exprList(), v)
         +innerProduct(fq.exprList(), q)
         , Kh_i
         );
@@ -803,7 +895,7 @@
         darcy.addFaceStabilization(
         -innerProduct(itfPenParam*pow(h,-1)*jump(p_itf), jump(q_itf))
         -innerProduct(itfPenParam*pow(h,1)*jump(grad(p_itf)), jump(grad(q_itf))) 
-        -innerProduct(itfPenParam*pow(h,3)*jump(grad2pitf), jump(grad2pitf))
+        // -innerProduct(itfPenParam*pow(h,3)*jump(grad2pitf), jump(grad2pitf))
         , Kh_itf
         // , macro_itf
         );
@@ -843,6 +935,7 @@
         // darcy.mat_[make_pair(nb_dof,nb_dof)] = area;
 
         matlab::Export(darcy.mat_[0], "mat"+std::to_string(i)+"Cut.dat");
+        // std::cout << "Warning: not exporting matrix" << std::endl;
         darcy.solve("umfpack");
 
         std::cout << "Lagrange multiplier value: " << std::endl;
@@ -1542,21 +1635,21 @@
       );
       darcy.addFaceStabilization(
         -innerProduct(itfPenParam*pow(h_i,-1)*jump(p_itf), jump(q_itf))
-        // -innerProduct(itfPenParam*pow(h_i,1)*jump(grad(p_itf)*n), jump(grad(q_itf)*n))
-        // -innerProduct(itfPenParam*pow(h_i,3)*jump(grad2pitfn), jump(grad2pitfn))
+        -innerProduct(itfPenParam*pow(h_i,1)*jump(grad(p_itf)), jump(grad(q_itf)))
+        -innerProduct(itfPenParam*pow(h_i,3)*jump(grad(grad(p_itf))), jump(grad(grad(p_itf))))
         , Kh_itf
         // , macro_itf
       );
-      // darcy.addBilinear(
-      //   -innerProduct(itfPenParam*pow(h_i,-1)*jump(p_itf), jump(q_itf))
-      //   -innerProduct(itfPenParam*pow(h_i,3)*jump(grad(p_itf)*n), jump(grad(q_itf)*n)) 
-      //   -innerProduct(itfPenParam*pow(h_i,5)*jump(grad2pitfn), jump(grad2pitfn))
-      //   , boundary_out
-      // );
-      darcy.BaseFEM::addBilinear(
-        -innerProduct(itfPenParam*pow(h_i,1)*grad(p_itf)*n, grad(q_itf)*n) // scaling like the interface stab!
-      , Kh_itf
+      darcy.addBilinear(
+        // -innerProduct(itfPenParam*pow(h_i,-1)*jump(p_itf), jump(q_itf))
+        -innerProduct(itfPenParam*pow(h_i,3)*jump(grad(p_itf)*n), jump(grad(q_itf)*n)) 
+        -innerProduct(itfPenParam*pow(h_i,5)*jump(grad2pitfn), jump(grad2pitfn))
+        , boundary_out
       );
+      // darcy.BaseFEM::addBilinear(
+      //   -innerProduct(itfPenParam*pow(h_i,1)*grad(p_itf)*n, grad(q_itf)*n) // scaling like the interface stab!
+      // , Kh_itf
+      // );
       
       matlab::Export(darcy.mat_[0], "mat"+std::to_string(i)+"Cut.dat");
       // return 0;
@@ -1774,7 +1867,7 @@
       CutSpace W2h(Kh_i, V2h);
       CutSpace P2h(Kh_i, Q2h);
 
-      MacroElement<Mesh> macro(Kh_i, 1);
+      // MacroElement<Mesh> macro(Kh_i, 1);
 
       CutFEM<Mesh2> darcy(Wh); darcy.add(Ph);;
 
@@ -1808,14 +1901,18 @@
         -innerProduct(phat, jump(v*n))
       , interface);
 
-      R pp = 1e-1;
+      R pp = 1e2;
       darcy.addBilinear(
         innerProduct(p, v*n)
+        // +innerProduct(u*n, q)
         +innerProduct(u*n, pp*invh * v*n)
+        // +innerProduct(u, pp*invh * v)
         ,boundary_out
       );
       darcy.addLinear(
+        // +innerProduct(u0*n, q)
         +innerProduct(u0*n, pp*invh * v*n)
+        // +innerProduct(u0.exprList(), pp*invh * v)
         ,boundary_out
       );
 
@@ -1831,8 +1928,16 @@
         -innerProduct(pPenParam*jump(p), jump(div(v)))
         +innerProduct(pPenParam*jump(div(u)), jump(q))
       , Kh_i
-      , macro
+      // , macro
       );
+      // darcy.addFaceStabilization( // [h^(2k) h^(2k)]
+      //   innerProduct(uPenParam*h_i*jump(u), jump(v)) 
+      //   +innerProduct(uPenParam*pow(h_i,3)*jump(grad(u)), jump(grad(v))) 
+      //   -innerProduct(pPenParam*h_i*jump(p), jump(div(v)))
+      //   +innerProduct(pPenParam*h_i*jump(div(u)), jump(q))
+      // , Kh_i
+      // // , macro
+      // );
       
       matlab::Export(darcy.mat_[0], "mat"+std::to_string(i)+"Cut.dat");
       // return 0;

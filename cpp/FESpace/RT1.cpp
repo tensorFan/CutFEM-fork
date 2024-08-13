@@ -141,14 +141,16 @@ class TypeOfFE_RT1_2d : public InitTypeOfRTk_2d, public GTypeOfFE<Mesh2> {
         const Element &T     = K.T;
         int k                = 0;
         int arrEdgeOrient[3] = {T.EdgeOrientation(0), T.EdgeOrientation(1), T.EdgeOrientation(2)};
-        double aa            = T.measure();
-        double s[3]          = {1., 1., 1.}; //{T.lenEdge(0)/aa, T.lenEdge(1)/aa, T.lenEdge(2)/aa};
+        double s[3]          = {1., 1., 1.}; 
+        // double aa            = T.measure();
+        // double s[3]          = {T.lenEdge(0)/aa, T.lenEdge(1)/aa, T.lenEdge(2)/aa};
+        // double s[3]          = {1./sqrt(T.measure()), 1./sqrt(T.measure()), 1./sqrt(T.measure())};
 
-        double sb = 1.; // 1./sqrt(T.measure());
+        // double sb = 1.;
+        double sb = 1./sqrt(T.measure()); 
         for (int i = 0; i < 3; i++) {
             R2 E(-T.Edge(i).perp());
             R eOrientation = arrEdgeOrient[i];
-            // eOrientation *= 1. / sqrt(T.measure());
 
             for (int p = 0; p < QFE.n; ++p) {
                 R l0 = QFE[p].X(), l1 = 1 - QFE[p].X();
@@ -171,7 +173,6 @@ class TypeOfFE_RT1_2d : public InitTypeOfRTk_2d, public GTypeOfFE<Mesh2> {
         B[1]    = B[1].perp();
 
         double CK = 0.5; // dof U= [u1,u2] > |K| int_K ( B_i.U )
-
         for (int p = 0; p < QFK.n; ++p) {
             double w = QFK[p].a * CK;
             v[k++]   = w * B[0].x * sb;
@@ -277,8 +278,9 @@ void TypeOfFE_RT1_2d::FB_Freefem(const What_d whatd, const Element &K, const Rd 
     int lI[8][3]; // store l_k
     R cI[8][3];   // store c_k
     int dof     = 0;
-    // double aa = K.measure();
+
     double s[4] = {1., 1., 1., 1.}; //{K.lenEdge(0)/aa, K.lenEdge(1)/aa, K.lenEdge(2)/aa, sb};
+    // double s[4] = {sqrt(2*triMeas2), sqrt(2*triMeas2), sqrt(2*triMeas2), sqrt(2*triMeas2)}; 
 
     for (int e = 0; e < 3; ++e) { // [loops through edges]
         // int i = e;
