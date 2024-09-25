@@ -53,11 +53,18 @@ void buil_CSR_array(int n, const std::map<std::pair<int, int>, R> &M,
 void multiply(int N, const std::map<std::pair<int, int>, double> &A,
               const std::map<std::pair<int, int>, double> &B,
               std::map<std::pair<int, int>, double> &C);
-void eraseAndSetRow(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
-                    std::map<int, double> &dof2rm);
+
 void eraseAndSetRow(int N, std::map<std::pair<int, int>, double> &A, Rn &b, int,
                     int, double);
+void eraseAndSetRowCol(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
+                    std::map<int, double> &dof2rm);
+void eraseAndSetRow(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
+                    std::map<int, double> &dof2rm);
+void eraseRowCol(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
+                    std::map<int, double> &dof2rm);
 void eraseRow(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
+                    std::map<int, double> &dof2rm);
+void deleteRowCol(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
               std::set<int> &dof2rm);
 
 // void multiply( int N, const std::map<std::pair<int,int>,double>& A, const Rn&

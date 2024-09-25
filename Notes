@@ -21,6 +21,6 @@ set terminal pdfcairo enhanced color font 'Helvetica,10' size 5.0in,3.75in
 set output 'output.pdf'
 unset key
 plot "Th.dat" w l lc rgb "black" linewidth 2, \
-     "Gh.dat" w l lc rgb "blue" linewidth 2, \
-     "Thi.dat" w l lc rgb "red" linewidth 2
+     "Thi.dat" w l lc rgb "orange" linewidth 4, \
+     "Gh.dat" w l lc rgb "#1ABC9C" linewidth 6
 set output

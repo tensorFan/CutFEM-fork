@@ -206,10 +206,38 @@ void eraseAndSetRow(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
    // }
 }
 
+void eraseAndSetRowCol(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
+                    std::map<int, double> &dof2rm) {
+
+   std::map<std::pair<int, int>, double> P;
+   for (int i = 0; i < N; ++i) {
+      P[std::make_pair(i, i)] = 1;
+   }
+
+   for (auto &p : dof2rm) {
+      int i0                    = p.first;
+      P[std::make_pair(i0, i0)] = 0;
+      b(i0)                     = p.second;
+   }
+
+   // [Also erase columns, ca 2024]
+   std::map<std::pair<int,int>,double> C;
+   SparseMatrixRC<double> AA(N, N, A);
+   SparseMatrixRC<double> PP(N, N, P);
+   multiply(PP, AA, C);
+   SparseMatrixRC<double> CC (N,N,C);
+   multiply(CC, PP, A);
+   // A = C;
+
+   for (auto &p : dof2rm) {
+      int i0                    = p.first;
+      A[std::make_pair(i0, i0)] = 1;
+   }
+}
+
 void eraseAndSetRow(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
                     std::map<int, double> &dof2rm) {
 
-   // std::map<std::pair<int,int>,double> C;
    std::map<std::pair<int, int>, double> P;
    for (int i = 0; i < N; ++i) {
       P[std::make_pair(i, i)] = 1;
@@ -224,7 +252,6 @@ void eraseAndSetRow(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
    SparseMatrixRC<double> AA(N, N, A);
    SparseMatrixRC<double> PP(N, N, P);
    multiply(PP, AA, A);
-   // A = C;
 
    for (auto &p : dof2rm) {
       int i0                    = p.first;
@@ -232,7 +259,60 @@ void eraseAndSetRow(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
    }
 }
 
+// ca 2024, for RHS mat
+void eraseRowCol(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
+                    std::map<int, double> &dof2rm) {
+
+   std::map<std::pair<int, int>, double> P;
+   for (int i = 0; i < N; ++i) {
+      P[std::make_pair(i, i)] = 1;
+   }
+
+   for (auto &p : dof2rm) {
+      int i0                    = p.first;
+      P[std::make_pair(i0, i0)] = 0;
+      b(i0)                     = p.second;
+   }
+   std::map<std::pair<int,int>,double> C;
+   SparseMatrixRC<double> AA(N, N, A);
+   SparseMatrixRC<double> PP(N, N, P);
+   multiply(PP, AA, C);
+   SparseMatrixRC<double> CC (N,N,C);
+   multiply(CC, PP, A);
+   // A = C;
+
+   for (auto &p : dof2rm) {
+      int i0                    = p.first;
+      A[std::make_pair(i0, i0)] = 0;
+   }
+}
+
 void eraseRow(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
+                    std::map<int, double> &dof2rm) {
+
+   std::map<std::pair<int, int>, double> P;
+   for (int i = 0; i < N; ++i) {
+      P[std::make_pair(i, i)] = 1;
+   }
+
+   for (auto &p : dof2rm) {
+      int i0                    = p.first;
+      P[std::make_pair(i0, i0)] = 0;
+      b(i0)                     = p.second;
+   }
+   std::map<std::pair<int,int>,double> C;
+   SparseMatrixRC<double> AA(N, N, A);
+   SparseMatrixRC<double> PP(N, N, P);
+   multiply(PP, AA, A);
+   // A = C;
+
+   for (auto &p : dof2rm) {
+      int i0                    = p.first;
+      A[std::make_pair(i0, i0)] = 0;
+   }
+}
+
+void deleteRowCol(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
               std::set<int> &dof2rm) {
 
    std::map<std::pair<int, int>, double> C;

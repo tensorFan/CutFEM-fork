@@ -1037,7 +1037,7 @@ void BaseCutFEM<M>::addBorderContribution(const itemVFlist_t &VF, const Element 
     }
 }
 
-// add exact rhs
+// add exact rhs boundary
 template <typename M>
 template <typename Fct>
 void BaseCutFEM<M>::addLinear(const Fct &f, const itemVFlist_t &VF, const CutMesh &cutTh, const CBorder &b, std::list<int> label) {
@@ -1175,6 +1175,117 @@ void BaseCutFEM<M>::addBorderContribution(const Fct &f, const itemVFlist_t &VF, 
     }
 }
 
+// set Dirichlet BC strongly for H¹, ie nodes (3D)
+template <typename Mesh>
+void BaseCutFEM<Mesh>::setDirichletHone(const FunFEM<Mesh> &gh, const CutMesh &cutTh, std::list<int> label) {
+    std::cout << "WARNING (setDirichletH1): This sets H1 DOFs only (in 3D!) This space needs to be added first to the CutFEM object??" << std::endl;
+
+    bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
+    std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
+    const FESpace &Vh(gh.getSpace());    // Get the finite element space from the provided FunFEM object
+
+    // Iterate over each boundary element in the cut mesh
+    for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
+        int idx_bdry_face; // Index of the boundary face in the boundary element
+        const int kb = cutTh.Th.BoundaryElement(idx_be, idx_bdry_face); // Get the boundary element index in the original mesh
+        std::vector<int> idxK = cutTh.idxAllElementFromBackMesh(kb, -1); // Get all the indices of the active elements corresponding to the boundary element in the cut mesh
+
+        // Ensure there's exactly one active element corresponding to the boundary element
+        assert(idxK.size() == 1);
+        int k = idxK[0];
+        const FElement &FK(Vh[k]);  // Get the finite element for the current element in the finite element space
+
+        // Get the current element and its boundary element
+        const Element &K(cutTh.Th[kb]);
+        const BorderElement &BE(cutTh.be(idx_be));
+
+        // Check if the current boundary element label is in the list of labels to process, or if all labels are being processed
+        if (util::contain(label, BE.lab) || all_label) {
+            // Skip processing if the element is cut
+            if (cutTh.isCut(k, 0)) {
+                continue;
+            }
+
+            for (int df = FK.dfcbegin(0); df < FK.dfcend(0); ++df) { // Iterate over each degree of freedom (DOF)
+                int id_item = FK.DFOnWhat(df); // Get the item (vertex/edge/face) that the DOF is associated with
+
+                // Ensure the DOF is NOT associated with an edge or a face
+                assert(!(id_item >= K.nv));
+                // std::cout << K.edgeOfFace[idx_face] << id_edge << std::endl;
+                auto nodes = K.nvface[idx_bdry_face]; // Check that edge is on boundary
+                if (id_item == nodes[0] || id_item == nodes[1] || id_item == nodes[2]) {
+                    // Get the global index of the DOF
+                    int df_glob = FK.loc2glb(df);
+                    // Insert the DOF and its corresponding value into the map
+                    dof2set.insert({df_glob, gh(df_glob)});
+                }
+            }
+        }
+    }
+
+    // Ensure there's exactly one matrix in the problem
+    assert(this->pmat_.size() == 1);
+
+    // Modify the matrix and the right-hand side to enforce the Dirichlet boundary conditions
+    eraseAndSetRow(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+}
+
+// set Dirichlet BC strongly for H¹, ie nodes (3D)
+template <typename Mesh>
+void BaseCutFEM<Mesh>::setDirichletHone_RHSMat(const FunFEM<Mesh> &gh, const CutMesh &cutTh, std::list<int> label) {
+    std::cout << "WARNING (setDirichletH1): This sets H1 DOFs only (in 3D!) This space needs to be added first to the CutFEM object??" << std::endl;
+
+    bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
+    std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
+    const FESpace &Vh(gh.getSpace());    // Get the finite element space from the provided FunFEM object
+
+    // Iterate over each boundary element in the cut mesh
+    for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
+        int idx_bdry_face; // Index of the boundary face in the boundary element
+        const int kb = cutTh.Th.BoundaryElement(idx_be, idx_bdry_face); // Get the boundary element index in the original mesh
+        std::vector<int> idxK = cutTh.idxAllElementFromBackMesh(kb, -1); // Get all the indices of the active elements corresponding to the boundary element in the cut mesh
+
+        // Ensure there's exactly one active element corresponding to the boundary element
+        assert(idxK.size() == 1);
+        int k = idxK[0];
+        const FElement &FK(Vh[k]);  // Get the finite element for the current element in the finite element space
+
+        // Get the current element and its boundary element
+        const Element &K(cutTh.Th[kb]);
+        const BorderElement &BE(cutTh.be(idx_be));
+
+        // Check if the current boundary element label is in the list of labels to process, or if all labels are being processed
+        if (util::contain(label, BE.lab) || all_label) {
+            // Skip processing if the element is cut
+            if (cutTh.isCut(k, 0)) {
+                continue;
+            }
+
+            for (int df = FK.dfcbegin(0); df < FK.dfcend(0); ++df) { // Iterate over each degree of freedom (DOF) for the current component
+                int id_item = FK.DFOnWhat(df); // Get the item (vertex/edge/face) that the DOF is associated with
+
+                // Ensure the DOF is NOT associated with an edge or a face
+                assert(!(id_item >= K.nv));
+                // std::cout << K.edgeOfFace[idx_face] << id_edge << std::endl;
+                auto nodes = K.nvface[idx_bdry_face]; // Check that node is on boundary
+                if (id_item == nodes[0] || id_item == nodes[1] || id_item == nodes[2]) {
+                    // Get the global index of the DOF
+                    int df_glob = FK.loc2glb(df);
+                    // Insert the DOF and its corresponding value into the map
+                    dof2set.insert({df_glob, gh(df_glob)});
+                }
+            }
+        }
+    }
+
+    // Ensure there's exactly one matrix in the problem
+    assert(this->pmat_.size() == 1);
+
+    // Modify the matrix and the right-hand side to enforce the Dirichlet boundary conditions
+    eraseRow(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+}
+
+
 // set Dirichlet BC strongly for H(div), ie faces, also 2D atm
 template <typename Mesh>
 void BaseCutFEM<Mesh>::setDirichletHdiv(const FunFEM<Mesh> &gh, const CutMesh &cutTh, std::list<int> label) {
@@ -1226,10 +1337,10 @@ void BaseCutFEM<Mesh>::setDirichletHdiv(const FunFEM<Mesh> &gh, const CutMesh &c
     eraseAndSetRow(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
 }
 
-// set Dirichlet BC strongly for H(curl), ie edges
+// set Dirichlet BC strongly for H(curl), ie edges (3D)
 template <typename Mesh>
 void BaseCutFEM<Mesh>::setDirichletHcurl(const FunFEM<Mesh> &gh, const CutMesh &cutTh, std::list<int> label) {
-    std::cout << "WARNING (setDirichletHcurl): This sets H(curl) DOFs only. This space needs to be added first to the CutFEM object." << std::endl;
+    std::cout << "WARNING (setDirichletHcurl): This sets H(curl) DOFs only (in 3D!) This space needs to be added first to the CutFEM object." << std::endl;
 
     bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
     std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
@@ -1237,8 +1348,62 @@ void BaseCutFEM<Mesh>::setDirichletHcurl(const FunFEM<Mesh> &gh, const CutMesh &
 
     // Iterate over each boundary element in the cut mesh
     for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
-        int idx_edge_be; // Index of the boundary edge in the boundary element
-        const int kb = cutTh.Th.BoundaryElement(idx_be, idx_edge_be); // Get the boundary element index in the original mesh
+        int idx_bdry_face; // Index of the boundary face in the boundary element
+        const int kb = cutTh.Th.BoundaryElement(idx_be, idx_bdry_face); // Get the boundary element index in the original mesh
+        std::vector<int> idxK = cutTh.idxAllElementFromBackMesh(kb, -1); // Get all the indices of the active elements corresponding to the boundary element in the cut mesh
+
+        // Ensure there's exactly one active element corresponding to the boundary element
+        assert(idxK.size() == 1);
+        int k = idxK[0];
+        const FElement &FK(Vh[k]);  // Get the finite element for the current element in the finite element space
+
+        // Get the current element and its boundary element
+        const Element &K(cutTh.Th[kb]);
+        const BorderElement &BE(cutTh.be(idx_be));
+
+        // Check if the current boundary element label is in the list of labels to process, or if all labels are being processed
+        if (util::contain(label, BE.lab) || all_label) {
+            // Skip processing if the element is cut
+            if (cutTh.isCut(k, 0)) {
+                continue;
+            }
+            for (int df = FK.dfcbegin(0); df < FK.dfcend(0); ++df) { // Iterate over each DOF, there are 1 per edge, so FK.dfcend(0)=6
+                int id_item = FK.DFOnWhat(df); // Get the item (vertex/edge/face) that the DOF is associated with
+
+                // Make sure the DOF isn't associated with a vertex or a face
+                assert(!(id_item < K.nv || id_item >= K.nv + K.ne));
+                int id_edge = id_item - K.nv; // [4,9] -> [0,5]
+                assert(df == id_edge); // int id_edge = df;
+                auto edges = K.edgeOfFace[idx_bdry_face]; // Check that edge is on boundary
+                if (id_edge == edges[0] || id_edge == edges[1] || id_edge == edges[2]) {
+                    // Get the global index of the DOF
+                    int df_glob = FK.loc2glb(df);
+                    // Insert the DOF and its corresponding value into the map
+                    dof2set.insert({df_glob, gh(df_glob)});
+                }
+            }
+        }
+    }
+
+    // Ensure there's exactly one matrix in the problem
+    assert(this->pmat_.size() == 1);
+
+    // Modify the matrix and the right-hand side to enforce the Dirichlet boundary conditions
+    eraseAndSetRowCol(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+}
+
+template <typename Mesh>
+void BaseCutFEM<Mesh>::setDirichletHcurl_RHSMat(const FunFEM<Mesh> &gh, const CutMesh &cutTh, std::list<int> label) {
+    std::cout << "WARNING (setDirichletHcurl): This sets H(curl) DOFs only (in 3D!) This space needs to be added first to the CutFEM object." << std::endl;
+
+    bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
+    std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
+    const FESpace &Vh(gh.getSpace());    // Get the finite element space from the provided FunFEM object
+
+    // Iterate over each boundary element in the cut mesh
+    for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
+        int idx_bdry_face; // Index of the boundary face in the boundary element
+        const int kb = cutTh.Th.BoundaryElement(idx_be, idx_bdry_face); // Get the boundary element index in the original mesh
         std::vector<int> idxK = cutTh.idxAllElementFromBackMesh(kb, -1); // Get all the indices of the active elements corresponding to the boundary element in the cut mesh
 
         // Ensure there's exactly one active element corresponding to the boundary element
@@ -1257,24 +1422,87 @@ void BaseCutFEM<Mesh>::setDirichletHcurl(const FunFEM<Mesh> &gh, const CutMesh &
                 continue;
             }
 
-            for (int ic = 0; ic < Vh.N; ++ic) { // Iterate over each component in the finite element space
-                for (int df = FK.dfcbegin(ic); df < FK.dfcend(ic); ++df) { // Iterate over each degree of freedom (DOF) for the current component
-                    int id_item = FK.DFOnWhat(df); // Get the item (vertex/edge/face) that the DOF is associated with
+            for (int df = FK.dfcbegin(0); df < FK.dfcend(0); ++df) { // Iterate over each degree of freedom (DOF), 1 per edge
+                int id_item = FK.DFOnWhat(df); // Get the item (vertex/edge/face) that the DOF is associated with
+                // Make sure the DOF isn't associated with a vertex or a face
+                assert(!(id_item < K.nv || id_item >= K.nv + K.ne));
+                int id_edge = id_item - K.nv;
+                // std::cout << K.edgeOfFace[idx_face] << id_edge << std::endl;
+                auto edges = K.edgeOfFace[idx_bdry_face]; // Check that edge is on boundary
+                if (id_edge == edges[0] || id_edge == edges[1] || id_edge == edges[2]) {
+                    // Get the global index of the DOF
+                    int df_glob = FK.loc2glb(df);
+                    // Insert the DOF and its corresponding value into the map
+                    dof2set.insert({df_glob, gh(df_glob)});
+                }
+            }
+        }
+    }
 
-                    // Skip if the DOF is associated with a vertex
-                    if (id_item < K.nv) {
-                        continue;
-                    } 
-                    // Process if the DOF is associated with an edge
-                    else if (id_item < K.nv + K.ne) {
-                        int id_edge = id_item - K.nv;
-                        if (id_edge == idx_edge_be) {
-                            // Get the global index of the DOF
-                            int df_glob = FK.loc2glb(df);
-                            // Insert the DOF and its corresponding value into the map
-                            dof2set.insert({df_glob, gh(df_glob)});
-                        }
-                    }
+    // Ensure there's exactly one matrix in the problem
+    assert(this->pmat_.size() == 1);
+
+    // Set rows and cols to zero
+    eraseRowCol(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+}
+
+// set Dirichlet BC strongly for H¹ and H(curl), ie edges (3D)
+template <typename Mesh>
+void BaseCutFEM<Mesh>::setDirichletHoneAndHcurl(const FESpace &Uh, const FESpace &Vh, const CutMesh &cutTh, std::list<int> label) {
+    std::cout << "WARNING setDirichletHoneAndHcurl: Only valid in 3D! Also only does homogeneous" << std::endl;
+
+    bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
+    std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
+    
+    // Iterate over each boundary element in the cut mesh
+    for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
+        int idx_bdry_face; // Index of the boundary face in the boundary element
+        const int kb = cutTh.Th.BoundaryElement(idx_be, idx_bdry_face); // Get the boundary element index in the original mesh
+        std::vector<int> idxK = cutTh.idxAllElementFromBackMesh(kb, -1); // Get all the indices of the active elements corresponding to the boundary element in the cut mesh
+
+        // Ensure there's exactly one active element corresponding to the boundary element
+        assert(idxK.size() == 1);
+        int k = idxK[0];
+
+        const FElement &FKu(Uh[k]);  // Get the finite element for the P1
+        const FElement &FKv(Vh[k]);  // Get the finite element for the Nedelec
+
+        // Get the current element and its boundary element
+        const Element &K(cutTh.Th[kb]);
+        const BorderElement &BE(cutTh.be(idx_be));
+
+        // Check if the current boundary element label is in the list of labels to process, or if all labels are being processed
+        if (util::contain(label, BE.lab) || all_label) {
+            // Skip processing if the element is cut
+            if (cutTh.isCut(k, 0)) {
+                continue;
+            }
+            for (int df = FKu.dfcbegin(0); df < FKu.dfcend(0); ++df) { // Iterate over each degree of freedom (DOF) for the current component
+                int id_item = FKu.DFOnWhat(df); // Get the item (vertex/edge/face) that the DOF is associated with
+
+                // Ensure the DOF is NOT associated with an edge or a face
+                assert(!(id_item >= K.nv));
+                // std::cout << K.edgeOfFace[idx_face] << id_edge << std::endl;
+                auto nodes = K.nvface[idx_bdry_face]; // Check that node is on boundary
+                if (id_item == nodes[0] || id_item == nodes[1] || id_item == nodes[2]) {
+                    // Get the global index of the DOF
+                    int df_glob = FKu.loc2glb(df);
+                    // Insert the DOF and its corresponding value into the map
+                    dof2set.insert({df_glob, 0});
+                }
+            }
+            for (int df = FKv.dfcbegin(0); df < FKv.dfcend(0); ++df) { // Iterate over each degree of freedom (DOF), 1 per edge
+                int id_item = FKv.DFOnWhat(df); // Get the item (vertex/edge/face) that the DOF is associated with
+                // Make sure the DOF isn't associated with a vertex or a face
+                assert(!(id_item < K.nv || id_item >= K.nv + K.ne));
+                int id_edge = id_item - K.nv;
+                // std::cout << K.edgeOfFace[idx_face] << id_edge << std::endl;
+                auto edges = K.edgeOfFace[idx_bdry_face]; // Check that edge is on boundary
+                if (id_edge == edges[0] || id_edge == edges[1] || id_edge == edges[2]) {
+                    // Get the global index of the DOF
+                    int df_glob = FKv.loc2glb(df);
+                    // Insert the DOF and its corresponding value into the map
+                    dof2set.insert({df_glob, 0});
                 }
             }
         }
@@ -1284,8 +1512,77 @@ void BaseCutFEM<Mesh>::setDirichletHcurl(const FunFEM<Mesh> &gh, const CutMesh &
     assert(this->pmat_.size() == 1);
 
     // Modify the matrix and the right-hand side to enforce the Dirichlet boundary conditions
-    eraseAndSetRow(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+    eraseAndSetRowCol(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
 }
+
+template <typename Mesh>
+void BaseCutFEM<Mesh>::setDirichletHoneAndHcurl_RHSMat(const FESpace &Uh, const FESpace &Vh, const CutMesh &cutTh, std::list<int> label) {
+    std::cout << "WARNING setDirichletHoneAndHcurl: Only valid in 3D!" << std::endl;
+
+    bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
+    std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
+        
+    // Iterate over each boundary element in the cut mesh
+    for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
+        int idx_bdry_face; // Index of the boundary face in the boundary element
+        const int kb = cutTh.Th.BoundaryElement(idx_be, idx_bdry_face); // Get the boundary element index in the original mesh
+        std::vector<int> idxK = cutTh.idxAllElementFromBackMesh(kb, -1); // Get all the indices of the active elements corresponding to the boundary element in the cut mesh
+
+        // Ensure there's exactly one active element corresponding to the boundary element
+        assert(idxK.size() == 1);
+        int k = idxK[0];
+
+        const FElement &FKu(Uh[k]);  // Get the finite element for the P1
+        const FElement &FKv(Vh[k]);  // Get the finite element for the Nedelec
+
+        // Get the current element and its boundary element
+        const Element &K(cutTh.Th[kb]);
+        const BorderElement &BE(cutTh.be(idx_be));
+
+        // Check if the current boundary element label is in the list of labels to process, or if all labels are being processed
+        if (util::contain(label, BE.lab) || all_label) {
+            // Skip processing if the element is cut
+            if (cutTh.isCut(k, 0)) {
+                continue;
+            }
+            for (int df = FKu.dfcbegin(0); df < FKu.dfcend(0); ++df) { // Iterate over each degree of freedom (DOF) for the current component
+                int id_item = FKu.DFOnWhat(df); // Get the item (vertex/edge/face) that the DOF is associated with
+
+                // Ensure the DOF is NOT associated with an edge or a face
+                assert(!(id_item >= K.nv));
+                // std::cout << K.edgeOfFace[idx_face] << id_edge << std::endl;
+                auto nodes = K.nvface[idx_bdry_face]; // Check that node is on boundary
+                if (id_item == nodes[0] || id_item == nodes[1] || id_item == nodes[2]) {
+                    // Get the global index of the DOF
+                    int df_glob = FKu.loc2glb(df);
+                    // Insert the DOF and its corresponding value into the map
+                    dof2set.insert({df_glob, 0});
+                }
+            }
+            for (int df = FKv.dfcbegin(0); df < FKv.dfcend(0); ++df) { // Iterate over each degree of freedom (DOF), 1 per edge
+                int id_item = FKv.DFOnWhat(df); // Get the item (vertex/edge/face) that the DOF is associated with
+                // Make sure the DOF isn't associated with a vertex or a face
+                assert(!(id_item < K.nv || id_item >= K.nv + K.ne));
+                int id_edge = id_item - K.nv;
+                // std::cout << K.edgeOfFace[idx_face] << id_edge << std::endl;
+                auto edges = K.edgeOfFace[idx_bdry_face]; // Check that edge is on boundary
+                if (id_edge == edges[0] || id_edge == edges[1] || id_edge == edges[2]) {
+                    // Get the global index of the DOF
+                    int df_glob = FKv.loc2glb(df);
+                    // Insert the DOF and its corresponding value into the map
+                    dof2set.insert({df_glob, 0});
+                }
+            }
+        }
+    }
+
+    // Ensure there's exactly one matrix in the problem
+    assert(this->pmat_.size() == 1);
+
+    // Set rows and cols to zero
+    eraseRowCol(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+}
+
 
 
 template <typename Mesh> void BaseCutFEM<Mesh>::removeDofForHansbo(const FESpace &Vh) {

@@ -132,7 +132,7 @@ void TypeOfFE_Ned0_kind1::get_Coef_Pi_h(const GbaseFElement<Mesh> &K,
     int i = 0, p = 0; // int i=ocoef,p=0;
     for (int e = 0; e < 6; ++e) {
         R3 E = T.EdgeOrientation(e) * T.Edge(e); //  exterior and  ||N|| = 2* area f
-        for (int q = 0; q < QFE.n; ++q, ++p) {
+        for (int q = 0; q < QFE.n; ++q, ++p) { // QFE.n = 2
             for (int c = 0; c < 3; c++, i++) {
                 v[i] = E[c] * QFE[q].a;   //! Original
                 // v[i] = E[c] * QFE[q].a / (T.N_notNormalized(0).norm() / 2);      //! Mine
@@ -140,6 +140,7 @@ void TypeOfFE_Ned0_kind1::get_Coef_Pi_h(const GbaseFElement<Mesh> &K,
         }
         // ffassert(i==M.ncoef && M.np == p );
     }
+    assert(i == 36);
 }
 
 void TypeOfFE_Ned0_kind1::FB(const What_d whatd, const Element &K, const R3 &PHat, RNMK_ &bfMat) const {
