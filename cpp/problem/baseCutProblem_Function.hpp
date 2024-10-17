@@ -1178,11 +1178,13 @@ void BaseCutFEM<M>::addBorderContribution(const Fct &f, const itemVFlist_t &VF, 
 // set Dirichlet BC strongly for H¹, ie nodes (3D)
 template <typename Mesh>
 void BaseCutFEM<Mesh>::setDirichletHone(const FunFEM<Mesh> &gh, const CutMesh &cutTh, std::list<int> label) {
-    std::cout << "WARNING (setDirichletH1): This sets H1 DOFs only (in 3D!) This space needs to be added first to the CutFEM object??" << std::endl;
+    std::cout << "WARNING (setDirichletH1): This sets H1 DOFs only (in 3D!)" << std::endl;
 
     bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
     std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
     const FESpace &Vh(gh.getSpace());    // Get the finite element space from the provided FunFEM object
+
+    int dof_init = this->mapIdx0_[&Vh]; // Get the FIRST index of the finite element space in the list of finite element spaces
 
     // Iterate over each boundary element in the cut mesh
     for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
@@ -1215,9 +1217,11 @@ void BaseCutFEM<Mesh>::setDirichletHone(const FunFEM<Mesh> &gh, const CutMesh &c
                 auto nodes = K.nvface[idx_bdry_face]; // Check that edge is on boundary
                 if (id_item == nodes[0] || id_item == nodes[1] || id_item == nodes[2]) {
                     // Get the global index of the DOF
-                    int df_glob = FK.loc2glb(df);
+                    // std::cout << (dof_init-1) + FK.loc2glb(df) << " : " << this->get_nb_dof() << std::endl;
+                    int dof = FK.loc2glb(df);
+                    int df_glob = dof_init + dof; // correct place in Matrix
                     // Insert the DOF and its corresponding value into the map
-                    dof2set.insert({df_glob, gh(df_glob)});
+                    dof2set.insert({df_glob, gh(dof)});
                 }
             }
         }
@@ -1227,17 +1231,20 @@ void BaseCutFEM<Mesh>::setDirichletHone(const FunFEM<Mesh> &gh, const CutMesh &c
     assert(this->pmat_.size() == 1);
 
     // Modify the matrix and the right-hand side to enforce the Dirichlet boundary conditions
-    eraseAndSetRow(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+    // eraseAndSetRow(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+    eraseAndSetRowCol(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
 }
 
 // set Dirichlet BC strongly for H¹, ie nodes (3D)
 template <typename Mesh>
 void BaseCutFEM<Mesh>::setDirichletHone_RHSMat(const FunFEM<Mesh> &gh, const CutMesh &cutTh, std::list<int> label) {
-    std::cout << "WARNING (setDirichletH1): This sets H1 DOFs only (in 3D!) This space needs to be added first to the CutFEM object??" << std::endl;
+    std::cout << "WARNING (setDirichletH1): This sets H1 DOFs only (in 3D!)" << std::endl;
 
     bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
     std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
     const FESpace &Vh(gh.getSpace());    // Get the finite element space from the provided FunFEM object
+
+    int dof_init = this->mapIdx0_[&Vh]; // Get the FIRST index of the finite element space in the list of finite element spaces
 
     // Iterate over each boundary element in the cut mesh
     for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
@@ -1270,9 +1277,10 @@ void BaseCutFEM<Mesh>::setDirichletHone_RHSMat(const FunFEM<Mesh> &gh, const Cut
                 auto nodes = K.nvface[idx_bdry_face]; // Check that node is on boundary
                 if (id_item == nodes[0] || id_item == nodes[1] || id_item == nodes[2]) {
                     // Get the global index of the DOF
-                    int df_glob = FK.loc2glb(df);
+                    int dof = FK.loc2glb(df);
+                    int df_glob = dof_init + dof;
                     // Insert the DOF and its corresponding value into the map
-                    dof2set.insert({df_glob, gh(df_glob)});
+                    dof2set.insert({df_glob, gh(dof)});
                 }
             }
         }

@@ -1455,7 +1455,7 @@
     using namespace globalVariable;
     namespace Data_Old {
         R k = 1.;
-        R eps_r = 1.;
+        R eps = 1.;
         R mu = 1.;
 
         // Monks example
@@ -1570,6 +1570,107 @@
         }
 
     }
+    namespace Data_Cylinder_Sebastian {
+
+    // double k = 2.;
+    double k = std::sqrt(1.6);
+    double eps = 1.;
+    double mu = 1.;
+
+    double cyl_radius = 0.2;
+    double cyl_height = 0.35;
+
+    double shift[3] = {0.0, 0.0, cyl_height};
+
+    double sd_cylinder(double *P, float h, float r) {
+            double px = P[0], py = P[1], pz = P[2];
+            float length_p_xz = std::sqrt(px * px + pz * pz);
+            float abs_p_y     = std::fabs(py);
+            float dx          = std::fabs(length_p_xz) - r;
+            float dy          = std::fabs(abs_p_y) - h;
+            
+            float maxD         = std::max(dx, dy);
+            float minMaxD      = std::min(maxD, 0.0f);
+            
+            float maxDx        = std::max(dx, 0.0f);
+            float maxDy        = std::max(dy, 0.0f);
+            float lengthMaxD   = std::sqrt(maxDx * maxDx + maxDy * maxDy);
+            
+            return minMaxD + lengthMaxD;
+    }
+
+    double phi(double *P, int i) {
+        double pcyl[3] = {P[0]-shift[0], P[2]-shift[2], P[1]-shift[1]};
+        return sd_cylinder(pcyl, cyl_height, cyl_radius);
+    }
+
+    double x0 = 2.405;                      // first zero of Bessel function J_0(x)
+    double q0 = x0/cyl_radius;              // q0 = h of Cheng
+    double ps = std::sqrt(q0*q0 - k*k);     // propagation speed, sol to k^2+x^2 = q0^2
+    
+    // fun_exact_u = electric_field
+    double fun_exact_u(double *P, int i) { // h^2 = k^2 + \gam^2, E = E_0 exp(-\gam z)
+        double x = P[0], y = P[1], z = P[2];
+        double r = std::sqrt(x*x + y*y);
+        if (i == 0)  
+            return ps/q0 * x/r * std::cyl_bessel_j(1, q0*r)*exp(-ps*z);
+        else if (i == 1)
+            return ps/q0 * y/r * std::cyl_bessel_j(1, q0*r)*exp(-ps*z);
+        else
+            return std::cyl_bessel_j(0, q0*r)*exp(-ps*z) + r*r/4;
+    }
+
+    // fun_exact_curlu = curl_e
+    double fun_exact_curlu(double *P, int i) {
+        double x = P[0], y = P[1], z = P[2];
+        double r = std::sqrt(x*x + y*y);
+        if (i == 0)  
+            return y/2 + (y*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r);
+        else if (i == 1)
+            return - x/2 - (x*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r);
+        else
+            return 0.;
+    }
+
+    double magnetic_induction(double *P, int i) {
+        // This is actually i*b
+
+        double x = P[0], y = P[1], z = P[2];
+        double r = std::sqrt(x*x + y*y);
+
+        if (i == 0)  
+            return -(y/2 + (y*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r))/k;
+        else if (i == 1)
+            return (x/2 + (x*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r))/k;
+        else    
+            return 0.;
+    }
+
+    double fun_rhs(double *P, int i) {
+        // This is actually -k/eps * ij
+
+        double x = P[0], y = P[1], z = P[2];
+        double r = std::sqrt(x*x + y*y);
+
+        if (i == 0)
+            return 0.;
+        else if (i == 1)
+            return 0.;
+        else
+            return -(1+ r*r);
+    }
+
+    double lagrange_multiplier(double *P, int i) {
+        return 0.;
+    }
+
+    double div_e(double *P, int i, int dom) {return 0.;}
+
+    double fun_0(double *P, int i) {return 0.;}
+
+    R fun_exact_p(double *P, int i) {return 0;}
+    }
+    // using namespace Data_Cylinder_Sebastian;
     using namespace Data_Cylinder;
     int main(int argc, char **argv) {
         typedef TestFunction<Mesh3> FunTest;
@@ -1608,8 +1709,10 @@
             Fun_h curlu0(Velh, fun_exact_curlu);
 
             // Init system matrix & assembly
-            FEM<Mesh> maxwell3D(Uh);
-            maxwell3D.add(Wh);
+            // CutFEM<Mesh> maxwell3D(Uh);
+            // maxwell3D.add(Wh);
+            CutFEM<Mesh> maxwell3D(Wh);
+            maxwell3D.add(Uh);
 
             /* Syntax:
             FunTest (fem space, #components, place in space)
@@ -1643,19 +1746,21 @@
             //     // +innerProduct(u0.exprList(), 1./hi*pp*v)
             // , Kh, INTEGRAL_BOUNDARY);
             // Natural
-            R pp = 1e2;
-            maxwell3D.addBilinear( // ensuring p|_Gamma = 0 so that divu=0
-                +innerProduct(p, 1./hi*pp*q)
-            , Kh, INTEGRAL_BOUNDARY);
             maxwell3D.addLinear(
                 -innerProduct(cross(n, curlu0), 1./mu * 1./eps * v)
             , Kh, INTEGRAL_BOUNDARY);
+            // R pp = 1e2;
+            // maxwell3D.addBilinear( // ensuring p|_Gamma = 0 so that divu=0
+            //     +innerProduct(p, 1./hi*pp*q)
+            // , Kh, INTEGRAL_BOUNDARY);
+            Fun_h tmp_var(Wh, fun_exact_p);
+            maxwell3D.setDirichletHone(tmp_var, Kh);
 
             matlab::Export(maxwell3D.mat_[0], "mat" + std::to_string(i) + "Cut.dat");
+            continue;
             maxwell3D.solve("umfpack");
 
             // EXTRACT SOLUTION
-
             int nb_electric_dof = Uh.get_nb_dof();
             int nb_lagrange_dof = Wh.get_nb_dof();
 
