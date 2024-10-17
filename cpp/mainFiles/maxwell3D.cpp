@@ -1690,7 +1690,7 @@
 
         std::vector<double> ul2, pl2, divmax, divl2, h, convu, convp;
 
-        int iters = 3;
+        int iters = 2;
         for (int i = 0; i < iters; ++i) {
             Mesh3 Kh("../cpp/mainFiles/meshes/cyli_"+std::to_string(i), MeshFormat::mesh_gmsh);  // sqrt(214)=14.62, sqrt(1268)=35.6089, sqrt(8547)=92.4499
             // Mesh3 Kh(nx, ny, nz, 0., 0., 0., 1., 1., 1.);
@@ -1709,10 +1709,8 @@
             Fun_h curlu0(Velh, fun_exact_curlu);
 
             // Init system matrix & assembly
-            // CutFEM<Mesh> maxwell3D(Uh);
-            // maxwell3D.add(Wh);
-            CutFEM<Mesh> maxwell3D(Wh);
-            maxwell3D.add(Uh);
+            CutFEM<Mesh> maxwell3D(Uh);
+            maxwell3D.add(Wh);
 
             /* Syntax:
             FunTest (fem space, #components, place in space)
@@ -1757,7 +1755,7 @@
             maxwell3D.setDirichletHone(tmp_var, Kh);
 
             matlab::Export(maxwell3D.mat_[0], "mat" + std::to_string(i) + "Cut.dat");
-            continue;
+            // continue;
             maxwell3D.solve("umfpack");
 
             // EXTRACT SOLUTION
