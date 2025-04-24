@@ -2967,15 +2967,6 @@
                 -innerProduct(mu * eps * w, tau) 
                 +innerProduct(u, curl(tau))
             , Kh);
-            R pp = 1e2;
-            maxwell3D.addBilinear(
-                +innerProduct(u, cross(n,tau))
-                +innerProduct(cross(n,w), v)
-                -innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
-            , Kh, INTEGRAL_BOUNDARY);
-            // maxwell3D.addLinear(
-            //     -innerProduct(cross(n, u0), tau)
-            // , Kh, INTEGRAL_BOUNDARY);
             // Eq 2
             maxwell3D.addBilinear( // mu Delta u + grad p
                 +innerProduct(curl(w), v)
@@ -3002,6 +2993,20 @@
             // lagr.rhs_ = 0.; 
             // lagr.addLinear(innerProduct(not_exact_form.exprList(), v), Kh);
             // maxwell3D.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
+
+            // » Essential BC Nitsche
+            // R pp = 1e2;
+            // maxwell3D.addBilinear(
+            //     +innerProduct(u, cross(n,tau))
+            //     +innerProduct(cross(n,w), v)
+            //     -innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
+            // , Kh, INTEGRAL_BOUNDARY);
+            // maxwell3D.addLinear(
+            //     -innerProduct(cross(n, u0), tau)
+            // , Kh, INTEGRAL_BOUNDARY);
+            // » Essential BC strong
+            Fun_h fun0(Uh, fun_0);
+            maxwell3D.setDirichletHcurl(fun0, Kh);
 
             matlab::Export(maxwell3D.mat_[0], "mat" + std::to_string(i) + ".dat");
             maxwell3D.solve("umfpack");
