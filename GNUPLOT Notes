@@ -1,0 +1,46 @@
+* gnuplot *
+** in a cpp file **
+#include "../num/gnuplot.hpp" // in the include block
+...
+gnuplot::save(Kh);
+gnuplot::save(interface);
+// gnuplot::save(macro, extension);
+// gnuplot::save(macroInterface);
+ActiveMesh<Mesh> Khi(Kh);
+Khi.truncate(interface, 1);
+gnuplot::save(Khi);
+break;
+
+
+** in terminal **
+gnuplot
+
+>plot "Itf.dat" w l, "Vh1.dat" w l, "small2.dat" w l lc rgb "red"
+
+>
+set terminal pdfcairo enhanced color font 'Helvetica,10' size 5.0in,3.75in
+set output 'output.pdf'
+unset key
+plot "Th.dat" w l lc rgb "black" linewidth 2, \
+     "Thi.dat" w l lc rgb "orange" linewidth 4, \
+     "Gh.dat" w l lc rgb "#1ABC9C" linewidth 6
+set output
+
+// Plot levelset directly for smoother interface, along with smoothed mesh edges
+>
+set term pdfcairo enhanced color font 'Helvetica,10' size 5.0in,5.0in linewidth 2 enhanced
+set output 'output.pdf'
+unset key
+set border 0
+set xtics scale 0
+set ytics scale 0
+set format x ""
+set format y ""
+radius = 0.4501
+phi(x,y) = radius - sqrt((x-0.5)**2 + (y-0.5)**2)
+set parametric
+set trange [0:2*pi]
+plot "Th.dat" w l lc rgb "#48ABE8" linewidth 1, \
+     "Thi.dat" w l lc rgb "black" linewidth 1.2, \
+     0.5 + radius*cos(t), 0.5 + radius*sin(t) title "phi(x,y)=0" w l lc rgb "#FF4E36" linewidth 1.8
+set output

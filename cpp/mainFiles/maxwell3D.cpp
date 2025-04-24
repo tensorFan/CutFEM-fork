@@ -23,10 +23,10 @@
 
 // #define FITTED_KIKUCHI_EIGEN
 // #define UNFITTED_KIKUCHI_EIGEN
-#define FITTED_KIKUCHI
+// #define FITTED_KIKUCHI
 // #define UNFITTED_KIKUCHI
 
-// #define FITTED_3FIELD_EIGEN
+#define FITTED_3FIELD_EIGEN
 // #define UNFITTED_3FIELD_EIGEN
 // #define FITTED_3FIELD
 // #define UNFITTED_3FIELD
@@ -35,7 +35,7 @@
 #ifdef FITTED_WAVE_EIGEN
 
     using namespace globalVariable;
-    namespace Data_Doesnt_Matter { // f = 1/eps curl j => div f = 0 !
+    namespace Data_mueps { // f = 1/eps curl j => div f = 0 !
         R k = 1.;
         R eps = 1.;
         R mu = 1.;
@@ -86,7 +86,7 @@
         }
 
     }
-    using namespace Data_Doesnt_Matter;
+    using namespace Data_mueps;
     int main(int argc, char **argv) { // (1.10) : curl(1/eps 1/mu curl(u)) - k^2 u = f, f = 1/eps curl j
         typedef TestFunction<Mesh3> FunTest;
         typedef FunFEM<Mesh3> Fun_h;
@@ -109,9 +109,10 @@
         for (int i = 0; i < iters; ++i) {
 
             // Mesh3 Kh(nx, ny, nz, 0., 0., 0., M_PI, M_PI, M_PI);
-            // Mesh3 Kh("../cpp/mainFiles/meshes/cube_"+std::to_string(i), MeshFormat::mesh_gmsh);
-            Mesh3 Kh("../cpp/mainFiles/meshes/cube_hole_"+std::to_string(i), MeshFormat::mesh_gmsh);
             // Mesh3 Kh("../cpp/mainFiles/meshes/cyli_"+std::to_string(i), MeshFormat::mesh_gmsh);  // sqrt(214)=14.62, sqrt(1268)=35.6089, sqrt(8547)=92.4499
+            // Mesh3 Kh("../cpp/mainFiles/meshes/cube_"+std::to_string(i), MeshFormat::mesh_gmsh);
+            // Mesh3 Kh("../cpp/mainFiles/meshes/cube_hole_"+std::to_string(i), MeshFormat::mesh_gmsh);
+            Mesh3 Kh("../cpp/mainFiles/meshes/ball_hole_"+std::to_string(i), MeshFormat::mesh_gmsh);
             Kh.info();
             const R hi = 1. / (nx - 1);
 
@@ -128,6 +129,7 @@
 
             // Init system matrix & assembly
             CutFEM<Mesh> maxwell3D(Uh);
+            CutFEM<Mesh> massRHS(Uh);
 
             /* Syntax:
             FunTest (fem space, #components, place in space)
@@ -142,25 +144,9 @@
                 +innerProduct(epsi * mui * curl(u), curl(v))
                 // -innerProduct(k * k * u, v)
             , Kh);
-            // BC
-            // Essential n x E (Nitsche)
-            // R pp = 1e2;
-            // maxwell3D.addBilinear( 
-            //     -innerProduct(epsi * mui * curl(u), cross(n, v))
-            //     +innerProduct(epsi * mui * cross(n, u), curl(v))
-            //     +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
-            // , Kh, INTEGRAL_BOUNDARY);
-            // Essential n x E (strong)
-            Fun_h fun0(Uh, fun_0);
-            maxwell3D.setDirichletHcurl(fun0, Kh);
-
-            // Eigenvalue problem
-            CutFEM<Mesh> massRHS(Uh);
             massRHS.addBilinear( 
                 +innerProduct(u, v)
             , Kh);
-            massRHS.setDirichletHcurl_RHSMat(fun0, Kh);
-            // massRHS.setBoundaryEdgesToZero(u0, Kh);
 
             // » IF using cube with hole mesh
             Fun_h not_exact_form(Velh, fun_closed_form);
@@ -173,58 +159,36 @@
             , Kh);
             massRHS.mat_[0][std::make_pair(nb_dof,nb_dof)] = 0; // For PETsc
 
+            /* To calculate the number of dofs in the matrix explicitly (ie .mat[0].size())
+            int maxRow = -1, maxCol = -1;
+            for (auto &entry : maxwell3D.mat_[0]) {
+                int i = entry.first.first;
+                int j = entry.first.second;
+                if (i > maxRow) maxRow = i;
+                if (j > maxCol) maxCol = j;
+            }
+            std::cout << std::max(maxRow, maxCol) + 1 << std::endl; // Assuming zero-based indexing
+            */
+
+            // BC
+            // Essential n x E (Nitsche)
+            // R pp = 1e2;
+            // maxwell3D.addBilinear( 
+            //     -innerProduct(epsi * mui * curl(u), cross(n, v))
+            //     +innerProduct(epsi * mui * cross(n, u), curl(v))
+            //     +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
+            // , Kh, INTEGRAL_BOUNDARY);
+            // Essential n x E (strong)
+            Fun_h fun0(Uh, fun_0);
+            maxwell3D.setDirichletHcurl(fun0, Kh);
+            massRHS.setDirichletHcurl_RHSMat(fun0, Kh);
+
             matlab::Export(maxwell3D.mat_[0], "A" + std::to_string(i) + ".dat");
             matlab::Export(massRHS.mat_[0], "B" + std::to_string(i) + ".dat");
             nx = 2 * nx - 1;
             ny = 2 * ny - 1;
             nz = 2 * nz - 1;
             continue;
-
-
-            // EXTRACT SOLUTION
-            int nb_electric_dof = Uh.get_nb_dof();
-            Rn_ data_uh = maxwell3D.rhs_(SubArray(nb_electric_dof, 0));
-            Fun_h uh(Uh, data_uh);
-
-            auto uh_0dx = dx(uh.expr(0));
-            auto uh_1dy = dy(uh.expr(1));
-            auto uh_2dz = dz(uh.expr(2));
-
-            // [Paraview]
-            {
-                Fun_h solu(Velh, fun_exact_u);
-
-                Fun_h soluErr(Uh, fun_exact_u);
-                soluErr.v -= uh.v;
-                soluErr.v.map(fabs);
-
-                // ExpressionFunFEM<Mesh> femDiv(divSolh, 0, op_id);
-
-                Paraview<Mesh> writer(Kh, "maxwell_" + std::to_string(i) + ".vtk");
-                writer.add(uh, "electric_field", 0, 3);
-                // writer.add(uh_0dx + uh_1dy + uh_2dz, "divergence");
-                writer.add(uh_2dz, "divergence");
-                writer.add(solu, "electric_field_exact", 0, 3);
-                writer.add(soluErr, "electric_field_error", 0, 3);
-            }
-
-            R errU      = L2norm(uh, fun_exact_u, 0, 3);
-            R errDiv    = L2norm(uh_0dx + uh_1dy + uh_2dz, fun_0, Kh);
-            R maxErrDiv = maxNorm(uh_0dx + uh_1dy + uh_2dz, Kh);
-            // R maxErrDiv = maxNorm(uh_0dx, Kh);
-
-            h.push_back(hi);
-            ul2.push_back(errU);
-            divl2.push_back(errDiv);
-            divmax.push_back(maxErrDiv);
-            if (i == 0) {
-                convu.push_back(0);
-            } else {
-                convu.push_back(log(ul2[i] / ul2[i - 1]) / log(h[i] / h[i - 1]));
-            }
-            nx = 2 * nx - 1;
-            ny = 2 * ny - 1;
-            nz = 2 * nz - 1;
         }
     }
 #endif
@@ -407,7 +371,7 @@
             maxwell3D.addPatchStabilization(
                 // A block
                 // +innerProduct(tau_a  * jump(u), jump(v)) 
-                +innerProduct(tau_a * jump(curl(u)), jump(curl(v)))
+                +innerProduct(tau_a * hi * hi * jump(curl(u)), jump(curl(v)))
             , Khi);
 
             matlab::Export(maxwell3D.mat_[0], "A" + std::to_string(i) + ".dat");
@@ -1047,7 +1011,7 @@
 #ifdef FITTED_KIKUCHI_EIGEN
 
     using namespace globalVariable;
-    namespace Data_Doesnt_Matter {
+    namespace Data_mueps {
         R k = 1.;
         R eps = 1.;
         R mu = 1.;
@@ -1121,7 +1085,7 @@
                 return z/r3;
         }
     }
-    using namespace Data_Doesnt_Matter;
+    using namespace Data_mueps;
     int main(int argc, char **argv) {
         typedef TestFunction<Mesh3> FunTest;
         typedef FunFEM<Mesh3> Fun_h;
@@ -1143,8 +1107,8 @@
         int iters = 2;
         for (int i = 0; i < iters; ++i) {
             // Mesh3 Kh("../cpp/mainFiles/meshes/cube_"+std::to_string(i), MeshFormat::mesh_gmsh);  
-            // Mesh3 Kh("../cpp/mainFiles/meshes/cube_hole_"+std::to_string(i), MeshFormat::mesh_gmsh);  
-            Mesh3 Kh(nx, ny, nz, 0., 0., 0., M_PI, M_PI, M_PI);
+            Mesh3 Kh("../cpp/mainFiles/meshes/cube_hole_"+std::to_string(i), MeshFormat::mesh_gmsh);  
+            // Mesh3 Kh(nx, ny, nz, 0., 0., 0., M_PI, M_PI, M_PI);
             Kh.info();
             const R hi = 1. / (nx - 1);
 
@@ -1178,21 +1142,6 @@
                 -innerProduct(grad(p), v)
                 -innerProduct(u, grad(q))
             , Kh);
-            // » BC
-            // »» Essential weak
-            R pp = 1e2;
-            maxwell3D.addBilinear( // ensuring p|_Gamma = 0 so that divu=0
-                +innerProduct(p, 1./hi*pp*q)
-            , Kh, INTEGRAL_BOUNDARY);
-            // maxwell3D.addBilinear( 
-            //     -innerProduct(1./mu * 1./eps * curl(u), cross(n, v))
-            //     -innerProduct(1./mu * 1./eps * cross(n, u), curl(v))
-            //     +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
-            // , Kh, INTEGRAL_BOUNDARY);
-            // »» Essential strong
-            // maxwell3D.setDirichletHoneAndHcurl(Wh, Uh, Kh);
-            Fun_h fun0(Uh, fun_0);
-            maxwell3D.setDirichletHcurl(fun0, Kh);
 
             // RHS MAT
             CutFEM<Mesh> massRHS(Uh); massRHS.add(Wh);
@@ -1202,8 +1151,6 @@
                 +innerProduct(u, v)
                 +innerProduct(regularizer*p, q)
             , Kh);
-            // massRHS.setDirichletHoneAndHcurl_RHSMat(Wh, Uh, Kh);
-            massRHS.setDirichletHcurl_RHSMat(fun0, Kh);
 
             // IF using cube with hole mesh
             // Fun_h not_exact_form(Velh, fun_closed_form);
@@ -1221,6 +1168,11 @@
             //     -innerProduct(not_exact_form.exprList(), 0*v), 0
             // , Kh);
             // massRHS.mat_[0][std::make_pair(nb_dof,nb_dof)] = 0; // For PETsc
+
+            // » BC
+            // »» Essential strong
+            // maxwell3D.setDirichletHoneAndHcurl(Wh, Uh, Kh);
+            // massRHS.setDirichletHoneAndHcurl_RHSMat(Wh, Uh, Kh);
 
             matlab::Export(maxwell3D.mat_[0], "A" + std::to_string(i) + ".dat");
             matlab::Export(massRHS.mat_[0], "B" + std::to_string(i) + ".dat");
@@ -1395,8 +1347,8 @@
                 +innerProduct(epsi * mui * curl(u), curl(v))
                 // -innerProduct(k * k * u, v)
 
-                -innerProduct(grad(p), v)
-                -innerProduct(u, grad(q))
+                +innerProduct(grad(p), v)
+                +innerProduct(u, grad(q))
             , Khi);
             // BC
             // Essential n x E
@@ -1409,19 +1361,19 @@
                 +innerProduct(p, 1./hi*pp*q)
             , interface);
             maxwell3D.addBilinear( // if using plane levelset
-                -innerProduct(epsi * mui * curl(u), cross(n, v)) //fitted: -
-                +innerProduct(epsi * mui * cross(n, u), curl(v))
+                +innerProduct(epsi * mui * curl(u), cross(n, v)) //fitted: -
+                -innerProduct(epsi * mui * cross(n, u), curl(v))
                 +innerProduct(cross(n, u), 1./hi*pp*cross(n, v))
 
                 +innerProduct(p, 1./hi*pp*q)
             , Khi, INTEGRAL_BOUNDARY);
             // [Stabilization]
-            double tau_a = 1e0; //1e-2
-            double tau_p = 1e0; //1e-2
+            double tau_a = 1e-1; //1e-2
+            double tau_p = 1e-1; //1e-2
             maxwell3D.addPatchStabilization(
                 // A block
                 // +innerProduct(tau_a  * jump(u), jump(v)) 
-                +innerProduct(tau_a * jump(curl(u)), jump(curl(v)))
+                +innerProduct(tau_a * hi * hi * jump(curl(u)), jump(curl(v)))
 
                 +innerProduct(tau_p * jump(p), jump(q))
             , Khi);
@@ -1437,7 +1389,7 @@
             , Khi);
             massRHS.addPatchStabilization(
                 // A block
-                +innerProduct(tau_a  * jump(u), jump(v)) 
+                +innerProduct(tau_a * jump(u), jump(v)) 
                 // +innerProduct(tau_a * jump(curl(u)), jump(curl(v)))
             , Khi);
 
@@ -1572,106 +1524,153 @@
     }
     namespace Data_Cylinder_Sebastian {
 
-    // double k = 2.;
-    double k = std::sqrt(1.6);
-    double eps = 1.;
-    double mu = 1.;
+        // double k = 2.;
+        double k = std::sqrt(1.6);
+        double eps = 1.;
+        double mu = 1.;
 
-    double cyl_radius = 0.2;
-    double cyl_height = 0.35;
+        double cyl_radius = 0.2;
+        double cyl_height = 0.35;
 
-    double shift[3] = {0.0, 0.0, cyl_height};
+        double shift[3] = {0.0, 0.0, cyl_height};
 
-    double sd_cylinder(double *P, float h, float r) {
-            double px = P[0], py = P[1], pz = P[2];
-            float length_p_xz = std::sqrt(px * px + pz * pz);
-            float abs_p_y     = std::fabs(py);
-            float dx          = std::fabs(length_p_xz) - r;
-            float dy          = std::fabs(abs_p_y) - h;
-            
-            float maxD         = std::max(dx, dy);
-            float minMaxD      = std::min(maxD, 0.0f);
-            
-            float maxDx        = std::max(dx, 0.0f);
-            float maxDy        = std::max(dy, 0.0f);
-            float lengthMaxD   = std::sqrt(maxDx * maxDx + maxDy * maxDy);
-            
-            return minMaxD + lengthMaxD;
-    }
+        double sd_cylinder(double *P, float h, float r) {
+                double px = P[0], py = P[1], pz = P[2];
+                float length_p_xz = std::sqrt(px * px + pz * pz);
+                float abs_p_y     = std::fabs(py);
+                float dx          = std::fabs(length_p_xz) - r;
+                float dy          = std::fabs(abs_p_y) - h;
+                
+                float maxD         = std::max(dx, dy);
+                float minMaxD      = std::min(maxD, 0.0f);
+                
+                float maxDx        = std::max(dx, 0.0f);
+                float maxDy        = std::max(dy, 0.0f);
+                float lengthMaxD   = std::sqrt(maxDx * maxDx + maxDy * maxDy);
+                
+                return minMaxD + lengthMaxD;
+        }
 
-    double phi(double *P, int i) {
-        double pcyl[3] = {P[0]-shift[0], P[2]-shift[2], P[1]-shift[1]};
-        return sd_cylinder(pcyl, cyl_height, cyl_radius);
-    }
+        double phi(double *P, int i) {
+            double pcyl[3] = {P[0]-shift[0], P[2]-shift[2], P[1]-shift[1]};
+            return sd_cylinder(pcyl, cyl_height, cyl_radius);
+        }
 
-    double x0 = 2.405;                      // first zero of Bessel function J_0(x)
-    double q0 = x0/cyl_radius;              // q0 = h of Cheng
-    double ps = std::sqrt(q0*q0 - k*k);     // propagation speed, sol to k^2+x^2 = q0^2
-    
-    // fun_exact_u = electric_field
-    double fun_exact_u(double *P, int i) { // h^2 = k^2 + \gam^2, E = E_0 exp(-\gam z)
-        double x = P[0], y = P[1], z = P[2];
-        double r = std::sqrt(x*x + y*y);
-        if (i == 0)  
-            return ps/q0 * x/r * std::cyl_bessel_j(1, q0*r)*exp(-ps*z);
-        else if (i == 1)
-            return ps/q0 * y/r * std::cyl_bessel_j(1, q0*r)*exp(-ps*z);
-        else
-            return std::cyl_bessel_j(0, q0*r)*exp(-ps*z) + r*r/4;
-    }
+        double x0 = 2.405;                      // first zero of Bessel function J_0(x)
+        double q0 = x0/cyl_radius;              // q0 = h of Cheng
+        double ps = std::sqrt(q0*q0 - k*k);     // propagation speed, sol to k^2+x^2 = q0^2
+        
+        // fun_exact_u = electric_field
+        double fun_exact_u(double *P, int i) { // h^2 = k^2 + \gam^2, E = E_0 exp(-\gam z)
+            double x = P[0], y = P[1], z = P[2];
+            double r = std::sqrt(x*x + y*y);
+            if (i == 0)  
+                return ps/q0 * x/r * std::cyl_bessel_j(1, q0*r)*exp(-ps*z);
+            else if (i == 1)
+                return ps/q0 * y/r * std::cyl_bessel_j(1, q0*r)*exp(-ps*z);
+            else
+                return std::cyl_bessel_j(0, q0*r)*exp(-ps*z) + r*r/4;
+        }
 
-    // fun_exact_curlu = curl_e
-    double fun_exact_curlu(double *P, int i) {
-        double x = P[0], y = P[1], z = P[2];
-        double r = std::sqrt(x*x + y*y);
-        if (i == 0)  
-            return y/2 + (y*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r);
-        else if (i == 1)
-            return - x/2 - (x*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r);
-        else
+        // fun_exact_curlu = curl_e
+        double fun_exact_curlu(double *P, int i) {
+            double x = P[0], y = P[1], z = P[2];
+            double r = std::sqrt(x*x + y*y);
+            if (i == 0)  
+                return y/2 + (y*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r);
+            else if (i == 1)
+                return - x/2 - (x*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r);
+            else
+                return 0.;
+        }
+
+        double magnetic_induction(double *P, int i) {
+            // This is actually i*b
+
+            double x = P[0], y = P[1], z = P[2];
+            double r = std::sqrt(x*x + y*y);
+
+            if (i == 0)  
+                return -(y/2 + (y*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r))/k;
+            else if (i == 1)
+                return (x/2 + (x*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r))/k;
+            else    
+                return 0.;
+        }
+
+        double fun_rhs(double *P, int i) {
+            // This is actually -k/eps * ij
+
+            double x = P[0], y = P[1], z = P[2];
+            double r = std::sqrt(x*x + y*y);
+
+            if (i == 0)
+                return 0.;
+            else if (i == 1)
+                return 0.;
+            else
+                return -(1+ r*r);
+        }
+
+        double lagrange_multiplier(double *P, int i) {
             return 0.;
+        }
+
+        double div_e(double *P, int i, int dom) {return 0.;}
+
+        double fun_0(double *P, int i) {return 0.;}
+
+        R fun_exact_p(double *P, int i) {return 0;}
     }
+    namespace Data_Easy_Cube {
+        R fun_0(double *P, int i) {
+            return 0;
+        }
 
-    double magnetic_induction(double *P, int i) {
-        // This is actually i*b
+        R k = 1.;
+        R eps = 1.;
+        R mu = 1.;
 
-        double x = P[0], y = P[1], z = P[2];
-        double r = std::sqrt(x*x + y*y);
+        R fun_exact_u(double *P, int i) { 
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0) 
+                return x;
+            else if (i == 1)
+                return -2*y;
+            else
+                return z;
+        }
+        R fun_exact_curlu(double *P, int i) { 
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0) // dy(Fz) - dz(Fy)
+                return 0;
+            else if (i == 1) // dz(Fx) - dx(Fz)
+                return 0;
+            else
+                return 0; // dx(Fy) - dy(Fx)
+        }
+        R fun_rhs(double *P, int i) {
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0)
+                return -k*k*x;
+            else if (i == 1)
+                return +2*k*k*y;
+            else
+                return -k*k*z;
+        }
+        R fun_exact_divu(double *P, int i) {
+            R x = P[0], y = P[1], z = P[2];
+            return 0;
+        }
+        R fun_exact_p(double *P, int i) {
+            R x = P[0], y = P[1], z = P[2];
+            return 0;
+        }
 
-        if (i == 0)  
-            return -(y/2 + (y*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r))/k;
-        else if (i == 1)
-            return (x/2 + (x*std::exp(-ps*z)*(ps*ps - q0*q0)*std::cyl_bessel_j(1, q0*r))/(q0*r))/k;
-        else    
-            return 0.;
-    }
-
-    double fun_rhs(double *P, int i) {
-        // This is actually -k/eps * ij
-
-        double x = P[0], y = P[1], z = P[2];
-        double r = std::sqrt(x*x + y*y);
-
-        if (i == 0)
-            return 0.;
-        else if (i == 1)
-            return 0.;
-        else
-            return -(1+ r*r);
-    }
-
-    double lagrange_multiplier(double *P, int i) {
-        return 0.;
-    }
-
-    double div_e(double *P, int i, int dom) {return 0.;}
-
-    double fun_0(double *P, int i) {return 0.;}
-
-    R fun_exact_p(double *P, int i) {return 0;}
     }
     // using namespace Data_Cylinder_Sebastian;
-    using namespace Data_Cylinder;
+    // using namespace Data_Cylinder;
+    using namespace Data_Easy_Cube;
     int main(int argc, char **argv) {
         typedef TestFunction<Mesh3> FunTest;
         typedef FunFEM<Mesh3> Fun_h;
@@ -1692,8 +1691,8 @@
 
         int iters = 2;
         for (int i = 0; i < iters; ++i) {
-            Mesh3 Kh("../cpp/mainFiles/meshes/cyli_"+std::to_string(i), MeshFormat::mesh_gmsh);  // sqrt(214)=14.62, sqrt(1268)=35.6089, sqrt(8547)=92.4499
-            // Mesh3 Kh(nx, ny, nz, 0., 0., 0., 1., 1., 1.);
+            // Mesh3 Kh("../cpp/mainFiles/meshes/cyli_"+std::to_string(i), MeshFormat::mesh_gmsh);  // sqrt(214)=14.62, sqrt(1268)=35.6089, sqrt(8547)=92.4499
+            Mesh3 Kh(nx, ny, nz, 0., 0., 0., 1., 1., 1.);
             Kh.info();
             const R hi = 1. / (nx - 1);
 
@@ -1730,7 +1729,7 @@
                 +innerProduct(fh.exprList(), v)
             , Kh);
             // BC
-            // Essential
+            // Essential weak (u)
             // R pp = 1e2;
             // maxwell3D.addBilinear( 
             //     -innerProduct(1./mu * curl(u), cross(n, v))
@@ -1743,16 +1742,22 @@
             //     +innerProduct(cross(n, u0), 1./hi*pp*cross(n, v))
             //     // +innerProduct(u0.exprList(), 1./hi*pp*v)
             // , Kh, INTEGRAL_BOUNDARY);
-            // Natural
+            // Natural (u)
             maxwell3D.addLinear(
                 -innerProduct(cross(n, curlu0), 1./mu * 1./eps * v)
             , Kh, INTEGRAL_BOUNDARY);
+
+            // Weak (p)
             // R pp = 1e2;
             // maxwell3D.addBilinear( // ensuring p|_Gamma = 0 so that divu=0
             //     +innerProduct(p, 1./hi*pp*q)
             // , Kh, INTEGRAL_BOUNDARY);
+            // Strong (p)
             Fun_h tmp_var(Wh, fun_exact_p);
             maxwell3D.setDirichletHone(tmp_var, Kh);
+
+            // Both strong (u,p)
+            // maxwell3D.setDirichletHoneAndHcurl(Wh, Uh, Kh);
 
             matlab::Export(maxwell3D.mat_[0], "mat" + std::to_string(i) + "Cut.dat");
             // continue;
@@ -2188,7 +2193,7 @@
     bool usingLagrangeMultiplierBC = false;
 
     using namespace globalVariable;
-    namespace Data_CubeHole { // f = 1/eps curl j => div f = 0 !
+    namespace Data_mueps { // f = 1/eps curl j => div f = 0 !
         R k = 1.;
         R eps = 1.;
         R mu = 1.;
@@ -2287,7 +2292,7 @@
 
     }
 
-    using namespace Data_CubeHole;
+    using namespace Data_mueps;
     int main(int argc, char **argv) {
 
         typedef TestFunction<Mesh3> FunTest;
@@ -2310,9 +2315,10 @@
 
         int iters = 2;
         for (int i = 0; i < iters; ++i) {
-            Mesh3 Kh_(nx, ny, nz, 0., 0., 0., M_PI, M_PI, M_PI);
-            // Mesh3 Kh("../cpp/mainFiles/meshes/cube_"+std::to_string(i), MeshFormat::mesh_gmsh);
+            // Mesh3 Kh_(nx, ny, nz, 0., 0., 0., M_PI, M_PI, M_PI);
+            // Mesh3 Kh_("../cpp/mainFiles/meshes/cube_"+std::to_string(i), MeshFormat::mesh_gmsh);
             // Mesh3 Kh_("../cpp/mainFiles/meshes/cube_hole_"+std::to_string(i), MeshFormat::mesh_gmsh);
+            Mesh3 Kh_("../cpp/mainFiles/meshes/ball_hole_"+std::to_string(i), MeshFormat::mesh_gmsh);
             Kh_.info();
             const R hi = 1. / (nx - 1); // 1./(nx-1)
 
@@ -2368,6 +2374,22 @@
                 +innerProduct(div(u), q)
             , Kh);
 
+            // » IF using cube with hole mesh
+            // maxwell3D.addLagrangeMultiplier(
+            //     +innerProduct(not_exact_form.exprList(), v), 0
+            // , Kh);
+            // maxwell3D.mat_[0][std::make_pair(nb_dof,nb_dof)] = 0; // For PETsc
+            // // FEM<Mesh> lagr(Uh); lagr.add(Vh); lagr.add(Wh);
+            // // lagr.addLinear(innerProduct(not_exact_form.exprList(), u), Kh);
+            // // Rn lag_row(lagr.rhs_); 
+            // // lagr.rhs_ = 0.; 
+            // // lagr.addLinear(innerProduct(not_exact_form.exprList(), v), Kh);
+            // // maxwell3D.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
+            // massRHS.addLagrangeMultiplier(
+            //     -innerProduct(not_exact_form.exprList(), 0*v), 0
+            // , Kh);
+            // massRHS.mat_[0][std::make_pair(nb_dof,nb_dof)] = 0; // For PETsc
+
             if (!usingLagrangeMultiplierBC) {
                 R regularizer = 1e-12/(hi*hi*hi); // 1e-12
                 // » For PETSc
@@ -2393,7 +2415,7 @@
                     +innerProduct(u, v)
                     +innerProduct(p, regularizer*q)
                 , Kh);
-                // massRHS.setDirichletHcurl_RHSMat(fun0, Kh);
+                massRHS.setDirichletHcurl_RHSMat(fun0, Kh);
 
                 // » If want zero pressure average via Lagrange multiplier
                 // maxwell3D.addLagrangeMultiplier(
@@ -2405,22 +2427,6 @@
                 // lagr.rhs_ = 0.; 
                 // lagr.addLinear(innerProduct(1, v*n), Kh, INTEGRAL_BOUNDARY);
                 // maxwell3D.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
-                // massRHS.mat_[0][std::make_pair(nb_dof,nb_dof)] = 0; // For PETsc
-
-                // » IF using cube with hole mesh
-                // maxwell3D.addLagrangeMultiplier(
-                //     +innerProduct(not_exact_form.exprList(), v), 0
-                // , Kh);
-                // maxwell3D.mat_[0][std::make_pair(nb_dof,nb_dof)] = 0; // For PETsc
-                // // FEM<Mesh> lagr(Uh); lagr.add(Vh); lagr.add(Wh);
-                // // lagr.addLinear(innerProduct(not_exact_form.exprList(), u), Kh);
-                // // Rn lag_row(lagr.rhs_); 
-                // // lagr.rhs_ = 0.; 
-                // // lagr.addLinear(innerProduct(not_exact_form.exprList(), v), Kh);
-                // // maxwell3D.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
-                // massRHS.addLagrangeMultiplier(
-                //     -innerProduct(not_exact_form.exprList(), 0*v), 0
-                // , Kh);
                 // massRHS.mat_[0][std::make_pair(nb_dof,nb_dof)] = 0; // For PETsc
             } else { // Lagrange multiplier for boundary condition
                 ActiveMesh<Mesh> Khsurf(Kh_); // Remove interior
@@ -2662,26 +2668,26 @@
             double tau_a = 1e0;
             double tau_b = 1e0;
             maxwell3D.addPatchStabilization(
-                +innerProduct(tau_w * jump(w), jump(tau)) 
+                -innerProduct(tau_w * jump(w), jump(tau)) 
                 +innerProduct(tau_m * jump(curl(w)), jump(v))     
-                -innerProduct(tau_m * jump(u), jump(curl(tau)))    
+                +innerProduct(tau_m * jump(u), jump(curl(tau)))    
                 +innerProduct(tau_b * jump(p), jump(div(v)))     
-                -innerProduct(tau_b * jump(div(u)), jump(q))    
+                +innerProduct(tau_b * jump(div(u)), jump(q))    
             , Khi);
 
             if (!usingLagrangeMultiplierBC) {
                 // Essential BC (natural BC has no matrix terms)
                 R pp = 1e2;
-                maxwell3D.addBilinear(
-                    +innerProduct(u, cross(n,tau))
-                    -innerProduct(cross(n,w), v)
-                    +innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
-                , interface);
-                maxwell3D.addBilinear(
-                    +innerProduct(u, cross(n,tau))
-                    -innerProduct(cross(n,w), v)
-                    +innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
-                , Khi, INTEGRAL_BOUNDARY);
+                // maxwell3D.addBilinear(
+                //     +innerProduct(u, cross(n,tau))
+                //     -innerProduct(cross(n,w), v)
+                //     +innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
+                // , interface);
+                // maxwell3D.addBilinear(
+                //     +innerProduct(u, cross(n,tau))
+                //     -innerProduct(cross(n,w), v)
+                //     +innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
+                // , Khi, INTEGRAL_BOUNDARY);
             } else {
                 // Lagrange multiplier for boundary condition
                 ActiveMesh<Mesh> Kh_itf(Kh);
@@ -2922,7 +2928,7 @@
 
         std::vector<double> ul2, pl2, divmax, divl2, h, convu, convp;
 
-        int iters = 1;
+        int iters = 2;
         for (int i = 0; i < iters; ++i) {
             // Mesh3 Kh(nx, ny, nz, 0., 0., 0., 1., 1., 1.);
             // Mesh3 Kh("../cpp/mainFiles/meshes/cube_"+std::to_string(i), MeshFormat::mesh_gmsh);
@@ -3227,8 +3233,60 @@
         }
 
     }
+    namespace Data_Easy {
+        R fun_0(double *P, int i) {
+            return 0;
+        }
 
-    using namespace Data_Cylinder;
+        R k = 2.;
+        R eps = 1.;
+        R mu = 1.;
+
+        R fun_levelSet(double *P, int i) {
+            return (P[0] - 0.5) * (P[0] - 0.5) + (P[1] - 0.5) * (P[1] - 0.5) +
+                (P[2] - 0.5) * (P[2] - 0.5) - 0.35 * 0.35;
+        }
+
+        R fun_exact_u(double *P, int i, int dom) { 
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0) 
+                return x;
+            else if (i == 1)
+                return -2*y;
+            else
+                return z;
+        }
+        R fun_exact_curlu(double *P, int i, int dom) { 
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0) // dy(Fz) - dz(Fy)
+                return 0;
+            else if (i == 1) // dz(Fx) - dx(Fz)
+                return 0;
+            else
+                return 0; // dx(Fy) - dy(Fx)
+        }
+        R fun_rhs(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            if (i == 0)
+                return -k*k*x;
+            else if (i == 1)
+                return +2*k*k*y;
+            else
+                return -k*k*z;
+        }
+        R fun_exact_divu(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            return 0;
+        }
+        R fun_exact_p(double *P, int i, int dom) {
+            R x = P[0], y = P[1], z = P[2];
+            return 0;
+        }
+
+    }
+
+    // using namespace Data_Cylinder;
+    using namespace Data_Easy;
     int main(int argc, char **argv) {
         typedef TestFunction<Mesh3> FunTest;
         typedef FunFEM<Mesh3> Fun_h;
@@ -3251,7 +3309,9 @@
         int iters = 2;
         for (int i = 0; i < iters; ++i) {
             R sh = M_PI*3e-2;
-            Mesh3 Kh(nx, ny, nz, -0.2-sh, -0.2-sh, 0.0-sh, 0.4+sh, 0.4+sh, 2.01*cylheight+sh);
+            // Mesh3 Kh(nx, ny, nz, -0.2-sh, -0.2-sh, 0.0-sh, 0.4+sh, 0.4+sh, 2.01*cylheight+sh);
+            Mesh3 Kh(nx, ny, nz, 0, 0, 0, 1, 1, 1+sh*1e-10);
+
             const R hi = 1. / (nx - 1); // 1./(nx-1)
 
             Space Uh_(Kh, DataFE<Mesh>::Ned0); // Nedelec order 0 type 1
@@ -3279,6 +3339,7 @@
             // Interpolate data
             Fun_h fh(Velh, fun_rhs);
             Fun_h u0(Velh, fun_exact_u);
+            Fun_h w0(Velh, fun_exact_curlu);
 
             // Init system matrix & assembly
             CutFEM<Mesh> maxwell3D(Uh);
@@ -3299,8 +3360,18 @@
                 +innerProduct(1. / mu * w, tau)
                 -innerProduct(u, curl(tau))
             , Khi);
+            // maxwell3D.addLinear(
+            //     -innerProduct(cross(n, u0), tau)
+            // , interface);
+            R pp = 1e2;
+            maxwell3D.addBilinear(
+                -innerProduct(u, cross(n,tau))
+                +innerProduct(cross(n,w), v)
+                +innerProduct(cross(n,w), pp*1./hi * cross(n,tau))
+            , interface);
             maxwell3D.addLinear(
-                -innerProduct(cross(n, u0), tau)
+                +innerProduct(cross(n,w0), v)
+                +innerProduct(cross(n,w0), pp*1./hi * cross(n,tau))
             , interface);
 
             // Eq 2
@@ -3329,6 +3400,7 @@
             maxwell3D.addPatchStabilization(
                 // W block
                 +innerProduct(tau_w  * jump(w), jump(tau)) 
+                +innerProduct(tau_m * hi * hi * jump(curl(w)), jump(curl(tau)))
                 // M blocks
                 +innerProduct(tau_m * jump(curl(w)), jump(v))                       // M block
                 -innerProduct(tau_m * jump(u), jump(curl(tau)))                     // -M^T block
@@ -3357,8 +3429,8 @@
             auto uh_1dy = dy(uh.expr(1));
             auto uh_2dz = dz(uh.expr(2));
 
-            auto curl_uh = curl(uh); // vector of 3 expressionfunfems
-            std::cout << curl_uh.size() << std::endl;
+            // auto curl_uh = curl(uh); // vector of 3 expressionfunfems
+            // std::cout << curl_uh.size() << std::endl;
 
             // [Paraview]
             {
@@ -3387,8 +3459,8 @@
                 writer.add(soluErr, "velocityError", 0, 2);
             }
 
-            // double errU      = L2normCut(uh, fun_exact_u, 0, 3);
-            double errU      = L2normCut(curl_uh, fun_exact_u, Khi);
+            double errU      = L2normCut(uh, fun_exact_u, 0, 3);
+            // double errU      = L2normCut(curl_uh, fun_exact_u, Khi);
             double errP      = L2normCut(ph, fun_exact_p, 0, 1);
             double errDiv    = L2normCut(uh_0dx + uh_1dy + uh_2dz, Khi);
             double maxErrDiv = maxNormCut(uh_0dx + uh_1dy + uh_2dz, Khi);

@@ -232,6 +232,35 @@ template <class Mesh, typename L> void save(const Interface<Mesh> &Gh, L &phi, s
     plot.close();
 }
 
+template <class Mesh>
+void save(const ActiveMesh<Mesh>& Khi, const std::string& filename = "Thi.dat") {
+    using mesh_t    = Mesh;
+    using Element   = typename mesh_t::Element;
+
+    std::ofstream out(filename);
+    if (!out) {
+        std::cerr << "Could not open file: " << filename << std::endl;
+        return;
+    }
+
+    const int nve = Khi[0].nv;
+
+    for (int k = Khi.first_element(); k < Khi.last_element(); k += Khi.next_element()) {
+        const Element& K = Khi[k];
+        for (int i = 0; i < nve; ++i) {
+            out << K.at(i) << std::endl;
+        }
+        out << K.at(0) << std::endl;
+        out << K.at(2) << std::endl;
+        out << K.at(1) << std::endl;
+        out << K.at(0) << std::endl;
+        out << std::endl << std::endl;
+    }
+
+    out.close();
+}
+
+
 template <class Mesh, typename L>
 void save(const ActiveMesh<Mesh> &Th, const Interface<Mesh> &Gh, L &phi, double t, std::string filename) {
     using mesh_t    = Mesh;

@@ -277,7 +277,7 @@ void eraseRowCol(int N, std::map<std::pair<int, int>, double> &A, Rn &b,
    SparseMatrixRC<double> AA(N, N, A);
    SparseMatrixRC<double> PP(N, N, P);
    multiply(PP, AA, C);
-   SparseMatrixRC<double> CC (N,N,C);
+   SparseMatrixRC<double> CC(N, N, C);
    multiply(CC, PP, A);
    // A = C;
 

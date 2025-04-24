@@ -1232,7 +1232,7 @@ void BaseCutFEM<Mesh>::setDirichletHone(const FunFEM<Mesh> &gh, const CutMesh &c
 
     // Modify the matrix and the right-hand side to enforce the Dirichlet boundary conditions
     // eraseAndSetRow(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
-    eraseAndSetRowCol(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+    eraseAndSetRowCol(this->rhs_.size(), *(this->pmat_[0]), this->rhs_, dof2set);
 }
 
 // set Dirichlet BC strongly for H¹, ie nodes (3D)
@@ -1290,7 +1290,7 @@ void BaseCutFEM<Mesh>::setDirichletHone_RHSMat(const FunFEM<Mesh> &gh, const Cut
     assert(this->pmat_.size() == 1);
 
     // Modify the matrix and the right-hand side to enforce the Dirichlet boundary conditions
-    eraseRow(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+    eraseRow(this->rhs_.size(), *(this->pmat_[0]), this->rhs_, dof2set);
 }
 
 
@@ -1342,7 +1342,7 @@ void BaseCutFEM<Mesh>::setDirichletHdiv(const FunFEM<Mesh> &gh, const CutMesh &c
     }
 
     assert(this->pmat_.size() == 1);
-    eraseAndSetRow(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+    eraseAndSetRow(this->rhs_size(), *(this->pmat_[0]), this->rhs_, dof2set);
 }
 
 // set Dirichlet BC strongly for H(curl), ie edges (3D)
@@ -1353,6 +1353,7 @@ void BaseCutFEM<Mesh>::setDirichletHcurl(const FunFEM<Mesh> &gh, const CutMesh &
     bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
     std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
     const FESpace &Vh(gh.getSpace());    // Get the finite element space from the provided FunFEM object
+    int dof_init = this->mapIdx0_[&Vh]; // Get the FIRST index of the finite element space in the list of finite element spaces
 
     // Iterate over each boundary element in the cut mesh
     for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
@@ -1385,7 +1386,7 @@ void BaseCutFEM<Mesh>::setDirichletHcurl(const FunFEM<Mesh> &gh, const CutMesh &
                 auto edges = K.edgeOfFace[idx_bdry_face]; // Check that edge is on boundary
                 if (id_edge == edges[0] || id_edge == edges[1] || id_edge == edges[2]) {
                     // Get the global index of the DOF
-                    int df_glob = FK.loc2glb(df);
+                    int df_glob = dof_init + FK.loc2glb(df);
                     // Insert the DOF and its corresponding value into the map
                     dof2set.insert({df_glob, gh(df_glob)});
                 }
@@ -1397,7 +1398,7 @@ void BaseCutFEM<Mesh>::setDirichletHcurl(const FunFEM<Mesh> &gh, const CutMesh &
     assert(this->pmat_.size() == 1);
 
     // Modify the matrix and the right-hand side to enforce the Dirichlet boundary conditions
-    eraseAndSetRowCol(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+    eraseAndSetRowCol(this->rhs_.size(), *(this->pmat_[0]), this->rhs_, dof2set);
 }
 
 template <typename Mesh>
@@ -1407,6 +1408,7 @@ void BaseCutFEM<Mesh>::setDirichletHcurl_RHSMat(const FunFEM<Mesh> &gh, const Cu
     bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
     std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
     const FESpace &Vh(gh.getSpace());    // Get the finite element space from the provided FunFEM object
+    int dof_init = this->mapIdx0_[&Vh]; // Get the FIRST index of the finite element space in the list of finite element spaces
 
     // Iterate over each boundary element in the cut mesh
     for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
@@ -1439,7 +1441,7 @@ void BaseCutFEM<Mesh>::setDirichletHcurl_RHSMat(const FunFEM<Mesh> &gh, const Cu
                 auto edges = K.edgeOfFace[idx_bdry_face]; // Check that edge is on boundary
                 if (id_edge == edges[0] || id_edge == edges[1] || id_edge == edges[2]) {
                     // Get the global index of the DOF
-                    int df_glob = FK.loc2glb(df);
+                    int df_glob = dof_init + FK.loc2glb(df);
                     // Insert the DOF and its corresponding value into the map
                     dof2set.insert({df_glob, gh(df_glob)});
                 }
@@ -1451,7 +1453,7 @@ void BaseCutFEM<Mesh>::setDirichletHcurl_RHSMat(const FunFEM<Mesh> &gh, const Cu
     assert(this->pmat_.size() == 1);
 
     // Set rows and cols to zero
-    eraseRowCol(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+    eraseRowCol(this->rhs_.size(), *(this->pmat_[0]), this->rhs_, dof2set);
 }
 
 // set Dirichlet BC strongly for H¹ and H(curl), ie edges (3D)
@@ -1461,6 +1463,9 @@ void BaseCutFEM<Mesh>::setDirichletHoneAndHcurl(const FESpace &Uh, const FESpace
 
     bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
     std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
+        
+    int dof_initU = this->mapIdx0_[&Uh]; // Get the FIRST index of the finite element space in the list of finite element spaces
+    int dof_initV = this->mapIdx0_[&Vh]; 
     
     // Iterate over each boundary element in the cut mesh
     for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
@@ -1494,7 +1499,7 @@ void BaseCutFEM<Mesh>::setDirichletHoneAndHcurl(const FESpace &Uh, const FESpace
                 auto nodes = K.nvface[idx_bdry_face]; // Check that node is on boundary
                 if (id_item == nodes[0] || id_item == nodes[1] || id_item == nodes[2]) {
                     // Get the global index of the DOF
-                    int df_glob = FKu.loc2glb(df);
+                    int df_glob = dof_initU + FKu.loc2glb(df);
                     // Insert the DOF and its corresponding value into the map
                     dof2set.insert({df_glob, 0});
                 }
@@ -1508,7 +1513,7 @@ void BaseCutFEM<Mesh>::setDirichletHoneAndHcurl(const FESpace &Uh, const FESpace
                 auto edges = K.edgeOfFace[idx_bdry_face]; // Check that edge is on boundary
                 if (id_edge == edges[0] || id_edge == edges[1] || id_edge == edges[2]) {
                     // Get the global index of the DOF
-                    int df_glob = FKv.loc2glb(df);
+                    int df_glob = dof_initV + FKv.loc2glb(df);
                     // Insert the DOF and its corresponding value into the map
                     dof2set.insert({df_glob, 0});
                 }
@@ -1520,7 +1525,7 @@ void BaseCutFEM<Mesh>::setDirichletHoneAndHcurl(const FESpace &Uh, const FESpace
     assert(this->pmat_.size() == 1);
 
     // Modify the matrix and the right-hand side to enforce the Dirichlet boundary conditions
-    eraseAndSetRowCol(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+    eraseAndSetRowCol(this->rhs_.size(), *(this->pmat_[0]), this->rhs_, dof2set);
 }
 
 template <typename Mesh>
@@ -1529,7 +1534,10 @@ void BaseCutFEM<Mesh>::setDirichletHoneAndHcurl_RHSMat(const FESpace &Uh, const 
 
     bool all_label = (label.size() == 0);    // Check if we need to apply to all labels
     std::map<int, double> dof2set;    // Map to store degrees of freedom (DOFs) and their corresponding values to be set
-        
+    
+    int dof_initU = this->mapIdx0_[&Uh]; // Get the FIRST index of the finite element space in the list of finite element spaces
+    int dof_initV = this->mapIdx0_[&Vh]; 
+
     // Iterate over each boundary element in the cut mesh
     for (int idx_be = cutTh.first_boundary_element(); idx_be < cutTh.last_boundary_element(); idx_be += cutTh.next_boundary_element()) {
         int idx_bdry_face; // Index of the boundary face in the boundary element
@@ -1562,7 +1570,7 @@ void BaseCutFEM<Mesh>::setDirichletHoneAndHcurl_RHSMat(const FESpace &Uh, const 
                 auto nodes = K.nvface[idx_bdry_face]; // Check that node is on boundary
                 if (id_item == nodes[0] || id_item == nodes[1] || id_item == nodes[2]) {
                     // Get the global index of the DOF
-                    int df_glob = FKu.loc2glb(df);
+                    int df_glob = dof_initU + FKu.loc2glb(df);
                     // Insert the DOF and its corresponding value into the map
                     dof2set.insert({df_glob, 0});
                 }
@@ -1576,7 +1584,7 @@ void BaseCutFEM<Mesh>::setDirichletHoneAndHcurl_RHSMat(const FESpace &Uh, const 
                 auto edges = K.edgeOfFace[idx_bdry_face]; // Check that edge is on boundary
                 if (id_edge == edges[0] || id_edge == edges[1] || id_edge == edges[2]) {
                     // Get the global index of the DOF
-                    int df_glob = FKv.loc2glb(df);
+                    int df_glob = dof_initV + FKv.loc2glb(df);
                     // Insert the DOF and its corresponding value into the map
                     dof2set.insert({df_glob, 0});
                 }
@@ -1588,7 +1596,7 @@ void BaseCutFEM<Mesh>::setDirichletHoneAndHcurl_RHSMat(const FESpace &Uh, const 
     assert(this->pmat_.size() == 1);
 
     // Set rows and cols to zero
-    eraseRowCol(this->get_nb_dof(), *(this->pmat_[0]), this->rhs_, dof2set);
+    eraseRowCol(this->rhs_.size(), *(this->pmat_[0]), this->rhs_, dof2set);
 }
 
 
