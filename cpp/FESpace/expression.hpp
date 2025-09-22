@@ -1331,7 +1331,7 @@ class ExpressionDivS3 : public ExpressionVirtual {
 std::shared_ptr<ExpressionDivS3> divS(const FunFEM<Mesh3> &f1);
 
 // template<typename M>
-class ExpressionAverage { //}: public ExpressionVirtual{
+class ExpressionAverage : public ExpressionVirtual{
   public:
     // const ExpressionFunFEM<M> fun1;
     // const ExpressionVirtual &fun1;
@@ -1372,6 +1372,16 @@ std::shared_ptr<ExpressionAverage> average(const std::shared_ptr<ExpressionVirtu
                                            const double kk2 = 0.5);
 std::shared_ptr<ExpressionAverage> jump(const std::shared_ptr<ExpressionVirtual> &fh1, const double kk1 = 1,
                                         const double kk2 = -1);
+template <class Mesh>
+std::list<std::shared_ptr<ExpressionAverage>> jump(const FunFEM<Mesh> &fh, double kk1 = 1.0, double kk2 = -1.0) {
+    std::list<std::shared_ptr<ExpressionAverage>> res;
+    for (auto &expr : fh.exprList()) {
+        res.push_back(jump(expr, kk1, kk2));
+    }
+    return res;
+}
+
+
 std::shared_ptr<ExpressionAverage> operator*(double c, const ExpressionAverage &fh);
 std::shared_ptr<ExpressionAverage> operator*(const ExpressionAverage &fh, double c);
 

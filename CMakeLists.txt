@@ -6,7 +6,7 @@ project(libCutFEM VERSION 0.1 LANGUAGES CXX)
 ## Options
 ## ##############################
 
-option(USE_MPI "Perform a parallel computation" OFF)
+option(USE_MPI "Perform a parallel computation" ON)
 option(USE_OMP "Perform a parallel omp computation" OFF)
 option(USE_UMFPACK "Found the UMFpack library" ON)
 option(USE_LAPACK "Found the lapacke library" OFF)

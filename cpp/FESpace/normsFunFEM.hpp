@@ -24,12 +24,29 @@ double L2normCut(const std::vector<std::shared_ptr<ExpressionVirtual>>& componen
     return sqrt(val);
 }
 template <typeMesh mesh_t, FunctionDomain fct>
+double L2normCut_2(const std::vector<std::shared_ptr<ExpressionVirtual>>& components, fct fex, const ActiveMesh<mesh_t> &Th, const MacroElement<mesh_t> *macro = nullptr) {
+    double val = 0;
+    for (const auto& component : components) {
+        val += L2normCut_2(component, fex, Th, macro);
+    }
+    return val;
+}
+
+template <typeMesh mesh_t, FunctionDomain fct>
 double L2norm(const std::vector<std::shared_ptr<ExpressionVirtual>>& components, fct fex, const mesh_t &Th) {
     double val = 0;
     for (const auto& component : components) {
         val += L2norm_2(component, fex, Th);
     }
     return sqrt(val);
+}
+template <typeMesh mesh_t, FunctionDomain fct>
+double L2norm_2(const std::vector<std::shared_ptr<ExpressionVirtual>>& components, fct fex, const mesh_t &Th) {
+    double val = 0;
+    for (const auto& component : components) {
+        val += L2norm_2(component, fex, Th);
+    }
+    return val;
 }
 
 /* For FunFEM */
@@ -46,6 +63,19 @@ double L2normCut(const FunFEM<M> &fh, R(fex)(double *, int i, int dom, double tt
     }
     return sqrt(val);
 }
+template <typename M>
+double L2normCut_2(const FunFEM<M> &fh, R(fex)(double *, int i, int dom, double tt), double t, int c0, int num_comp,
+                 const MacroElement<M> *macro = nullptr) {
+
+    const GFESpace<M> &Vh(*fh.Vh);
+    const ActiveMesh<M> &Th(Vh.get_mesh());
+    double val = 0;
+    for (int i = c0; i < num_comp + c0; ++i) {
+        auto ui = fh.expr(i);
+        val += L2normCut_2(ui, fex, Th, t, macro);
+    }
+    return val;
+}
 
 template <typeMesh mesh_t, FunctionDomain fct>
 double L2normCut(const FunFEM<mesh_t> &fh, fct fex, int c0, int num_comp, const MacroElement<mesh_t> *macro = nullptr) {
@@ -59,12 +89,31 @@ double L2normCut(const FunFEM<mesh_t> &fh, fct fex, int c0, int num_comp, const 
     }
     return sqrt(val);
 }
+template <typeMesh mesh_t, FunctionDomain fct>
+double L2normCut_2(const FunFEM<mesh_t> &fh, fct fex, int c0, int num_comp, const MacroElement<mesh_t> *macro = nullptr) {
 
+    const GFESpace<mesh_t> &Vh(*fh.Vh);
+    const ActiveMesh<mesh_t> &Th(Vh.get_mesh());
+    double val = 0;
+    for (int i = c0; i < num_comp + c0; ++i) {
+        auto ui = fh.expr(i);
+        val += L2normCut_2(ui, fex, Th, macro);
+    }
+    return val;
+}
+
+// For shared_ptr<ExpressionVirtual>
 template <typeMesh mesh_t, FunctionDomain fct>
 double L2normCut(const std::shared_ptr<ExpressionVirtual> &fh, fct fex, const ActiveMesh<mesh_t> &Th,
                  const MacroElement<mesh_t> *macro = nullptr) {
     double val = L2normCut_2(fh, fex, Th, macro);
     return sqrt(val);
+}
+template <typeMesh mesh_t, FunctionDomain fct>
+double L2normCut_2(const std::shared_ptr<ExpressionVirtual> &fh, fct fex, const ActiveMesh<mesh_t> &Th,
+                 const MacroElement<mesh_t> *macro = nullptr) {
+    double val = L2normCut_2(fh, fex, 0, Th, macro);
+    return val;
 }
 
 template <typename M>
@@ -77,23 +126,22 @@ double L2normCut(const std::shared_ptr<ExpressionVirtual> &fh, const ActiveMesh<
     }
     return sqrt(val);
 }
+template <typename M>
+double L2normCut_2(const std::shared_ptr<ExpressionVirtual> &fh, const ActiveMesh<M> &Th,
+                 const MacroElement<M> *macro = nullptr) {
+    int nb_dom = Th.get_nb_domain();
+    double val = 0.;
+    for (int i = 0; i < nb_dom; ++i) {
+        val += L2normCut_2(fh, i, Th, macro);
+    }
+    return val;
+}
 
 template <typename M>
 double L2normCut(const std::shared_ptr<ExpressionVirtual> &fh, const ActiveMesh<M> &Th, int dom,
                  const MacroElement<M> *macro = nullptr) {
     double val = L2normCut_2(fh, dom, Th, macro);
     return sqrt(val);
-}
-
-template <typeMesh mesh_t, FunctionDomain fct_t>
-double L2normCut_2(const std::shared_ptr<ExpressionVirtual> &fh, fct_t fex, const ActiveMesh<mesh_t> &Th,
-                   const MacroElement<mesh_t> *macro) {
-    int nb_dom = Th.get_nb_domain();
-    double val = 0.;
-    for (int i = 0; i < nb_dom; ++i) {
-        val += L2normCut_2(fh, fex, i, Th, macro);
-    }
-    return val;
 }
 
 template <typename M>
@@ -109,7 +157,7 @@ double L2normCut_2(const std::shared_ptr<ExpressionVirtual> &fh, R(fex)(double *
 
 template <typename Mesh>
 double L2normCut_2(const std::shared_ptr<ExpressionVirtual> &fh, int domain, const ActiveMesh<Mesh> &Th,
-                   const MacroElement<Mesh> *macro) {
+                   const MacroElement<Mesh> *macro = nullptr) {
     typedef GFESpace<Mesh> FESpace;
     typedef typename FESpace::FElement FElement;
     typedef typename ActiveMesh<Mesh>::Element Element;
@@ -165,7 +213,7 @@ double L2normCut_2(const std::shared_ptr<ExpressionVirtual> &fh, int domain, con
 
 template <typeMesh mesh_t, FunctionDomain fct_t>
 double L2normCut_2(const std::shared_ptr<ExpressionVirtual> &fh, fct_t fex, int domain, const ActiveMesh<mesh_t> &Th,
-                   const MacroElement<mesh_t> *macro) {
+                   const MacroElement<mesh_t> *macro = nullptr) {
     using fespace_t = GFESpace<mesh_t>;
     using fe_t      = typename fespace_t::FElement;
     using e_t       = typename mesh_t::Element;

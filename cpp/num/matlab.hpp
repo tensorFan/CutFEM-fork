@@ -87,26 +87,56 @@ void Export(const Vector &a, const A &mapp, std::string filename) {
    plot.close();
 }
 
+// template <class A>
+// void Export(std::map<std::pair<A, A>, R> &dF, std::string filename) {
+//    std::ofstream plot;
+//    plot.open(filename.c_str(), std::ofstream::out);
+//    plot << std::setprecision(16);
+//    for (std::map<std::pair<int, int>, R>::const_iterator q = dF.begin();
+//         q != dF.end(); ++q) {
+//       plot << q->first.first + 1 << "\t" << q->first.second + 1 << "\t"
+//            << q->second << std::endl;
+//    }
+//    plot.close();
+// }
 template <class A>
 void Export(std::map<std::pair<A, A>, R> &dF, std::string filename) {
-   std::ofstream plot;
-   plot.open(filename.c_str(), std::ofstream::out);
+   std::ofstream plot(filename.c_str(), std::ofstream::out);
    plot << std::setprecision(16);
-   for (std::map<std::pair<int, int>, R>::const_iterator q = dF.begin();
+   for (typename std::map<std::pair<A, A>, R>::const_iterator q = dF.begin();
         q != dF.end(); ++q) {
-      plot << q->first.first + 1 << "\t" << q->first.second + 1 << "\t"
+      if (!std::isfinite(q->second)) {
+         std::cerr << "Warning: non-finite value at (" 
+                  << q->first.first << "," << q->first.second << ")\n";
+      }
+      plot << q->first.first + 1 << "\t"
+           << q->first.second + 1 << "\t"
            << q->second << std::endl;
    }
    plot.close();
 }
 
+
+// template <class A>
+// void Export(std::map<std::pair<int, int>, R> &dF, const A &mapp,
+//             std::string filename) {
+//    std::ofstream plot;
+//    plot.open(filename.c_str(), std::ofstream::out);
+//    plot << std::setprecision(18);
+//    for (std::map<std::pair<int, int>, R>::const_iterator q = dF.begin();
+//         q != dF.end(); ++q) {
+//       plot << mapp.iperm(q->first.first) + 1 << "\t"
+//            << mapp.iperm(q->first.second) + 1 << "\t" << q->second << std::endl;
+//    }
+//    plot.close();
+// }
 template <class A>
-void Export(std::map<std::pair<int, int>, R> &dF, const A &mapp,
+void Export(std::map<std::pair<A, A>, R> &dF, const A &mapp,
             std::string filename) {
    std::ofstream plot;
    plot.open(filename.c_str(), std::ofstream::out);
    plot << std::setprecision(18);
-   for (std::map<std::pair<int, int>, R>::const_iterator q = dF.begin();
+   for (typename std::map<std::pair<A, A>, R>::const_iterator q = dF.begin();
         q != dF.end(); ++q) {
       plot << mapp.iperm(q->first.first) + 1 << "\t"
            << mapp.iperm(q->first.second) + 1 << "\t" << q->second << std::endl;

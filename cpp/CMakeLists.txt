@@ -46,8 +46,12 @@ endif()
 
 if(${CUTFEM_BUILD_MAIN})
 
-set(EX_NAME CutFEEC_darcy)
-add_executable(${EX_NAME}  mainFiles/CutFEEC_darcy.cpp )
+set(EX_NAME MeanCurvatureFlow)
+add_executable(${EX_NAME}  mainFiles/MeanCurvatureFlow.cpp )
+target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
+
+set(EX_NAME HodgeLaplace_torus)
+add_executable(${EX_NAME}  mainFiles/HodgeLaplace_torus.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 
 set(EX_NAME darcy_3field)
