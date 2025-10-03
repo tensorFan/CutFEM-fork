@@ -1734,9 +1734,9 @@ template <typename M> void BaseCutFEM<M>::addFaceStabilization(const itemVFlist_
         for (int ifac = 0; ifac < Element::nea; ++ifac) { // loop over the edges / faces
 
             int jfac = ifac;
-            int kn   = Th.ElementAdj(k, jfac);
-            // ONLY INNER EDGE && LOWER INDEX TAKE CARE OF THE INTEGRATION
-            if (kn < k)
+            int kn   = Th.ElementAdj(k, jfac); // kn = -1 is k has no neighbour opposite the facet ifac
+            // ONLY INTERIOR FACETS && LOWER INDEX TAKE CARE OF THE INTEGRATION
+            if (kn < k) 
                 continue;
 
             std::pair<int, int> e1 = std::make_pair(k, ifac);

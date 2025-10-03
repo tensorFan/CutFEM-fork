@@ -195,7 +195,7 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
         int nx = 14;
 
         std::vector<double> uPrint, wPrint, curluPrint, gradwPrint, meanwPrint, h, convuPr, convwPr;
-        int iters = 3;
+        int iters = 2;
 
         for (int i = 0; i < iters; ++i) {
             double ox = -1.0+1e-15; // offset to avoid singularity
@@ -271,18 +271,20 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
             // , Kh_i);
 
             // {Adds harmonic form Lagrange multiplier with s-stabilization}
-            // CutFEM<Mesh> lagr(WhC); lagr.add(VhC);
-            // lagr.addLinear(innerProduct(not_exact_form.exprList(), u), Kh_i);
-            // lagr.addFaceStabilization(innerProduct(jump(not_exact_form), uPenParam * hi1 * jump(u)), Kh_i, macro);
-            // Rn lag_row(lagr.rhs_);
-            // lagr.rhs_ = 0.; 
-            // lagr.addLinear(innerProduct(not_exact_form.exprList(), v), Kh_i);
-            // lagr.addFaceStabilization(innerProduct(jump(not_exact_form), uPenParam * hi1 * jump(v)), Kh_i, macro);
-            // HL.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
+            CutFEM<Mesh> lagr(WhC); lagr.add(VhC);
+            lagr.addLinear(innerProduct(not_exact_form.exprList(), u), Kh_i);
+            lagr.addFaceStabilization(innerProduct(jump(not_exact_form), uPenParam * hi1 * jump(u)), Kh_i, macro);
+            lagr.addFaceStabilization(innerProduct(jump(dnormal(not_exact_form)), uPenParam * hi3 * jump(grad(u)*n)), Kh_i, macro);
+            Rn lag_row(lagr.rhs_);
+            lagr.rhs_ = 0.; 
+            lagr.addLinear(innerProduct(not_exact_form.exprList(), v), Kh_i);
+            lagr.addFaceStabilization(innerProduct(jump(not_exact_form), uPenParam * hi1 * jump(v)), Kh_i, macro);
+            lagr.addFaceStabilization(innerProduct(jump(dnormal(not_exact_form)), uPenParam * hi3 * jump(grad(v)*n)), Kh_i, macro);
+            HL.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
             // {Adds harmonic form Lagrange multiplier without s-stabilization}
-            HL.addLagrangeMultiplier(
-                innerProduct(not_exact_form.exprList(), u), 0
-            , Kh_i);
+            // HL.addLagrangeMultiplier(
+            //     innerProduct(not_exact_form.exprList(), u), 0
+            // , Kh_i);
             // {Adds harmonic form Lagrange multiplier with h-stabilization}
             // CutFEM<Mesh> lagr(WhC); lagr.add(VhC);
             // lagr.addLinear(innerProduct(not_exact_form.exprList(), u), Kh_i, INTEGRAL_EXTENSION, 1);
@@ -292,28 +294,29 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
             // HL.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
 
             // {Adds facet stabilization}
-            // HL.addFaceStabilization( // [h^(2k+1) h^(2k+1)]
-            //     innerProduct(wPenParam * hi1 * jump(w), jump(tau)) 
-            //     + innerProduct(wPenParam * hi3 * jump(grad(w)), jump(grad(tau)))
+            HL.addFaceStabilization( // [h^(2k+1) h^(2k+1)]
+                innerProduct(wPenParam * hi1 * jump(w), jump(tau)) 
+                + innerProduct(wPenParam * hi3 * jump(grad(w)*n), jump(grad(tau)*n))
 
-            //     - innerProduct(uPenParam * hi1 * jump(u), jump(grad(tau)))
-            //     + innerProduct(uPenParam * hi1 * jump(grad(w)), jump(v))
+                - innerProduct(uPenParam * hi1 * jump(u), jump(grad(tau)))
+                + innerProduct(uPenParam * hi1 * jump(grad(w)), jump(v))
 
-            //     + innerProduct(uPenParam * hi1 * jump(curl(u)), jump(curl(v)))
-            //     + innerProduct(uPenParam * hi3 * jump(grad(curl(u))), jump(grad(curl(v))))
-            //     ,
-            //     Kh_i
-            //     , macro
-            // );
+                + innerProduct(uPenParam * hi1 * jump(curl(u)), jump(curl(v)))
+                + innerProduct(uPenParam * hi3 * jump(grad(curl(u))*n), jump(grad(curl(v))*n))
+                ,
+                Kh_i
+                , macro
+            );
 
             std::cout << " Time assembly \t" << MPIcf::Wtime() - t0 << std::endl;
             t0 = MPIcf::Wtime();
 
-            matlab::Export(HL.mat_[0], "mat" + std::to_string(i) + "Cut.dat");
-            std::cout << " Time export \t" << MPIcf::Wtime() - t0 << std::endl;
-            t0 = MPIcf::Wtime();
-            nx = 2 * nx - 1;
-            continue;
+            // {Export matrix for condition number computation}
+            // matlab::Export(HL.mat_[0], "mat" + std::to_string(i) + "Cut.dat");
+            // std::cout << " Time export \t" << MPIcf::Wtime() - t0 << std::endl;
+            // t0 = MPIcf::Wtime();
+            // nx = 2 * nx - 1;
+            // continue;
 
             HL.solve("mumps");
             std::cout << " Time solver \t" << MPIcf::Wtime() - t0 << std::endl;
