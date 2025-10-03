@@ -195,7 +195,7 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
         int nx = 14;
 
         std::vector<double> uPrint, wPrint, curluPrint, gradwPrint, meanwPrint, h, convuPr, convwPr;
-        int iters = 2;
+        int iters = 3;
 
         for (int i = 0; i < iters; ++i) {
             double ox = -1.0+1e-15; // offset to avoid singularity
