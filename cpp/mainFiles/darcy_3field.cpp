@@ -794,7 +794,7 @@
     typedef FESpace2   Space;
     typedef CutFESpaceT2 CutSpace;
 
-    // MPIcf cfMPI(argc,argv);
+    MPIcf cfMPI(argc,argv);
     const double cpubegin = CPUtime();
 
     int nx =11; // 6
@@ -803,7 +803,7 @@
 
     std::vector<double> hPr,uPrint,pPrint,divPrint,divPrintLoc,maxDivPrint,lagrPrint,convuPr,convpPr,convdivPr,convdivPrLoc,convmaxdivPr,convLagrPr;
 
-    int iters = 5;
+    int iters = 3;
     for(int i=0; i<iters; ++i) {
         Mesh Kh(nx, ny, 0., 0., d_x+globalVariable::Epsilon, d_y+globalVariable::Epsilon);
 
@@ -900,15 +900,18 @@
         // , macro_itf
         );
         // darcy.addBilinear(
+        //   // -innerProduct(itfPenParam*pow(h,-1)*p_itf, q_itf) 
         //   -innerProduct(itfPenParam*pow(h,1)*(grad(p_itf)*n), (grad(q_itf)*n)) 
         //   -innerProduct(itfPenParam*pow(h,3)*(grad2pitfn), (grad2pitfn))
         // , interface
         // );
         // darcy.BaseFEM::addBilinear(
-        // -innerProduct(itfPenParam*pow(h,1)*grad(p_itf)*n, grad(q_itf)*n) 
+        // -innerProduct(itfPenParam*pow(h,-2)*p_itf, q_itf) 
+        // // -innerProduct(itfPenParam*pow(h,1)*grad(p_itf)*n, grad(q_itf)*n) 
         // , Kh_itf
         // );
         darcy.BaseFEM::addBilinear( // [2024 Using levelset normal]
+        // -innerProduct(itfPenParam*pow(h,-1)*p_itf, q_itf) 
         -innerProduct(itfPenParam*pow(h,1)*(normal_phi.exprList()*grad(p_itf)), (normal_phi.exprList()*grad(q_itf))) 
         , Kh_itf
         );
@@ -934,9 +937,10 @@
         // int nb_dof = Wh.get_nb_dof()+Ph.get_nb_dof()+Ph_itf.get_nb_dof();
         // darcy.mat_[make_pair(nb_dof,nb_dof)] = area;
 
-        matlab::Export(darcy.mat_[0], "mat"+std::to_string(i)+"Cut.dat");
+        // matlab::Export(darcy.mat_[0], "mat"+std::to_string(i)+"Cut.dat");
         // std::cout << "Warning: not exporting matrix" << std::endl;
-        darcy.solve("umfpack");
+        // std::getchar();
+        darcy.solve("mumps");
 
         std::cout << "Lagrange multiplier value: " << std::endl;
         std::cout << darcy.rhs_(Wh.get_nb_dof()+Ph.get_nb_dof()+Ph_itf.get_nb_dof())<< std::endl;
