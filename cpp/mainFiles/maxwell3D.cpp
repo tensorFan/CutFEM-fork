@@ -3589,7 +3589,7 @@
         int ny = 7;
         int nz = 7;
 
-        std::vector<double> ul2, pl2, divmax, divl2, h, convu, convp;
+        std::vector<double> wl2, ul2, pl2, divmax, divl2, h, convw, convu, convp;
 
         int iters = 3;
         for (int i = 0; i < iters; ++i) {
@@ -3758,21 +3758,24 @@
                 writer.add(soluErr, "velocityError", 0, 2);
             }
 
+            double errW      = L2normCut(wh, fun_exact_curlu, 0, 3);
             double errU      = L2normCut(uh, fun_exact_u, 0, 3);
-            // double errU      = L2normCut(curl_uh, fun_exact_u, Khi);
             double errP      = L2normCut(ph, fun_exact_p, 0, 1);
             double errDiv    = L2normCut(uh_0dx + uh_1dy + uh_2dz, Khi);
             double maxErrDiv = maxNormCut(uh_0dx + uh_1dy + uh_2dz, Khi);
 
+            wl2.push_back(errW);
             ul2.push_back(errU);
             pl2.push_back(errP);
             divl2.push_back(errDiv);
             divmax.push_back(maxErrDiv);
             h.push_back(hi);
             if (i == 0) {
+                convw.push_back(0);
                 convu.push_back(0);
                 convp.push_back(0);
             } else {
+                convw.push_back(log(wl2[i] / wl2[i - 1]) / log(h[i] / h[i - 1]));
                 convu.push_back(log(ul2[i] / ul2[i - 1]) / log(h[i] / h[i - 1]));
                 convp.push_back(log(pl2[i] / pl2[i - 1]) / log(h[i] / h[i - 1]));
             }
@@ -3783,6 +3786,7 @@
         std::cout << "\n"
             << std::left << std::setw(10) << std::setfill(' ') << "h" << std::setw(15) << std::setfill(' ')
             << "err p" << std::setw(15) << std::setfill(' ') << "conv p" << std::setw(15) << std::setfill(' ')
+            << "err w" << std::setw(15) << std::setfill(' ') << "conv w" << std::setw(15) << std::setfill(' ')
             << "err u" << std::setw(15) << std::setfill(' ') << "conv u" << std::setw(15) << std::setfill(' ')
             << "err divu"
             // << std::setw(15) << std::setfill(' ') << "conv divu"
@@ -3796,6 +3800,7 @@
         for (int i = 0; i < h.size(); ++i) {
             std::cout << std::left << std::setw(10) << std::setfill(' ') << h[i] << std::setw(15) << std::setfill(' ')
                     << pl2[i] << std::setw(15) << std::setfill(' ') << convp[i] << std::setw(15) << std::setfill(' ')
+                    << wl2[i] << std::setw(15) << std::setfill(' ') << convw[i] << std::setw(15) << std::setfill(' ')
                     << ul2[i] << std::setw(15) << std::setfill(' ') << convu[i] << std::setw(15) << std::setfill(' ')
                     << divl2[i]
                     // << std::setw(15) << std::setfill(' ') << convdivPr[i]
