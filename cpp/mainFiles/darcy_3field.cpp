@@ -19,8 +19,8 @@
 
 // #define FITTED_DARCY_EXAMPLE_NOTCIRCLE
 
-// #define DARCY_EXAMPLE_NOTCIRCLE // Ex 2
-#define DARCY_EXAMPLE_CIRCLE // Ex 1
+#define DARCY_EXAMPLE_NOTCIRCLE // Ex 2
+// #define DARCY_EXAMPLE_CIRCLE // Ex 1
 // #define DARCY_EXAMPLE_CIRCLE_SARA_TESTS
 // #define DARCY_EXAMPLE_TWO_BC_ANNULUS_PLUS_INTERFACE // Ex 3
 // #define DARCY_2FIELD_EXAMPLE_TWO_BC_ANNULUS_PLUS_INTERFACE
@@ -334,7 +334,7 @@
     typedef FESpace2   Space;
     typedef CutFESpaceT2 CutSpace;
 
-    // MPIcf cfMPI(argc,argv);
+    MPIcf cfMPI(argc,argv);
     const double cpubegin = CPUtime();
 
     int nx =11; // 6

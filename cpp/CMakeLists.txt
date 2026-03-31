@@ -58,6 +58,11 @@ set(EX_NAME darcy_3field)
 add_executable(${EX_NAME}  mainFiles/darcy_3field.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 
+set(EX_NAME darcy2026_rectangle)
+add_executable(${EX_NAME}  mainFiles/darcy2026_rectangle.cpp )
+target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
+
+
 set(EX_NAME stokesRT)
 add_executable(${EX_NAME}  mainFiles/stokesRT.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
