@@ -278,7 +278,6 @@ double integral(const ActiveMesh<M> &Th, const std::shared_ptr<const ExpressionV
                 QuadraturePoint ip(qf[ipq]); // integration point
                 Rd mip       = cutK.mapToPhysicalElement(it, ip);
                 const R Cint = meas * ip.getWeight();
-
                 val += Cint * fh->evalOnBackMesh(kb, domain, mip);
             }
         }

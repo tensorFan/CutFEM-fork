@@ -23,12 +23,12 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
 // #define TEST_PIOLA
 // #define DARCY_FEM
 // #define DARCY_FEM_3D
-#define DARCY_EXAMPLE_SCOTTI
+// #define DARCY_EXAMPLE_SCOTTI
 // #define DARCY_ARTIFICIAL_INTERFACE_3D
 // #define DARCY_EXAMPLE_FICTITIOUS_3D
 // #define DARCY_EXAMPLE_SCOTTI_3D
 // #define DARCY_EXAMPLE_ALL_BOUNDARY
-// #define DARCY_EXAMPLE_PUPPI
+#define DARCY_EXAMPLE_PUPPI
 // #define DARCY_MIXED_FITTED
 // #define DARCY_FRACTURE
 // #define DARCY_MULTI_FRACTURE
@@ -1114,7 +1114,7 @@ int main(int argc, char **argv) {
     std::vector<double> uPrint, pPrint, divPrint, divPrintLoc, maxDivPrint, h, convuPr, convpPr, convdivPr,
         convdivPrLoc, convmaxdivPr;
 
-    int iters = 1;
+    int iters = 3;
 
     for (int i = 0; i < iters; ++i) {
         Mesh Kh(nx, ny, 0., 0., d_x, d_y);
@@ -1171,33 +1171,32 @@ int main(int argc, char **argv) {
         // darcy.cleanMatrix();
         darcy.addLagrangeMultiplier(innerProduct(1., p), 0., Kh_i);
 
-        darcy.addBilinear(+innerProduct(p, v * n) + innerProduct(penParam * u * n, 1. / h_i * v * n), interface);
-
-        darcy.addLinear(+innerProduct(u0 * n, penParam * 1. / h_i * v * n), interface);
+        // darcy.addBilinear(+innerProduct(p, v * n) + innerProduct(penParam * u * n, 1. / h_i * v * n), interface);
+        // darcy.addLinear(+innerProduct(u0 * n, penParam * 1. / h_i * v * n), interface);
+        
+        darcy.addBilinear(+innerProduct(p, v * n) + innerProduct(penParam * u * n, v * n), interface);
+        darcy.addLinear(+innerProduct(u0 * n, penParam * v * n), interface);
         // matlab::Export(darcy.mat_, "mat0.dat");
         // matlab::Export(darcy.rhs_, "rhs0.dat");
 
         // return 0;
         FunTest grad2un = grad(grad(u) * n) * n;
-        //   darcy.addFaceStabilization( // [h^(2k+1) h^(2k+1)]
-        //   //  innerProduct(uPenParam*pow(h_i,1)*jump(u), jump(v)) // [Method 1:
-        //   Remove jump in vel]
-        //   // +innerProduct(uPenParam*pow(h_i,3)*jump(grad(u)*n),
-        //   jump(grad(v)*n))
-        //   // +innerProduct(uPenParam*pow(h_i,5)*jump(grad2un), jump(grad2un))
-        //   // +innerProduct(pPenParam*pow(h_i,1)*jump(p), jump(q))
-        //   // +innerProduct(pPenParam*pow(h_i,3)*jump(grad(p)), jump(grad(q)))
-        //    innerProduct(uPenParam*h_i*jump(u), jump(v)) // [Method 1: Remove
-        //    jump in vel]
-        //   +innerProduct(uPenParam*pow(h_i,3)*jump(grad(u)*n), jump(grad(v)*n))
-        //   +innerProduct(uPenParam*pow(h_i,5)*jump(grad2un), jump(grad2un))
-        //   -innerProduct(pPenParam*pow(h_i,1)*jump(p), jump(div(v)))
-        //   +innerProduct(pPenParam*pow(h_i,1)*jump(div(u)), jump(q))
-        //   -innerProduct(pPenParam*pow(h_i,3)*jump(grad(p)), jump(grad(div(v))))
-        //   +innerProduct(pPenParam*pow(h_i,3)*jump(grad(div(v))) ,
-        //   jump(grad(q))) , Kh_i
-        //   // , macro
-        // );
+          darcy.addFaceStabilization( // [h^(2k+1) h^(2k+1)]
+          //  innerProduct(uPenParam*pow(h_i,1)*jump(u), jump(v)) // [Method 1: Remove jump in vel]
+          // +innerProduct(uPenParam*pow(h_i,3)*jump(grad(u)*n), jump(grad(v)*n))
+          // +innerProduct(uPenParam*pow(h_i,5)*jump(grad2un), jump(grad2un))
+          // +innerProduct(pPenParam*pow(h_i,1)*jump(p), jump(q))
+          // +innerProduct(pPenParam*pow(h_i,3)*jump(grad(p)), jump(grad(q)))
+           innerProduct(uPenParam*h_i*jump(u), jump(v)) // [Method 1: Remove jump in vel]
+          +innerProduct(uPenParam*pow(h_i,3)*jump(grad(u)*n), jump(grad(v)*n))
+          +innerProduct(uPenParam*pow(h_i,5)*jump(grad2un), jump(grad2un))
+          -innerProduct(pPenParam*pow(h_i,1)*jump(p), jump(div(v)))
+          +innerProduct(pPenParam*pow(h_i,1)*jump(div(u)), jump(q))
+          -innerProduct(pPenParam*pow(h_i,3)*jump(grad(p)), jump(grad(div(v))))
+          +innerProduct(pPenParam*pow(h_i,3)*jump(grad(div(v))) ,
+          jump(grad(q))) , Kh_i
+          // , macro
+        );
 
         // matlab::Export(darcy.mat_, "matB"+to_string(i)+".dat");
 
