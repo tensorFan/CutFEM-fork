@@ -58,6 +58,11 @@ set(EX_NAME darcy_3field)
 add_executable(${EX_NAME}  mainFiles/darcy_3field.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 
+# set(EX_NAME darcy2026_rectangle)
+# add_executable(${EX_NAME}  mainFiles/darcy2026_rectangle.cpp )
+# target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
+
+
 set(EX_NAME stokesRT)
 add_executable(${EX_NAME}  mainFiles/stokesRT.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
@@ -77,6 +82,13 @@ target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 #set(EX_NAME paper)
 #add_executable(${EX_NAME}  mainFiles/paper.cpp )
 #target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+
+set(EX_NAME bernoulli_example)
+add_executable(${EX_NAME}  mainFiles/bernoulli_example.cpp )
+target_include_directories(${EX_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/parallel
+)
+target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 
 set(EX_NAME poisson)
 add_executable(${EX_NAME}  mainFiles/poissonFEM.cpp )
