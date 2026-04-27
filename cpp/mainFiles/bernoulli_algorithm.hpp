@@ -45,8 +45,14 @@ struct Options {
     double nitsche_penalty = 50.0;
     double ghost_penalty = 1.0e-1;
     double velocity_boundary_penalty = 50.0;
-    double time_step = 0.02;
-    double gradient_tolerance = 1.0e-10;
+
+    // Algorithm 1 / Section 8 defaults from Burman--Elfverson--Hansbo--Larson--Larsson.
+    // alpha is the damping parameter in (5.5), transport_steps is N in (5.6),
+    // and tolerance is TOL in (6.1).
+    double damping_alpha = 0.5;
+    double tolerance = 1.0e-5;
+    double level_set_stabilization = 1.0;
+
     std::string solver_name = "default";
     std::string output_prefix = "bernoulli";
 };
@@ -97,30 +103,70 @@ class BernoulliAlgorithm {
         history.reserve(opt_.max_iterations + 1);
 
         std::ofstream csv(opt_.output_prefix + "_history.csv");
-        csv << "iteration,boundary_residual,velocity_norm,mean_zero_radius\n";
+        csv << "iteration,boundary_residual,beta_prime_h1_norm,mean_zero_radius\n";
 
-        for (int it = 0; it <= opt_.max_iterations; ++it) {
-            auto geometry = build_geometry();
-            auto primal = solve_primal(geometry);
-            auto adjoint = solve_adjoint(geometry, *primal);
-            const double boundary_residual = compute_boundary_residual(geometry, *primal);
-            auto velocity = solve_velocity(geometry, *primal, *adjoint);
-            const double vnorm = h1_norm_velocity(geometry, *velocity);
+        // Algorithm 1:
+        // Compute primal solution u_h (3.20) and residual indicator R_Gamma(u_h) (6.1).
+        auto geometry = build_geometry();
+        auto primal = solve_primal(geometry);
+        double boundary_residual = compute_boundary_residual(geometry, *primal);
+
+        for (int it = 0; it <= opt_.max_iterations && boundary_residual > opt_.tolerance; ++it) {
             const double radius = estimate_mean_zero_radius(R2(0.5 * opt_.lx, 0.5 * opt_.ly));
-
-            history.push_back({it, boundary_residual, vnorm, radius});
-            csv << it << ',' << boundary_residual << ',' << vnorm << ',' << radius << '\n';
-            std::cout << "it=" << it << "  boundary residual=" << boundary_residual << "  |beta|_H1=" << vnorm
-                      << "  r0≈" << radius << std::endl;
 
             if (opt_.vtk_every > 0 && it % opt_.vtk_every == 0) {
                 write_vtk(geometry, *primal, it);
                 write_levelset_vtk(it);
                 write_levelset_contour_dat(it);
             }
-            if (it == opt_.max_iterations || vnorm < opt_.gradient_tolerance) break;
-            transport_level_set(geometry, *velocity);
+
+            // Compute the dual solution p_h (3.21).
+            auto adjoint = solve_adjoint(geometry, *primal);
+
+            // Compute the velocity field beta_h from the discrete shape derivative (3.22)
+            // by solving (4.17), then normalizing as in (4.18).
+            double beta_prime_h1_norm = 0.0;
+            auto velocity = solve_velocity(geometry, *primal, *adjoint, beta_prime_h1_norm);
+
+            history.push_back({it, boundary_residual, beta_prime_h1_norm, radius});
+            csv << it << ',' << boundary_residual << ',' << beta_prime_h1_norm << ',' << radius << '\n';
+            std::cout << "it=" << it
+                      << "  R_Gamma(u_h)=" << boundary_residual
+                      << "  |beta_prime|_H1=" << beta_prime_h1_norm
+                      << "  r0≈" << radius << std::endl;
+
+            if (beta_prime_h1_norm <= 0.0) {
+                std::cout << "Stopping: beta_prime has zero H1 norm." << std::endl;
+                break;
+            }
+
+            // Move the interface by (5.5)--(5.6).
+            const double objective = 0.5 * boundary_residual * boundary_residual;
+            move_interface(geometry, *velocity, objective, beta_prime_h1_norm);
+
+            // Compute primal solution and residual indicator again.
+            geometry = build_geometry();
+            primal = solve_primal(geometry);
+            boundary_residual = compute_boundary_residual(geometry, *primal);
         }
+
+        // Record/output the final state, including the case in which the initial
+        // guess already satisfies the tolerance.
+        {
+            const int final_it = static_cast<int>(history.size());
+            const double radius = estimate_mean_zero_radius(R2(0.5 * opt_.lx, 0.5 * opt_.ly));
+            history.push_back({final_it, boundary_residual, 0.0, radius});
+            csv << final_it << ',' << boundary_residual << ',' << 0.0 << ',' << radius << '\n';
+            std::cout << "final  R_Gamma(u_h)=" << boundary_residual
+                      << "  r0≈" << radius << std::endl;
+
+            if (opt_.vtk_every > 0 && final_it % opt_.vtk_every == 0) {
+                write_vtk(geometry, *primal, final_it);
+                write_levelset_vtk(final_it);
+                write_levelset_contour_dat(final_it);
+            }
+        }
+
         return history;
     }
 
@@ -153,6 +199,10 @@ class BernoulliAlgorithm {
     }
 
     void add_cut_poisson_operator(Problem& problem, const CutGeometry& g) const {
+        // A_h = a_h + s_h, equations (2.19)--(2.20).
+        // The Nitsche terms are placed on Gamma_fix, represented here by
+        // INTEGRAL_BOUNDARY of the active mesh.  The free boundary Gamma is
+        // represented by g.interface and is treated separately.
         const MeshParameter& h(Parameter::h);
         Normal n;
         Test u(*g.space, 1), v(*g.space, 1);
@@ -160,22 +210,39 @@ class BernoulliAlgorithm {
         Test dvn = grad(v) * n;
 
         problem.addBilinear(innerProduct(grad(u), grad(v)), *g.domain);
+
+        // Nitsche terms on Gamma_fix.
         problem.addBilinear(-innerProduct(dun, v) - innerProduct(u, dvn) +
                                 innerProduct((opt_.nitsche_penalty / h) * u, v),
-                            *g.interface);
+                            *g.domain, INTEGRAL_BOUNDARY);
+
+        // Ghost penalty s_h near the cut/interface zone.
         problem.addFaceStabilization(
             innerProduct((opt_.ghost_penalty * h) * jump(grad(u) * n), jump(grad(v) * n)), *g.domain);
     }
 
     std::unique_ptr<Fun> solve_primal(const CutGeometry& g) const {
+        // Equation (3.20): A_h(Omega; u_h, w) = F_h(Omega; w).
         Problem primal(*g.space, make_problem_option(opt_));
         add_cut_poisson_operator(primal, g);
 
+        const MeshParameter& h(Parameter::h);
+        Normal n;
         Fun f(*g.space, data_.rhs);
+        Fun gD(*g.space, data_.fixed_dirichlet);
         Fun gN(*g.space, data_.fixed_neumann);
         Test v(*g.space, 1);
+
         primal.addLinear(innerProduct(f.expr(), v), *g.domain);
-        primal.addLinear(innerProduct(gN.expr(), v), *g.domain, INTEGRAL_BOUNDARY);
+
+        // F_h fixed-boundary Nitsche contribution:
+        // (g_D, gamma_D h^{-1} v - partial_n v)_Gamma_fix.
+        primal.addLinear(innerProduct(gD.expr(), (opt_.nitsche_penalty / h) * v - grad(v) * n),
+                         *g.domain, INTEGRAL_BOUNDARY);
+
+        // F_h free-boundary Neumann contribution: (g_N, v)_Gamma.
+        primal.addLinear(innerProduct(gN.expr(), v), *g.interface);
+
         primal.solve();
         auto sol = std::make_unique<Fun>(*g.space);
         sol->init(primal.rhs_);
@@ -183,24 +250,37 @@ class BernoulliAlgorithm {
     }
 
     std::unique_ptr<Fun> solve_adjoint(const CutGeometry& g, const Fun& primal) const {
+        // Equation (3.21): A_h(Omega; p_h, w) = (u_h, w)_Gamma.
         Problem adjoint(*g.space, make_problem_option(opt_));
         add_cut_poisson_operator(adjoint, g);
 
-        const MeshParameter& h(Parameter::h);
-        Fun gD(*g.space, data_.fixed_dirichlet);
         Test v(*g.space, 1);
-        adjoint.addLinear(innerProduct(primal.expr() - gD.expr(), (1.0 / h) * v), *g.domain, INTEGRAL_BOUNDARY);
+        adjoint.addLinear(innerProduct(primal.expr(), v), *g.interface);
+
         adjoint.solve();
         auto sol = std::make_unique<Fun>(*g.space);
         sol->init(adjoint.rhs_);
         return sol;
     }
 
-    std::unique_ptr<Fun> solve_velocity(const CutGeometry& g, const Fun& primal, const Fun& adjoint) const {
+    std::unique_ptr<Fun> solve_velocity(const CutGeometry& g,
+                                      const Fun& primal,
+                                      const Fun& adjoint,
+                                      double& beta_prime_h1_norm) const {
+        // Equation (4.17): b(beta'_h, theta) = -D_{Omega,theta}L.
+        //
+        // In the paper beta'_h is in [V_h(Omega_0)]^d.  In this codebase,
+        // assembling the right-hand side with cut-space u_h,p_h against a full
+        // background-space vector test function can trigger inactive-cell
+        // evaluations.  Therefore beta'_h is assembled on the active cut velocity
+        // space.  The variational equation and normalization are otherwise those
+        // of (4.17)--(4.18).
         Problem velocity(*g.velocity_space, make_problem_option(opt_));
 
         Test bx(*g.velocity_space, 1, 0), by(*g.velocity_space, 1, 1);
         Test tx(*g.velocity_space, 1, 0), ty(*g.velocity_space, 1, 1);
+        Test theta(*g.velocity_space, 2);
+        Tangent t;
 
         velocity.addBilinear(innerProduct(grad(bx), grad(tx)) + innerProduct(bx, tx), *g.domain);
         velocity.addBilinear(innerProduct(grad(by), grad(ty)) + innerProduct(by, ty), *g.domain);
@@ -208,6 +288,7 @@ class BernoulliAlgorithm {
         Fun f(*g.space, data_.rhs);
         Fun grad_fx(*g.space, data_.grad_rhs_x);
         Fun grad_fy(*g.space, data_.grad_rhs_y);
+        Fun gN(*g.space, data_.fixed_neumann);
 
         auto ux = dx(primal.expr());
         auto uy = dy(primal.expr());
@@ -218,10 +299,9 @@ class BernoulliAlgorithm {
         auto gfx = grad_fx.expr();
         auto gfy = grad_fy.expr();
 
+        // Volume part of (3.22).
         auto coeff_div = ff * p - ux * px - uy * py;
 
-        // Assemble -D J(theta), where D J is the continuous domain shape derivative
-        // evaluated with the current CutFEM primal/adjoint fields.
         velocity.addLinear(-innerProduct(coeff_div, dx(tx) + dy(ty)), *g.domain);
         velocity.addLinear(-innerProduct(2.0 * ux * px, dx(tx)), *g.domain);
         velocity.addLinear(-innerProduct(ux * py, dy(tx) + dx(ty)), *g.domain);
@@ -229,23 +309,43 @@ class BernoulliAlgorithm {
         velocity.addLinear(-innerProduct(2.0 * uy * py, dy(ty)), *g.domain);
         velocity.addLinear(-innerProduct(gfx * p, tx) - innerProduct(gfy * p, ty), *g.domain);
 
+        // Boundary part of (3.22):
+        // int_Gamma (div_Gamma theta)(1/2 u_h^2 + g_N p_h) dGamma.
+        //
+        // In 2D, div_Gamma theta = t^T Dtheta t.  In this codebase the
+        // tangent contraction is represented by multiplying the vector/matrix
+        // TestFunction by Tangent; innerProduct(., t) is not a valid overload.
+        Test div_gamma_theta = (grad(theta) * t) * t;
+        auto boundary_coeff = 0.5 * primal.expr() * primal.expr() + gN.expr() * p;
+        velocity.addLinear(-innerProduct(boundary_coeff, div_gamma_theta), *g.interface);
+
         velocity.solve();
         auto sol = std::make_unique<Fun>(*g.velocity_space);
         sol->init(velocity.rhs_);
+
+        beta_prime_h1_norm = h1_norm_velocity(g, *sol);
+        if (beta_prime_h1_norm > 0.0) {
+            // Equation (4.18): beta_h = beta'_h / ||beta'_h||_{H^1}.
+            sol->v /= beta_prime_h1_norm;
+        }
         return sol;
     }
 
     double compute_boundary_residual(const CutGeometry& g, const Fun& primal) const {
-        // Diagnostic only: assemble the fixed-boundary residual functional against P1 test functions
-        // and report the Euclidean norm of the resulting load vector. The optimization step itself
-        // uses the adjoint/shape derivative, not this scalar.
+        // Equation (6.1): R_Gamma(u_h) = ||u_h||_Gamma.
+        //
+        // There is no generic integral(InterfaceLevelSet, Expression) overload in
+        // this codebase.  Instead we assemble the linear form
+        //     q -> int_Gamma u_h^2 q dGamma
+        // on the scalar cut P1 space and use partition of unity to recover
+        // int_Gamma u_h^2 dGamma by summing the load vector entries.
         Problem residual(*g.space, make_problem_option(opt_));
-        Fun gD(*g.space, data_.fixed_dirichlet);
         Test q(*g.space, 1);
-        residual.addLinear(innerProduct(primal.expr() - gD.expr(), q), *g.domain, INTEGRAL_BOUNDARY);
-        double sum = 0.0;
-        for (int i = 0; i < residual.rhs_.size(); ++i) sum += residual.rhs_(i) * residual.rhs_(i);
-        return std::sqrt(sum);
+        residual.addLinear(innerProduct(primal.expr() * primal.expr(), q), *g.interface);
+
+        double val = 0.0;
+        for (int i = 0; i < residual.rhs_.size(); ++i) val += residual.rhs_(i);
+        return std::sqrt(std::max(0.0, val));
     }
 
     double h1_norm_velocity(const CutGeometry& g, const Fun& velocity) const {
@@ -257,14 +357,24 @@ class BernoulliAlgorithm {
         return std::sqrt(std::max(0.0, val));
     }
 
-    void transport_level_set(const CutGeometry& g, const Fun& velocity) {
-        // LevelSet::move expects a velocity defined on the full background FE
-        // space.  Here beta is intentionally defined on the active cut velocity
-        // space, so we update the background level-set nodes explicitly while
-        // only evaluating beta on active cut elements.
-        const double dt = opt_.time_step / std::max(1, opt_.transport_steps);
+    void move_interface(const CutGeometry& g,
+                        const Fun& velocity,
+                        const double objective,
+                        const double beta_prime_h1_norm) {
+        // Equations (5.5)--(5.6).
+        //
+        // Since beta_h is normalized, D_{Omega,beta_h}L = -||beta'_h||_{H^1}.
+        // Thus T = (alpha - 1) J / D_{Omega,beta_h}L
+        //        = (1 - alpha) J / ||beta'_h||_{H^1}.
+        const double T = (1.0 - opt_.damping_alpha) * objective / std::max(beta_prime_h1_norm, 1.0e-30);
+        const double dt = T / std::max(1, opt_.transport_steps);
 
         for (int step = 0; step < opt_.transport_steps; ++step) {
+            // Library-safe nodal realization of the transport equation
+            // partial_t phi + beta_h · grad phi = 0 with the paper time step.
+            //
+            // This keeps the same semantics as the old transport routine but now
+            // uses the paper's normalized velocity and damping-time formula.
             KN<double> delta(level_set_.v.size());
             KN<double> count(level_set_.v.size());
             delta = 0.;

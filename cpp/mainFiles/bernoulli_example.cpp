@@ -79,7 +79,8 @@ int main(int argc, char** argv) {
     opt.nx = 40;
     opt.max_iterations = 30;
     opt.transport_steps = 8;
-    opt.time_step = 0.002;
+    opt.damping_alpha = 0.5;
+    opt.transport_steps = 3;
     opt.output_prefix = "bernoulli_circle";
     opt.vtk_every = 1;
 

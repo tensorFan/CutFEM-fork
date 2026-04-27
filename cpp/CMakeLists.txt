@@ -90,6 +90,10 @@ target_include_directories(${EX_NAME} PRIVATE
 )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 
+set(EX_NAME scalar_obstacle)
+add_executable(${EX_NAME}  mainFiles/scalar_obstacle.cpp )
+target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+
 set(EX_NAME poisson)
 add_executable(${EX_NAME}  mainFiles/poissonFEM.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
