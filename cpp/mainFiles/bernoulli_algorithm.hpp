@@ -1,3 +1,5 @@
+// DOESNT WORK ATM
+// -----------------------------------------------------------------------------
 #ifndef BERNOULLI_ALGORITHM_HPP
 #define BERNOULLI_ALGORITHM_HPP
 

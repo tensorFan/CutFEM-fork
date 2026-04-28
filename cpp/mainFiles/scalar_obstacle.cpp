@@ -32,6 +32,7 @@ using Problem = FEM<Mesh>;
 using Fun = FunFEM<Mesh>;
 using Test = TestFunction<Mesh>;
 
+// constexpr double M_PI = 3.141592653589793238462643383279502884;
 
 // -----------------------------------------------------------------------------
 // Scalar P2 plus one cubic interior bubble.  This is the scalar analogue of the
@@ -262,6 +263,21 @@ struct SimpleMesh {
     std::vector<std::array<int, 3>> triangles;
 };
 
+SimpleMesh compact_mesh(const SimpleMesh& in) {
+    SimpleMesh out;
+    std::vector<int> map_old_new(in.vertices.size(), -1);
+    for (const auto& T : in.triangles) {
+        for (int a : T) {
+            if (map_old_new[a] < 0) {
+                map_old_new[a] = static_cast<int>(out.vertices.size());
+                out.vertices.push_back(in.vertices[a]);
+            }
+        }
+        out.triangles.push_back({map_old_new[T[0]], map_old_new[T[1]], map_old_new[T[2]]});
+    }
+    return out;
+}
+
 struct Options {
     int initial_nx = 9;
     int adaptive_steps = 6;
@@ -349,7 +365,7 @@ SimpleMesh make_initial_lshape_mesh(int nx) {
             }
         }
     }
-    return m;
+    return compact_mesh(m);
 }
 
 inline double signed_area(const R2& A, const R2& B, const R2& C) {
@@ -358,15 +374,26 @@ inline double signed_area(const R2& A, const R2& B, const R2& C) {
 
 int boundary_label(const R2& A, const R2& B) {
     const double tol = 1e-12;
+    if (current_benchmark == Benchmark::lshape) {
+        // Every edge with count one is a homogeneous Dirichlet edge on the L-shaped mesh.
+        return 1;
+    }
     if (std::abs(A.y) < tol && std::abs(B.y) < tol) return 1;
     if (std::abs(A.x - 1.) < tol && std::abs(B.x - 1.) < tol) return 2;
     if (std::abs(A.y - 1.) < tol && std::abs(B.y - 1.) < tol) return 3;
     if (std::abs(A.x) < tol && std::abs(B.x) < tol) return 4;
-    return 0;
+    return 1; // safe default for homogeneous Dirichlet boundary edges
 }
 
 int vertex_label(const R2& P) {
     const double tol = 1e-12;
+    if (current_benchmark == Benchmark::lshape) {
+        const bool outer = std::abs(P.x + 2.) < tol || std::abs(P.x - 2.) < tol ||
+                           std::abs(P.y + 2.) < tol || std::abs(P.y - 2.) < tol;
+        const bool reentrant = (std::abs(P.x) < tol && P.y <= tol) ||
+                               (std::abs(P.y) < tol && P.x >= -tol);
+        return (outer || reentrant) ? 1 : 0;
+    }
     int lab = 0;
     if (std::abs(P.y) < tol) lab = std::max(lab, 1);
     if (std::abs(P.x - 1.) < tol) lab = std::max(lab, 2);
@@ -390,12 +417,14 @@ void write_mesh_file(const SimpleMesh& mesh, const std::string& filename) {
         for (auto& e : e2v) ++count[edge_key(T[e[0]], T[e[1]])];
     }
     std::vector<std::array<int, 3>> bedges;
+    std::vector<int> vlabel(mesh.vertices.size(), 0);
     for (const auto& kv : count) {
         if (kv.second == 1) {
             const int a = kv.first.first, b = kv.first.second;
-            int lab = boundary_label(mesh.vertices[a], mesh.vertices[b]);
-            if (lab == 0) lab = 1; // generic boundary label, needed for the L-shaped mesh
+            const int lab = boundary_label(mesh.vertices[a], mesh.vertices[b]);
             bedges.push_back({a, b, lab});
+            vlabel[a] = std::max(vlabel[a], lab);
+            vlabel[b] = std::max(vlabel[b], lab);
         }
     }
 
@@ -403,7 +432,11 @@ void write_mesh_file(const SimpleMesh& mesh, const std::string& filename) {
     if (!out) throw std::runtime_error("Cannot write mesh file " + filename);
     out << mesh.vertices.size() << ' ' << mesh.triangles.size() << ' ' << bedges.size() << "\n";
     out << std::setprecision(17);
-    for (const auto& P : mesh.vertices) out << P.x << ' ' << P.y << ' ' << vertex_label(P) << "\n";
+    for (std::size_t i = 0; i < mesh.vertices.size(); ++i) {
+        const auto& P = mesh.vertices[i];
+        const int lab = std::max(vlabel[i], vertex_label(P));
+        out << P.x << ' ' << P.y << ' ' << lab << "\n";
+    }
     for (const auto& T : mesh.triangles) out << T[0] + 1 << ' ' << T[1] + 1 << ' ' << T[2] + 1 << " 0\n";
     for (const auto& E : bedges) out << E[0] + 1 << ' ' << E[1] + 1 << ' ' << E[2] << "\n";
 }
@@ -671,31 +704,37 @@ MeshResult solve_on_mesh(SimpleMesh& smesh, int level, const Options& opt) {
     int active_count = 0;
 
     for (pd_it = 0; pd_it < opt.max_pd_iterations; ++pd_it) {
-        KN_<double> udata(current(SubArray(nU, 0)));
-        Fun uh_prev(Uh, udata);
-        std::vector<double> avg = cell_average_u_minus_g(Th, uh_prev);
+        KN_<double> udata_pre(current(SubArray(nU, 0)));
+        Fun uh_pre(Uh, udata_pre);
+        std::vector<double> avg_pre = cell_average_u_minus_g(Th, uh_pre);
 
+        // Decide the active set from the current iterate.
         active_prev = active;
-        active_count = 0;
-        double min_margin = std::numeric_limits<double>::infinity();
-        double max_margin = -std::numeric_limits<double>::infinity();
-        int near_margin = 0;
+        std::vector<bool> active_for_solve = active;
+        double min_margin_pre = std::numeric_limits<double>::infinity();
+        double max_margin_pre = -std::numeric_limits<double>::infinity();
+        int near_margin_pre = 0;
+        int changed_pre = 0;
+        int active_pre_count = 0;
         for (int k = 0; k < nQ; ++k) {
-            const double lambda_k = current(nU + k);
-            const double margin = lambda_k - avg[k];
-            min_margin = std::min(min_margin, margin);
-            max_margin = std::max(max_margin, margin);
-            if (std::abs(margin) <= opt.active_tol) ++near_margin;
-            if (margin > opt.active_tol) active[k] = true;
-            else if (margin < -opt.active_tol) active[k] = false;
-            else active[k] = active_prev[k]; // hysteresis for cells on the switching surface
-            if (active[k]) ++active_count;
+            const double margin = current(nU + k) - avg_pre[k];
+            min_margin_pre = std::min(min_margin_pre, margin);
+            max_margin_pre = std::max(max_margin_pre, margin);
+            if (std::abs(margin) <= opt.active_tol) ++near_margin_pre;
+
+            if (margin > opt.active_tol) active_for_solve[k] = true;
+            else if (margin < -opt.active_tol) active_for_solve[k] = false;
+            else active_for_solve[k] = active_prev[k];
+
+            if (active_for_solve[k] != active_prev[k]) ++changed_pre;
+            if (active_for_solve[k]) ++active_pre_count;
         }
 
+        // Solve the linear saddle-point system for this active set.
         std::map<std::pair<int, int>, R> A = obstacle.mat_[0];
         Rn b = obstacle.rhs_;
         for (int k = 0; k < nQ; ++k) {
-            if (!active[k]) constrain_dof(A, b, nU + k, 0.);
+            if (!active_for_solve[k]) constrain_dof(A, b, nU + k, 0.);
         }
 
         Rn previous = current;
@@ -710,15 +749,46 @@ MeshResult solve_on_mesh(SimpleMesh& smesh, int level, const Options& opt) {
         }
         rel = std::sqrt(diff2) / std::max(1.0, std::sqrt(norm2));
 
-        int changed = 0;
-        for (int k = 0; k < nQ; ++k) if (active[k] != active_prev[k]) ++changed;
+        // Re-evaluate the switching function after the solve.  This prevents
+        // false convergence when lambda has not changed but the new u violates u >= g.
+        KN_<double> udata_post(current(SubArray(nU, 0)));
+        Fun uh_post(Uh, udata_post);
+        std::vector<double> avg_post = cell_average_u_minus_g(Th, uh_post);
+
+        std::vector<bool> active_after = active_for_solve;
+        double min_margin_post = std::numeric_limits<double>::infinity();
+        double max_margin_post = -std::numeric_limits<double>::infinity();
+        int near_margin_post = 0;
+        int changed_post = 0;
+        int active_post_count = 0;
+        for (int k = 0; k < nQ; ++k) {
+            const double margin = current(nU + k) - avg_post[k];
+            min_margin_post = std::min(min_margin_post, margin);
+            max_margin_post = std::max(max_margin_post, margin);
+            if (std::abs(margin) <= opt.active_tol) ++near_margin_post;
+
+            if (margin > opt.active_tol) active_after[k] = true;
+            else if (margin < -opt.active_tol) active_after[k] = false;
+            else active_after[k] = active_for_solve[k];
+
+            if (active_after[k] != active_for_solve[k]) ++changed_post;
+            if (active_after[k]) ++active_post_count;
+        }
+
+        active = active_after;
+        active_count = active_post_count;
+
         std::cout << "  PDAS it=" << std::setw(2) << pd_it
-                  << "  active=" << std::setw(6) << active_count << '/' << nQ
-                  << "  changed=" << std::setw(6) << changed
-                  << "  near=" << std::setw(4) << near_margin
-                  << "  margin=[" << std::scientific << min_margin << "," << max_margin << "]"
+                  << "  active_solve=" << std::setw(6) << active_pre_count << '/' << nQ
+                  << "  active_post=" << std::setw(6) << active_post_count << '/' << nQ
+                  << "  pre_changed=" << std::setw(6) << changed_pre
+                  << "  post_changed=" << std::setw(6) << changed_post
+                  << "  near_pre=" << std::setw(4) << near_margin_pre
+                  << "  near_post=" << std::setw(4) << near_margin_post
+                  << "  margin_post=[" << std::scientific << min_margin_post << "," << max_margin_post << "]"
                   << "  rel_dlambda=" << rel << std::defaultfloat << "\n";
-        if (rel < opt.pd_tol && changed == 0) break;
+
+        if (rel < opt.pd_tol && changed_pre == 0 && changed_post == 0) break;
     }
 
     KN_<double> udata(current(SubArray(nU, 0)));

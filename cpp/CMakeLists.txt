@@ -83,24 +83,26 @@ target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 #add_executable(${EX_NAME}  mainFiles/paper.cpp )
 #target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 
-set(EX_NAME bernoulli_example)
-add_executable(${EX_NAME}  mainFiles/bernoulli_example.cpp )
-target_include_directories(${EX_NAME} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/parallel
-)
-target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
+# DOESNT WORK ATM
+# -----------------------------------------------------------------------------
+# set(EX_NAME bernoulli_example)
+# add_executable(${EX_NAME}  mainFiles/bernoulli_example.cpp )
+# target_include_directories(${EX_NAME} PRIVATE
+#     ${CMAKE_CURRENT_SOURCE_DIR}/parallel
+# )
+# target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 
 set(EX_NAME scalar_obstacle)
 add_executable(${EX_NAME}  mainFiles/scalar_obstacle.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 
-set(EX_NAME poisson)
-add_executable(${EX_NAME}  mainFiles/poissonFEM.cpp )
-target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+# set(EX_NAME poisson)
+# add_executable(${EX_NAME}  mainFiles/poissonFEM.cpp )
+# target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 
-set(EX_NAME darcy)
-add_executable(${EX_NAME}  mainFiles/darcy.cpp )
-target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+# set(EX_NAME darcy)
+# add_executable(${EX_NAME}  mainFiles/darcy.cpp )
+# target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 
 # set(EX_NAME stokes)
 # add_executable(${EX_NAME}  mainFiles/stokes_fictitious_example1.cpp )
