@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -31,7 +32,6 @@ using Problem = FEM<Mesh>;
 using Fun = FunFEM<Mesh>;
 using Test = TestFunction<Mesh>;
 
-constexpr double PI = 3.141592653589793238462643383279502884;
 
 // -----------------------------------------------------------------------------
 // Scalar P2 plus one cubic interior bubble.  This is the scalar analogue of the
@@ -153,21 +153,108 @@ int TypeOfFE_P2BubbleLagrange2d::Data[] = {
 double TypeOfFE_P2BubbleLagrange2d::alpha_Pi_h[] = {1., 1., 1., 1., 1., 1., 1.};
 
 // -----------------------------------------------------------------------------
-// Problem data: the membrane-contact benchmark of the paper.
+// Problem data.
+//   membrane: Gustafsson membrane benchmark on (0,1)^2,
+//             f=0, g=sin(pi x)sin(pi y)-1/2.
+//   lshape:   non-smooth exact solution on the L-shaped domain
+//             (-2,2)^2 \ ([0,2) x (-2,0]), obstacle g=0.
 // -----------------------------------------------------------------------------
+enum class Benchmark { membrane, lshape };
+static Benchmark current_benchmark = Benchmark::membrane;
+
+inline double polar_phi_lshape(const R2& P) {
+    double phi = std::atan2(P.y, P.x);
+    if (phi < 0.) phi += 2. * M_PI;
+    return phi;
+}
+
+inline double gamma1_lshape(double r) {
+    const double rh = 2. * (r - 0.25);
+    if (rh < 0.) return 1.;
+    if (rh >= 1.) return 0.;
+    return -6. * std::pow(rh, 5) + 15. * std::pow(rh, 4) - 10. * std::pow(rh, 3) + 1.;
+}
+
+inline double gamma1p_lshape(double r) {
+    const double rh = 2. * (r - 0.25);
+    if (rh <= 0. || rh >= 1.) return 0.;
+    const double dp = -30. * std::pow(rh, 4) + 60. * std::pow(rh, 3) - 30. * std::pow(rh, 2);
+    return 2. * dp;
+}
+
+inline double gamma1pp_lshape(double r) {
+    const double rh = 2. * (r - 0.25);
+    if (rh <= 0. || rh >= 1.) return 0.;
+    const double ddp = -120. * std::pow(rh, 3) + 180. * std::pow(rh, 2) - 60. * rh;
+    return 4. * ddp;
+}
+
+inline double gamma2_lshape(double r) { return (r <= 1.25) ? 0. : 1.; }
+
+inline double exact_u_lshape(const R2& P) {
+    const double r = std::sqrt(P.x * P.x + P.y * P.y);
+    if (r < 1e-14) return 0.;
+    const double phi = polar_phi_lshape(P);
+    return std::pow(r, 2. / 3.) * gamma1_lshape(r) * std::sin(2. * phi / 3.);
+}
+
+inline R2 exact_grad_lshape(const R2& P) {
+    const double r = std::sqrt(P.x * P.x + P.y * P.y);
+    if (r < 1e-14) return R2(0., 0.);
+    const double phi = polar_phi_lshape(P);
+    const double a = 2. / 3.;
+    const double g = gamma1_lshape(r);
+    const double gp = gamma1p_lshape(r);
+    const double F = std::pow(r, a) * g;
+    const double Fp = a * std::pow(r, a - 1.) * g + std::pow(r, a) * gp;
+    const double ur = Fp * std::sin(a * phi);
+    const double uphi_over_r = (a * F * std::cos(a * phi)) / r;
+    return R2(std::cos(phi) * ur - std::sin(phi) * uphi_over_r,
+              std::sin(phi) * ur + std::cos(phi) * uphi_over_r);
+}
+
+inline double rhs_f_lshape(const R2& P) {
+    const double r = std::sqrt(P.x * P.x + P.y * P.y);
+    if (r < 1e-14) return 0.;
+    const double phi = polar_phi_lshape(P);
+    const double s = std::sin(2. * phi / 3.);
+    const double gp = gamma1p_lshape(r);
+    const double gpp = gamma1pp_lshape(r);
+    // f = -Delta u_exact - lambda_exact, with lambda_exact = gamma2(r).
+    return -std::pow(r, 2. / 3.) * s * (gp / r + gpp)
+           - (4. / 3.) * std::pow(r, -1. / 3.) * gp * s
+           - gamma2_lshape(r);
+}
+
 inline double obstacle_g(const R2& P) {
-    return std::sin(PI * P.x) * std::sin(PI * P.y) - 0.5;
+    if (current_benchmark == Benchmark::lshape) return 0.;
+    return std::sin(M_PI * P.x) * std::sin(M_PI * P.y) - 0.5;
 }
 inline double obstacle_gx(const R2& P) {
-    return PI * std::cos(PI * P.x) * std::sin(PI * P.y);
+    if (current_benchmark == Benchmark::lshape) return 0.;
+    return M_PI * std::cos(M_PI * P.x) * std::sin(M_PI * P.y);
 }
 inline double obstacle_gy(const R2& P) {
-    return PI * std::sin(PI * P.x) * std::cos(PI * P.y);
+    if (current_benchmark == Benchmark::lshape) return 0.;
+    return M_PI * std::sin(M_PI * P.x) * std::cos(M_PI * P.y);
 }
-inline double rhs_f(const R2&) { return 0.0; }
+inline double rhs_f(const R2& P) {
+    if (current_benchmark == Benchmark::lshape) return rhs_f_lshape(P);
+    return 0.;
+}
+inline double exact_u(const R2& P) {
+    if (current_benchmark == Benchmark::lshape) return exact_u_lshape(P);
+    return 0.;
+}
+inline R2 exact_grad(const R2& P) {
+    if (current_benchmark == Benchmark::lshape) return exact_grad_lshape(P);
+    return R2(0., 0.);
+}
+inline bool has_exact_solution() { return current_benchmark == Benchmark::lshape; }
 
-double fun_g(double* P, int) { return std::sin(PI * P[0]) * std::sin(PI * P[1]) - 0.5; }
-double fun_f(double*, int) { return 0.0; }
+double fun_g(double* P, int) { return obstacle_g(R2(P[0], P[1])); }
+double fun_f(double* P, int) { return rhs_f(R2(P[0], P[1])); }
+double fun_exact(double* P, int) { return exact_u(R2(P[0], P[1])); }
 double fun_zero(double*, int) { return 0.0; }
 
 struct SimpleMesh {
@@ -180,7 +267,7 @@ struct Options {
     int adaptive_steps = 6;
     int max_pd_iterations = 30;
     int vtk_every = 1;
-    double active_tol = 1e-12;
+    double active_tol = 1e-9;
     double pd_tol = 1e-10;
     double marking_beta = 0.5;
     std::string output_prefix = "scalar_obstacle";
@@ -200,6 +287,10 @@ struct MeshResult {
     double eta_contact = 0.;
     double max_violation = 0.;
     double complementarity = 0.;
+    double exact_l2 = 0.;
+    double exact_h1 = 0.;
+    double max_lambda = 0.;
+    int max_lambda_cell = -1;
     std::vector<double> eta_cell;
     std::vector<double> lambda_cell;
     std::vector<double> active_cell;
@@ -222,6 +313,40 @@ SimpleMesh make_initial_mesh(int nx, int ny) {
             const int v3 = id(i + 1, j + 1);
             m.triangles.push_back({v0, v1, v2});
             m.triangles.push_back({v3, v2, v1});
+        }
+    }
+    return m;
+}
+
+
+SimpleMesh make_initial_lshape_mesh(int nx) {
+    // Structured mesh of [-2,2]^2 with the lower-right quadrant removed.
+    // Keep triangles whose barycentre lies in the L-shaped domain.
+    SimpleMesh full;
+    const int ny = nx;
+    full.vertices.reserve(nx * ny);
+    for (int j = 0; j < ny; ++j) {
+        for (int i = 0; i < nx; ++i) {
+            const double x = -2. + 4. * double(i) / double(nx - 1);
+            const double y = -2. + 4. * double(j) / double(ny - 1);
+            full.vertices.emplace_back(x, y);
+        }
+    }
+    auto id = [nx](int i, int j) { return i + j * nx; };
+    SimpleMesh m;
+    m.vertices = full.vertices;
+    for (int j = 0; j < ny - 1; ++j) {
+        for (int i = 0; i < nx - 1; ++i) {
+            const int v0 = id(i, j);
+            const int v1 = id(i + 1, j);
+            const int v2 = id(i, j + 1);
+            const int v3 = id(i + 1, j + 1);
+            std::array<std::array<int, 3>, 2> tris = {{{v0, v1, v2}, {v3, v2, v1}}};
+            for (const auto& T : tris) {
+                const R2 C((full.vertices[T[0]].x + full.vertices[T[1]].x + full.vertices[T[2]].x) / 3.,
+                           (full.vertices[T[0]].y + full.vertices[T[1]].y + full.vertices[T[2]].y) / 3.);
+                if (!(C.x >= -1e-14 && C.y <= 1e-14)) m.triangles.push_back(T);
+            }
         }
     }
     return m;
@@ -268,8 +393,9 @@ void write_mesh_file(const SimpleMesh& mesh, const std::string& filename) {
     for (const auto& kv : count) {
         if (kv.second == 1) {
             const int a = kv.first.first, b = kv.first.second;
-            const int lab = boundary_label(mesh.vertices[a], mesh.vertices[b]);
-            if (lab != 0) bedges.push_back({a, b, lab});
+            int lab = boundary_label(mesh.vertices[a], mesh.vertices[b]);
+            if (lab == 0) lab = 1; // generic boundary label, needed for the L-shaped mesh
+            bedges.push_back({a, b, lab});
         }
     }
 
@@ -380,32 +506,23 @@ std::vector<double> cell_average_u_minus_g(const Mesh& Th, Fun& uh) {
 }
 
 
-// FunFEM::eval in this archive allocates basis values only up to first
-// derivatives (op_dz + 1).  The residual estimator needs dxx and dyy,
-// so use a local evaluator that requests and stores second derivatives.
 double eval_fun_with_second_derivatives(const Fun& uh, int k, const R2& x, int op) {
+    // FunFEM::eval in this archive allocates basis values only through first derivatives.
+    // The residual estimator needs dxx and dyy, so we evaluate the local basis manually.
     const Space& Vh = uh.getSpace();
     const auto& FK = Vh[k];
     const int ndf = FK.NbDoF();
-
-    std::vector<double> buffer(ndf * Vh.N * (op_All + 1), 0.0);
-    RNMK_ w(buffer.data(), ndf, Vh.N, op_All + 1);
+    const int nops = std::max(op_dxy, std::max(op_dxx, op_dyy)) + 1;
+    std::vector<double> buffer(ndf * Vh.N * nops, 0.0);
+    RNMK_ w(buffer.data(), ndf, Vh.N, nops);
 
     What_d whatd = Fop_D0;
-    if (op == op_dx || op == op_dy || op == op_dz ||
-        op == op_dxx || op == op_dyy || op == op_dxy) {
-        whatd |= Fop_D1;
-    }
-    if (op == op_dxx || op == op_dyy || op == op_dxy) {
-        whatd |= Fop_D2;
-    }
+    if (op == op_dx || op == op_dy || op == op_dz || op == op_dxx || op == op_dyy || op == op_dxy) whatd |= Fop_D1;
+    if (op == op_dxx || op == op_dyy || op == op_dxy) whatd |= Fop_D2;
 
     FK.BF(whatd, FK.T.toKref(x), w);
-
     double val = 0.0;
-    for (int j = FK.dfcbegin(0); j < FK.dfcend(0); ++j) {
-        val += uh(FK(j)) * w(j, 0, op);
-    }
+    for (int j = FK.dfcbegin(0); j < FK.dfcend(0); ++j) val += uh(FK(j)) * w(j, 0, op);
     return val;
 }
 
@@ -414,6 +531,8 @@ struct EstimatorParts {
     double sum_total = 0., sum_interior = 0., sum_jump = 0., sum_contact = 0.;
     double max_violation = 0.;
     double complementarity = 0.;
+    double exact_l2 = 0.;
+    double exact_h1 = 0.;
 };
 
 EstimatorParts compute_estimator(const Mesh& Th, Fun& uh, const std::vector<double>& lambda) {
@@ -439,9 +558,9 @@ EstimatorParts compute_estimator(const Mesh& Th, Fun& uh, const std::vector<doub
         for (int iq = 0; iq < 4; ++iq) {
             const R2 P = bary[iq][0] * K[0] + bary[iq][1] * K[1] + bary[iq][2] * K[2];
             const double w = weight[iq] * area;
-            const double u = eval_fun_with_second_derivatives(uh, k, P, op_id);
-            const double ux = eval_fun_with_second_derivatives(uh, k, P, op_dx);
-            const double uy = eval_fun_with_second_derivatives(uh, k, P, op_dy);
+            const double u = uh.eval(k, P, 0, op_id);
+            const double ux = uh.eval(k, P, 0, op_dx);
+            const double uy = uh.eval(k, P, 0, op_dy);
             const double lap = eval_fun_with_second_derivatives(uh, k, P, op_dxx)
                              + eval_fun_with_second_derivatives(uh, k, P, op_dyy);
             const double res = lap + lambda[k] + rhs_f(P);
@@ -453,6 +572,13 @@ EstimatorParts compute_estimator(const Mesh& Th, Fun& uh, const std::vector<doub
                 est.max_violation = std::max(est.max_violation, gap);
             }
             est.complementarity += w * std::abs(lambda[k] * (u - obstacle_g(P)));
+            if (has_exact_solution()) {
+                const double eu = u - exact_u(P);
+                const R2 eg_exact = exact_grad(P);
+                const R2 eg(ux - eg_exact.x, uy - eg_exact.y);
+                est.exact_l2 += w * eu * eu;
+                est.exact_h1 += w * (eu * eu + eg.x * eg.x + eg.y * eg.y);
+            }
         }
         est.interior[k] = hK * hK * std::max(0., eint);
         est.contact[k] = std::max(0., econt);
@@ -481,10 +607,8 @@ EstimatorParts compute_estimator(const Mesh& Th, Fun& uh, const std::vector<doub
                 R2 n(edge.y, -edge.x);
                 const double nrm = std::sqrt(n.x * n.x + n.y * n.y);
                 n = (1. / nrm) * n;
-                const double jx = eval_fun_with_second_derivatives(uh, k1, P, op_dx)
-                                - eval_fun_with_second_derivatives(uh, k,  P, op_dx);
-                const double jy = eval_fun_with_second_derivatives(uh, k1, P, op_dy)
-                                - eval_fun_with_second_derivatives(uh, k,  P, op_dy);
+                const double jx = uh.eval(k1, P, 0, op_dx) - uh.eval(k, P, 0, op_dx);
+                const double jy = uh.eval(k1, P, 0, op_dy) - uh.eval(k, P, 0, op_dy);
                 const double jump = jx * n.x + jy * n.y;
                 const double len = R2(A, B).norme();
                 const double c1 = 0.25 * K1.hMax() * len * jump * jump;
@@ -553,9 +677,18 @@ MeshResult solve_on_mesh(SimpleMesh& smesh, int level, const Options& opt) {
 
         active_prev = active;
         active_count = 0;
+        double min_margin = std::numeric_limits<double>::infinity();
+        double max_margin = -std::numeric_limits<double>::infinity();
+        int near_margin = 0;
         for (int k = 0; k < nQ; ++k) {
             const double lambda_k = current(nU + k);
-            active[k] = (lambda_k - avg[k] > opt.active_tol);
+            const double margin = lambda_k - avg[k];
+            min_margin = std::min(min_margin, margin);
+            max_margin = std::max(max_margin, margin);
+            if (std::abs(margin) <= opt.active_tol) ++near_margin;
+            if (margin > opt.active_tol) active[k] = true;
+            else if (margin < -opt.active_tol) active[k] = false;
+            else active[k] = active_prev[k]; // hysteresis for cells on the switching surface
             if (active[k]) ++active_count;
         }
 
@@ -582,7 +715,9 @@ MeshResult solve_on_mesh(SimpleMesh& smesh, int level, const Options& opt) {
         std::cout << "  PDAS it=" << std::setw(2) << pd_it
                   << "  active=" << std::setw(6) << active_count << '/' << nQ
                   << "  changed=" << std::setw(6) << changed
-                  << "  rel_dlambda=" << std::scientific << rel << std::defaultfloat << "\n";
+                  << "  near=" << std::setw(4) << near_margin
+                  << "  margin=[" << std::scientific << min_margin << "," << max_margin << "]"
+                  << "  rel_dlambda=" << rel << std::defaultfloat << "\n";
         if (rel < opt.pd_tol && changed == 0) break;
     }
 
@@ -593,20 +728,34 @@ MeshResult solve_on_mesh(SimpleMesh& smesh, int level, const Options& opt) {
 
     std::vector<double> lambda(nQ, 0.);
     std::vector<double> active_scalar(nQ, 0.);
+    double max_lambda = -std::numeric_limits<double>::infinity();
+    int max_lambda_cell = -1;
     for (int k = 0; k < nQ; ++k) {
         lambda[k] = current(nU + k);
         active_scalar[k] = active[k] ? 1. : 0.;
+        if (lambda[k] > max_lambda) { max_lambda = lambda[k]; max_lambda_cell = k; }
     }
 
     EstimatorParts est = compute_estimator(Th, uh, lambda);
+    std::vector<double> avg_final = cell_average_u_minus_g(Th, uh);
 
-    Rn eta_vec(nQ), active_vec(nQ);
+    Rn eta_vec(nQ), eta_int_vec(nQ), eta_jump_vec(nQ), eta_contact_vec(nQ), active_vec(nQ), margin_vec(nQ), switch_vec(nQ);
     for (int k = 0; k < nQ; ++k) {
         eta_vec(k) = std::sqrt(std::max(0., est.total[k]));
+        eta_int_vec(k) = std::sqrt(std::max(0., est.interior[k]));
+        eta_jump_vec(k) = std::sqrt(std::max(0., est.jump[k]));
+        eta_contact_vec(k) = std::sqrt(std::max(0., est.contact[k]));
         active_vec(k) = active_scalar[k];
+        margin_vec(k) = lambda[k] - avg_final[k];
+        switch_vec(k) = (active[k] != active_prev[k]) ? 1. : 0.;
     }
     Fun etah(Qh, eta_vec);
+    Fun eta_inth(Qh, eta_int_vec);
+    Fun eta_jumph(Qh, eta_jump_vec);
+    Fun eta_contacth(Qh, eta_contact_vec);
     Fun activeh(Qh, active_vec);
+    Fun marginh(Qh, margin_vec);
+    Fun switchh(Qh, switch_vec);
 
     if (opt.vtk_every > 0 && (level % opt.vtk_every == 0)) {
         const std::string vtk_name = opt.output_prefix + "_" + std::to_string(level) + ".vtk";
@@ -614,7 +763,16 @@ MeshResult solve_on_mesh(SimpleMesh& smesh, int level, const Options& opt) {
         writer.add(uh, "u", 0, 1);
         writer.add(lambdah, "lambda", 0, 1);
         writer.add(etah, "eta", 0, 1);
+        writer.add(eta_inth, "eta_int", 0, 1);
+        writer.add(eta_jumph, "eta_jump", 0, 1);
+        writer.add(eta_contacth, "eta_contact", 0, 1);
         writer.add(activeh, "active", 0, 1);
+        writer.add(marginh, "pdas_margin", 0, 1);
+        writer.add(switchh, "pdas_switch_last", 0, 1);
+        if (has_exact_solution()) {
+            Fun exacth(Uh, fun_exact);
+            writer.add(exacth, "u_exact", 0, 1);
+        }
     }
 
     MeshResult result;
@@ -630,9 +788,32 @@ MeshResult solve_on_mesh(SimpleMesh& smesh, int level, const Options& opt) {
     result.eta_contact = std::sqrt(std::max(0., est.sum_contact));
     result.max_violation = est.max_violation;
     result.complementarity = est.complementarity;
+    result.exact_l2 = std::sqrt(std::max(0., est.exact_l2));
+    result.exact_h1 = std::sqrt(std::max(0., est.exact_h1));
+    result.max_lambda = max_lambda;
+    result.max_lambda_cell = max_lambda_cell;
     result.eta_cell = est.total;
     result.lambda_cell = lambda;
     result.active_cell = active_scalar;
+
+    std::vector<int> order(nQ);
+    std::iota(order.begin(), order.end(), 0);
+    const int ntop = std::min(8, nQ);
+    std::partial_sort(order.begin(), order.begin() + ntop, order.end(),
+                      [&](int a, int b) { return lambda[a] > lambda[b]; });
+    std::cout << "  lambda debug: max=" << std::scientific << max_lambda
+              << " at cell " << max_lambda_cell << std::defaultfloat << "\n";
+    std::ofstream dbg(opt.output_prefix + "_debug_level_" + std::to_string(level) + ".csv");
+    dbg << "cell,bx,by,lambda,active,margin,eta,eta_int,eta_jump,eta_contact\n";
+    for (int ii = 0; ii < ntop; ++ii) {
+        const int k = order[ii];
+        const auto& K = Th[k];
+        const R2 B((K[0].x + K[1].x + K[2].x) / 3., (K[0].y + K[1].y + K[2].y) / 3.);
+        dbg << k << ',' << B.x << ',' << B.y << ',' << lambda[k] << ',' << active_scalar[k] << ','
+            << lambda[k] - avg_final[k] << ',' << std::sqrt(std::max(0., est.total[k])) << ','
+            << std::sqrt(std::max(0., est.interior[k])) << ',' << std::sqrt(std::max(0., est.jump[k])) << ','
+            << std::sqrt(std::max(0., est.contact[k])) << "\n";
+    }
     return result;
 }
 
@@ -666,19 +847,28 @@ int main(int argc, char** argv) {
     using namespace scalar_obstacle;
 
     Options opt;
-    // Command line: ./bin/scalar_obstacle [initial_nx] [adaptive_steps]
+    // Command line: ./bin/scalar_obstacle [initial_nx] [adaptive_steps] [membrane|lshape]
     if (argc > 1) opt.initial_nx = std::max(3, std::atoi(argv[1]));
     if (argc > 2) opt.adaptive_steps = std::max(0, std::atoi(argv[2]));
+    if (argc > 3) {
+        if (std::strcmp(argv[3], "lshape") == 0 || std::strcmp(argv[3], "l-shaped") == 0) current_benchmark = Benchmark::lshape;
+        else current_benchmark = Benchmark::membrane;
+    }
 
-    SimpleMesh smesh = make_initial_mesh(opt.initial_nx, opt.initial_nx);
+    SimpleMesh smesh = (current_benchmark == Benchmark::lshape)
+        ? make_initial_lshape_mesh(opt.initial_nx)
+        : make_initial_mesh(opt.initial_nx, opt.initial_nx);
 
     std::ofstream csv(opt.output_prefix + "_history.csv");
-    csv << "level,triangles,dofs,active,pdas_iterations,pdas_residual,eta_total,eta_interior,eta_jump,eta_contact,max_violation,complementarity,rate_vs_prev\n";
+    csv << "level,triangles,dofs,active,pdas_iterations,pdas_residual,eta_total,eta_interior,eta_jump,eta_contact,max_violation,complementarity,exact_l2,exact_h1,max_lambda,rate_vs_prev\n";
 
     double prev_eta = 0.;
     int prev_ndof = 0;
 
-    std::cout << "Scalar obstacle problem: f=0, g=sin(pi x) sin(pi y)-1/2 on (0,1)^2\n";
+    if (current_benchmark == Benchmark::lshape)
+        std::cout << "Scalar obstacle problem: L-shaped nonsmooth exact solution, g=0\n";
+    else
+        std::cout << "Scalar obstacle problem: f=0, g=sin(pi x) sin(pi y)-1/2 on (0,1)^2\n";
     std::cout << "Space: local scalar P2+B for u, P0 for lambda; active-set split by lambda - Pi_0(u-g).\n";
     std::cout << "Outputs: " << opt.output_prefix << "_*.vtk and " << opt.output_prefix << "_history.csv\n\n";
 
@@ -699,12 +889,15 @@ int main(int argc, char** argv) {
                   << "  [int=" << r.eta_int << ", jump=" << r.eta_jump << ", contact=" << r.eta_contact << "]"
                   << "  max(g-u)+=" << r.max_violation
                   << "  comp=" << r.complementarity
-                  << "  rate=" << rate << std::defaultfloat << "\n\n";
+                  << "  max_lambda=" << r.max_lambda;
+        if (has_exact_solution()) std::cout << "  L2err=" << r.exact_l2 << "  H1err=" << r.exact_h1;
+        std::cout << "  rate=" << rate << std::defaultfloat << "\n\n";
 
         csv << r.level << ',' << r.ntri << ',' << r.ndof << ',' << r.active << ','
             << r.pd_iterations << ',' << r.pd_residual << ',' << r.eta_total << ','
             << r.eta_int << ',' << r.eta_jump << ',' << r.eta_contact << ','
-            << r.max_violation << ',' << r.complementarity << ',' << rate << "\n";
+            << r.max_violation << ',' << r.complementarity << ',' << r.exact_l2 << ','
+            << r.exact_h1 << ',' << r.max_lambda << ',' << rate << "\n";
 
         if (level == opt.adaptive_steps) break;
         std::vector<bool> marked = mark_by_max_strategy(r.eta_cell, opt.marking_beta);
