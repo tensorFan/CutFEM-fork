@@ -495,3 +495,132 @@ void TypeOfFE_P2Lagrange3d::FB(const What_d whatd, const Element &K, const R3 &P
 static TypeOfFE_P2Lagrange3d P2_3d;
 GTypeOfFE<Mesh3> &P2Lagrange3d(P2_3d);
 template <> GTypeOfFE<Mesh3> &DataFE<Mesh3>::P2 = P2_3d;
+
+// P2+B - scalar bubble-enriched quadratic element on triangles.
+// Local space: P2(K) + span{27 lambda0 lambda1 lambda2}.
+// Dofs: 3 vertex values, 3 edge-midpoint values, and the barycentre value.
+class TypeOfFE_P2BubbleLagrange2d : public GTypeOfFE<Mesh2> {
+    typedef Mesh2 Mesh;
+    typedef typename Mesh::Element E;
+
+  public:
+    static const int k = 3;
+    static const int ndf = 7;
+    static int Data[];
+    static double alpha_Pi_h[];
+
+    TypeOfFE_P2BubbleLagrange2d() : GTypeOfFE<Mesh2>(ndf, 1, Data, 7, 7, alpha_Pi_h) {
+        GTypeOfFE<Mesh>::basisFctType    = BasisFctType::P2B;
+        GTypeOfFE<Mesh>::polynomialOrder = k;
+
+        static const R2 Pt[7] = {R2(0., 0.), R2(1., 0.), R2(0., 1.), R2(1. / 2, 1. / 2),
+                                 R2(0., 1. / 2), R2(1. / 2, 0.), R2(1. / 3, 1. / 3)};
+
+        for (int i = 0; i < ndf; ++i) {
+            Pt_Pi_h[i]  = Pt[i];
+            ipj_Pi_h[i] = IPJ(i, i, 0);
+        }
+    }
+
+    void FB(const What_d whatd, const Element &K, const R2 &P, RNMK_ &val) const;
+};
+
+int TypeOfFE_P2BubbleLagrange2d::Data[] = {
+    0, 1, 2, 3, 4, 5, 6, // support number of the node of the df
+    0, 0, 0, 0, 0, 0, 0, // number of the df on the node
+    0, 1, 2, 3, 4, 5, 6, // node of the df
+    0, 1, 2, 3, 4, 5, 6, // df on sub FE
+    1, 1, 1, 0,          // one node on vertices, edges, and triangle interior
+    0,                   // component 0 uses this FE
+    0,                   // begin_dfcomp
+    7                    // end_dfcomp
+};
+
+double TypeOfFE_P2BubbleLagrange2d::alpha_Pi_h[] = {1., 1., 1., 1., 1., 1., 1.};
+
+void TypeOfFE_P2BubbleLagrange2d::FB(const What_d whatd, const Element &K, const R2 &P, RNMK_ &val) const {
+    R l[] = {1. - P.sum(), P.x, P.y};
+
+    assert(val.N() >= ndf);
+    assert(val.M() == 1);
+
+    val = 0;
+
+    R2 Dl[3];
+    K.Gradlambda(Dl);
+
+    R p2[6] = {};
+    R p2x[6] = {}, p2y[6] = {};
+    R p2xx[6] = {}, p2yy[6] = {}, p2xy[6] = {};
+
+    int idf = 0;
+    for (int i = 0; i < E::nv; ++i, ++idf) {
+        p2[idf]   = l[i] * (2. * l[i] - 1.);
+        p2x[idf]  = Dl[i].x * (4. * l[i] - 1.);
+        p2y[idf]  = Dl[i].y * (4. * l[i] - 1.);
+        p2xx[idf] = 4. * Dl[i].x * Dl[i].x;
+        p2yy[idf] = 4. * Dl[i].y * Dl[i].y;
+        p2xy[idf] = 4. * Dl[i].x * Dl[i].y;
+    }
+    for (int e = 0; e < E::ne; ++e, ++idf) {
+        const int i0 = E::nvedge[e][0];
+        const int i1 = E::nvedge[e][1];
+        p2[idf]   = 4. * l[i0] * l[i1];
+        p2x[idf]  = 4. * (Dl[i1].x * l[i0] + Dl[i0].x * l[i1]);
+        p2y[idf]  = 4. * (Dl[i1].y * l[i0] + Dl[i0].y * l[i1]);
+        p2xx[idf] = 8. * Dl[i0].x * Dl[i1].x;
+        p2yy[idf] = 8. * Dl[i0].y * Dl[i1].y;
+        p2xy[idf] = 4. * (Dl[i0].x * Dl[i1].y + Dl[i1].x * Dl[i0].y);
+    }
+    assert(idf == 6);
+
+    const R bubble = 27. * l[0] * l[1] * l[2];
+    const R bx = 27. * (Dl[0].x * l[1] * l[2] + l[0] * Dl[1].x * l[2] + l[0] * l[1] * Dl[2].x);
+    const R by = 27. * (Dl[0].y * l[1] * l[2] + l[0] * Dl[1].y * l[2] + l[0] * l[1] * Dl[2].y);
+    const R bxx = 54. * (Dl[0].x * Dl[1].x * l[2] + Dl[0].x * Dl[2].x * l[1] + Dl[1].x * Dl[2].x * l[0]);
+    const R byy = 54. * (Dl[0].y * Dl[1].y * l[2] + Dl[0].y * Dl[2].y * l[1] + Dl[1].y * Dl[2].y * l[0]);
+    const R bxy = 27. * (Dl[0].x * (Dl[1].y * l[2] + l[1] * Dl[2].y) +
+                         Dl[1].x * (Dl[0].y * l[2] + l[0] * Dl[2].y) +
+                         Dl[2].x * (Dl[0].y * l[1] + l[0] * Dl[1].y));
+
+    // Values of the six ordinary P2 basis functions at the barycentre.  Subtracting
+    // this amount times the normalized cubic bubble makes the first six nodal
+    // functions vanish at the seventh interpolation point.
+    static const R p2_at_bary[6] = {-1. / 9., -1. / 9., -1. / 9., 4. / 9., 4. / 9., 4. / 9.};
+
+    if (whatd & Fop_D0) {
+        RN_ f0(val('.', 0, op_id));
+        for (int i = 0; i < 6; ++i)
+            f0[i] = p2[i] - p2_at_bary[i] * bubble;
+        f0[6] = bubble;
+    }
+
+    if (whatd & (Fop_D1 | Fop_D2)) {
+        RN_ f0x(val('.', 0, op_dx));
+        RN_ f0y(val('.', 0, op_dy));
+        for (int i = 0; i < 6; ++i) {
+            f0x[i] = p2x[i] - p2_at_bary[i] * bx;
+            f0y[i] = p2y[i] - p2_at_bary[i] * by;
+        }
+        f0x[6] = bx;
+        f0y[6] = by;
+
+        if (whatd & Fop_D2) {
+            RN_ f0xx(val('.', 0, op_dxx));
+            RN_ f0yy(val('.', 0, op_dyy));
+            RN_ f0xy(val('.', 0, op_dxy));
+            for (int i = 0; i < 6; ++i) {
+                f0xx[i] = p2xx[i] - p2_at_bary[i] * bxx;
+                f0yy[i] = p2yy[i] - p2_at_bary[i] * byy;
+                f0xy[i] = p2xy[i] - p2_at_bary[i] * bxy;
+            }
+            f0xx[6] = bxx;
+            f0yy[6] = byy;
+            f0xy[6] = bxy;
+        }
+    }
+}
+
+static TypeOfFE_P2BubbleLagrange2d P2B_2d;
+GTypeOfFE<Mesh2> &P2BubbleLagrange2d(P2B_2d);
+template <> GTypeOfFE<Mesh2> &DataFE<Mesh2>::P2B = P2B_2d;

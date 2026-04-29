@@ -32,126 +32,7 @@ using Problem = FEM<Mesh>;
 using Fun = FunFEM<Mesh>;
 using Test = TestFunction<Mesh>;
 
-// constexpr double M_PI = 3.141592653589793238462643383279502884;
 
-// -----------------------------------------------------------------------------
-// Scalar P2 plus one cubic interior bubble.  This is the scalar analogue of the
-// P2+B displacement space used with P0 multipliers in Gustafsson's algorithm.
-// The archive contains P2 and a vectorial P2BR element, but not a scalar P2B
-// element, so the required scalar bubble enrichment is defined locally here.
-// -----------------------------------------------------------------------------
-class TypeOfFE_P2BubbleLagrange2d : public GTypeOfFE<Mesh2> {
-    using MeshT = Mesh2;
-    using Element = typename MeshT::Element;
-
-  public:
-    static int Data[];
-    static double alpha_Pi_h[];
-
-    TypeOfFE_P2BubbleLagrange2d() : GTypeOfFE<Mesh2>(7, 1, Data, 7, 7, alpha_Pi_h) {
-        GTypeOfFE<MeshT>::basisFctType = BasisFctType::P2;
-        GTypeOfFE<MeshT>::polynomialOrder = 3;
-
-        static const R2 Pt[7] = {
-            R2(0., 0.), R2(1., 0.), R2(0., 1.),
-            R2(0.5, 0.5), R2(0., 0.5), R2(0.5, 0.),
-            R2(1. / 3., 1. / 3.)
-        };
-        for (int i = 0; i < 7; ++i) {
-            Pt_Pi_h[i] = Pt[i];
-            ipj_Pi_h[i] = IPJ(i, i, 0);
-        }
-    }
-
-    void FB(const What_d whatd, const Element& K, const R2& P, RNMK_& val) const override {
-        const double l[3] = {1. - P.x - P.y, P.x, P.y};
-        assert(val.N() >= 7);
-        assert(val.M() == 1);
-        val = 0.;
-
-        R2 Dl[3];
-        K.Gradlambda(Dl);
-
-        double p2[6] = {};
-        double p2x[6] = {}, p2y[6] = {};
-        double p2xx[6] = {}, p2yy[6] = {}, p2xy[6] = {};
-
-        int kk = 0;
-        for (int i = 0; i < 3; ++i, ++kk) {
-            p2[kk] = l[i] * (2. * l[i] - 1.);
-            p2x[kk] = Dl[i].x * (4. * l[i] - 1.);
-            p2y[kk] = Dl[i].y * (4. * l[i] - 1.);
-            p2xx[kk] = 4. * Dl[i].x * Dl[i].x;
-            p2yy[kk] = 4. * Dl[i].y * Dl[i].y;
-            p2xy[kk] = 4. * Dl[i].x * Dl[i].y;
-        }
-        for (int e = 0; e < 3; ++e, ++kk) {
-            const int i0 = Element::nvedge[e][0];
-            const int i1 = Element::nvedge[e][1];
-            p2[kk] = 4. * l[i0] * l[i1];
-            p2x[kk] = 4. * (Dl[i1].x * l[i0] + Dl[i0].x * l[i1]);
-            p2y[kk] = 4. * (Dl[i1].y * l[i0] + Dl[i0].y * l[i1]);
-            p2xx[kk] = 8. * Dl[i0].x * Dl[i1].x;
-            p2yy[kk] = 8. * Dl[i0].y * Dl[i1].y;
-            p2xy[kk] = 4. * (Dl[i0].x * Dl[i1].y + Dl[i1].x * Dl[i0].y);
-        }
-
-        const double bubble = 27. * l[0] * l[1] * l[2];
-        const double bubble_x = 27. * (Dl[0].x * l[1] * l[2] + l[0] * Dl[1].x * l[2] + l[0] * l[1] * Dl[2].x);
-        const double bubble_y = 27. * (Dl[0].y * l[1] * l[2] + l[0] * Dl[1].y * l[2] + l[0] * l[1] * Dl[2].y);
-        const double bubble_xx = 54. * (Dl[0].x * Dl[1].x * l[2] + Dl[0].x * Dl[2].x * l[1] + Dl[1].x * Dl[2].x * l[0]);
-        const double bubble_yy = 54. * (Dl[0].y * Dl[1].y * l[2] + Dl[0].y * Dl[2].y * l[1] + Dl[1].y * Dl[2].y * l[0]);
-        const double bubble_xy = 27. * (
-            Dl[0].x * (Dl[1].y * l[2] + l[1] * Dl[2].y) +
-            Dl[1].x * (Dl[0].y * l[2] + l[0] * Dl[2].y) +
-            Dl[2].x * (Dl[0].y * l[1] + l[0] * Dl[1].y));
-
-        const double p2_at_bary[6] = {-1. / 9., -1. / 9., -1. / 9., 4. / 9., 4. / 9., 4. / 9.};
-
-        if (whatd & Fop_D0) {
-            RN_ f(val('.', 0, op_id));
-            for (int i = 0; i < 6; ++i) f[i] = p2[i] - p2_at_bary[i] * bubble;
-            f[6] = bubble;
-        }
-        if (whatd & (Fop_D1 | Fop_D2)) {
-            RN_ fx(val('.', 0, op_dx));
-            RN_ fy(val('.', 0, op_dy));
-            for (int i = 0; i < 6; ++i) {
-                fx[i] = p2x[i] - p2_at_bary[i] * bubble_x;
-                fy[i] = p2y[i] - p2_at_bary[i] * bubble_y;
-            }
-            fx[6] = bubble_x;
-            fy[6] = bubble_y;
-
-            if (whatd & Fop_D2) {
-                RN_ fxx(val('.', 0, op_dxx));
-                RN_ fyy(val('.', 0, op_dyy));
-                RN_ fxy(val('.', 0, op_dxy));
-                for (int i = 0; i < 6; ++i) {
-                    fxx[i] = p2xx[i] - p2_at_bary[i] * bubble_xx;
-                    fyy[i] = p2yy[i] - p2_at_bary[i] * bubble_yy;
-                    fxy[i] = p2xy[i] - p2_at_bary[i] * bubble_xy;
-                }
-                fxx[6] = bubble_xx;
-                fyy[6] = bubble_yy;
-                fxy[6] = bubble_xy;
-            }
-        }
-    }
-};
-
-int TypeOfFE_P2BubbleLagrange2d::Data[] = {
-    0, 1, 2, 3, 4, 5, 6, // support item number of each dof
-    0, 0, 0, 0, 0, 0, 0, // number of dof on that item
-    0, 1, 2, 3, 4, 5, 6, // interpolation node of each dof
-    0, 1, 2, 3, 4, 5, 6, // df in sub FE
-    1, 1, 1, 0,          // one vertex dof, one edge dof, one cell dof
-    0,                   // component 0 uses this sub FE
-    0,                   // begin dof component 0
-    7                    // end dof component 0
-};
-
-double TypeOfFE_P2BubbleLagrange2d::alpha_Pi_h[] = {1., 1., 1., 1., 1., 1., 1.};
 
 // -----------------------------------------------------------------------------
 // Problem data.
@@ -538,27 +419,6 @@ std::vector<double> cell_average_u_minus_g(const Mesh& Th, Fun& uh) {
     return avg;
 }
 
-
-double eval_fun_with_second_derivatives(const Fun& uh, int k, const R2& x, int op) {
-    // FunFEM::eval in this archive allocates basis values only through first derivatives.
-    // The residual estimator needs dxx and dyy, so we evaluate the local basis manually.
-    const Space& Vh = uh.getSpace();
-    const auto& FK = Vh[k];
-    const int ndf = FK.NbDoF();
-    const int nops = std::max(op_dxy, std::max(op_dxx, op_dyy)) + 1;
-    std::vector<double> buffer(ndf * Vh.N * nops, 0.0);
-    RNMK_ w(buffer.data(), ndf, Vh.N, nops);
-
-    What_d whatd = Fop_D0;
-    if (op == op_dx || op == op_dy || op == op_dz || op == op_dxx || op == op_dyy || op == op_dxy) whatd |= Fop_D1;
-    if (op == op_dxx || op == op_dyy || op == op_dxy) whatd |= Fop_D2;
-
-    FK.BF(whatd, FK.T.toKref(x), w);
-    double val = 0.0;
-    for (int j = FK.dfcbegin(0); j < FK.dfcend(0); ++j) val += uh(FK(j)) * w(j, 0, op);
-    return val;
-}
-
 struct EstimatorParts {
     std::vector<double> total, interior, jump, contact;
     double sum_total = 0., sum_interior = 0., sum_jump = 0., sum_contact = 0.;
@@ -594,8 +454,8 @@ EstimatorParts compute_estimator(const Mesh& Th, Fun& uh, const std::vector<doub
             const double u = uh.eval(k, P, 0, op_id);
             const double ux = uh.eval(k, P, 0, op_dx);
             const double uy = uh.eval(k, P, 0, op_dy);
-            const double lap = eval_fun_with_second_derivatives(uh, k, P, op_dxx)
-                             + eval_fun_with_second_derivatives(uh, k, P, op_dyy);
+            const double lap = uh.eval(k, P, 0, op_dxx)
+                             + uh.eval(k, P, 0, op_dyy);
             const double res = lap + lambda[k] + rhs_f(P);
             eint += w * res * res;
             const double gap = obstacle_g(P) - u;
@@ -667,8 +527,7 @@ MeshResult solve_on_mesh(SimpleMesh& smesh, int level, const Options& opt) {
     write_mesh_file(smesh, mesh_name);
     Mesh Th(mesh_name.c_str());
 
-    TypeOfFE_P2BubbleLagrange2d p2b;
-    Space Uh(Th, p2b);
+    Space Uh(Th, DataFE<Mesh>::P2B);
     Space Qh(Th, DataFE<Mesh>::P0);
 
     ProblemOption popt;
