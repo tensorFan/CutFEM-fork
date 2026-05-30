@@ -14,6 +14,172 @@ You should have received a copy of the GNU General Public License along with
 CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
 */
 
+
+// -----------------------------------------------------------------------------
+// Elementwise integration utilities on a standard mesh.
+//
+// These routines return one value per element.  With average=false they return
+//     int_K f
+// and with average=true they return
+//     |K|^{-1} int_K f.
+//
+// This is useful, for example, for P0 projections where each element receives
+// the cell average of a finite-element expression.
+// -----------------------------------------------------------------------------
+
+template <typename M>
+std::vector<double> integrateElementwise(const std::shared_ptr<ExpressionVirtual> &fh, const M &Th,
+                                         int quadrature_order = 5, bool average = false) {
+    typedef M Mesh;
+    typedef GFESpace<Mesh> FESpace;
+    typedef typename Mesh::Element Element;
+    typedef typename FESpace::FElement FElement;
+    typedef typename FElement::QF QF;
+    typedef typename FElement::Rd Rd;
+    typedef typename QF::QuadraturePoint QuadraturePoint;
+
+    const QF &qf(*QF_Simplex<typename FElement::RdHat>(quadrature_order));
+
+    std::vector<double> val(Th.nt, 0.);
+
+    for (int k = Th.first_element(); k < Th.last_element(); k += Th.next_element()) {
+        const Element &K(Th[k]);
+
+        double loc = 0.;
+        const double meas = K.measure();
+
+        for (int ipq = 0; ipq < qf.getNbrOfQuads(); ++ipq) {
+            QuadraturePoint ip(qf[ipq]);
+            Rd mip = K.mapToPhysicalElement(ip);
+            const double Cint = meas * ip.getWeight();
+
+            loc += Cint * fh->eval(k, mip);
+        }
+
+        val[k] = average ? loc / meas : loc;
+    }
+
+    return val;
+}
+
+template <typename M>
+std::vector<double> integrateElementwise(const std::shared_ptr<ExpressionVirtual> &fh, double scalar,
+                                         const M &Th, int quadrature_order = 5, bool average = false) {
+    typedef M Mesh;
+    typedef GFESpace<Mesh> FESpace;
+    typedef typename Mesh::Element Element;
+    typedef typename FESpace::FElement FElement;
+    typedef typename FElement::QF QF;
+    typedef typename FElement::Rd Rd;
+    typedef typename QF::QuadraturePoint QuadraturePoint;
+
+    const QF &qf(*QF_Simplex<typename FElement::RdHat>(quadrature_order));
+
+    std::vector<double> val(Th.nt, 0.);
+
+    for (int k = Th.first_element(); k < Th.last_element(); k += Th.next_element()) {
+        const Element &K(Th[k]);
+
+        double loc = 0.;
+        const double meas = K.measure();
+
+        for (int ipq = 0; ipq < qf.getNbrOfQuads(); ++ipq) {
+            QuadraturePoint ip(qf[ipq]);
+            Rd mip = K.mapToPhysicalElement(ip);
+            const double Cint = meas * ip.getWeight();
+
+            loc += Cint * (fh->eval(k, mip) - scalar);
+        }
+
+        val[k] = average ? loc / meas : loc;
+    }
+
+    return val;
+}
+
+template <typename M, typename Fct>
+std::vector<double> integrateElementwise(const std::shared_ptr<ExpressionVirtual> &fh, const Fct &fex,
+                                         const M &Th, int quadrature_order = 5, bool average = false) {
+    typedef M Mesh;
+    typedef GFESpace<Mesh> FESpace;
+    typedef typename Mesh::Element Element;
+    typedef typename FESpace::FElement FElement;
+    typedef typename FElement::QF QF;
+    typedef typename FElement::Rd Rd;
+    typedef typename QF::QuadraturePoint QuadraturePoint;
+
+    const QF &qf(*QF_Simplex<typename FElement::RdHat>(quadrature_order));
+
+    std::vector<double> val(Th.nt, 0.);
+
+    for (int k = Th.first_element(); k < Th.last_element(); k += Th.next_element()) {
+        const Element &K(Th[k]);
+
+        double loc = 0.;
+        const double meas = K.measure();
+
+        for (int ipq = 0; ipq < qf.getNbrOfQuads(); ++ipq) {
+            QuadraturePoint ip(qf[ipq]);
+            Rd mip = K.mapToPhysicalElement(ip);
+            const double Cint = meas * ip.getWeight();
+
+            loc += Cint * (fh->eval(k, mip) - fex(mip));
+        }
+
+        val[k] = average ? loc / meas : loc;
+    }
+
+    return val;
+}
+
+template <typename M>
+double integrate(const std::shared_ptr<ExpressionVirtual> &fh, const M &Th, int quadrature_order = 5) {
+    std::vector<double> vals = integrateElementwise(fh, Th, quadrature_order, false);
+
+    double sum = 0.;
+    for (double v : vals) sum += v;
+
+#ifdef USE_MPI
+    double sum_receive = 0.;
+    MPIcf::AllReduce(sum, sum_receive, MPI_SUM);
+    return sum_receive;
+#else
+    return sum;
+#endif
+}
+
+template <typename M>
+double integrate(const std::shared_ptr<ExpressionVirtual> &fh, double scalar, const M &Th, int quadrature_order = 5) {
+    std::vector<double> vals = integrateElementwise(fh, scalar, Th, quadrature_order, false);
+
+    double sum = 0.;
+    for (double v : vals) sum += v;
+
+#ifdef USE_MPI
+    double sum_receive = 0.;
+    MPIcf::AllReduce(sum, sum_receive, MPI_SUM);
+    return sum_receive;
+#else
+    return sum;
+#endif
+}
+
+template <typename M, typename Fct>
+double integrate(const std::shared_ptr<ExpressionVirtual> &fh, const Fct &fex, const M &Th,
+                 int quadrature_order = 5) {
+    std::vector<double> vals = integrateElementwise(fh, fex, Th, quadrature_order, false);
+
+    double sum = 0.;
+    for (double v : vals) sum += v;
+
+#ifdef USE_MPI
+    double sum_receive = 0.;
+    MPIcf::AllReduce(sum, sum_receive, MPI_SUM);
+    return sum_receive;
+#else
+    return sum;
+#endif
+}
 /* For vector of ExpressionVirtual */
 template <typeMesh mesh_t, FunctionDomain fct>
 double L2normCut(const std::vector<std::shared_ptr<ExpressionVirtual>>& components, fct fex, const ActiveMesh<mesh_t> &Th, const MacroElement<mesh_t> *macro = nullptr) {

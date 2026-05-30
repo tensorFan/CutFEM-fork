@@ -251,8 +251,22 @@ template <typename M>
 double FunFEM<M>::eval(const int k, const R *x, int cu, int op) const {
     const FElement &FK((*Vh)[k]);
     int ndf = FK.NbDoF();
-    RNMK_ w(databf, ndf, Vh->N, op_dz + 1);
-    FK.BF(FK.T.toKref(x), w);
+    // RNMK_ w(databf, ndf, Vh->N, op_dz + 1);
+    // FK.BF(FK.T.toKref(x), w);
+    const int nops = std::max({op_id, op_dx, op_dy, op_dz, op_dxx, op_dyy, op_dxy}) + 1;
+
+    RNMK_ w(databf, ndf, Vh->N, nops);
+
+    What_d whatd = Fop_D0;
+
+    if (op == op_dx || op == op_dy || op == op_dz ||
+        op == op_dxx || op == op_dyy || op == op_dxy)
+        whatd |= Fop_D1;
+
+    if (op == op_dxx || op == op_dyy || op == op_dxy)
+        whatd |= Fop_D2;
+
+    FK.BF(whatd, FK.T.toKref(x), w);
 
     double val = 0.;
 

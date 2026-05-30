@@ -48,6 +48,7 @@ enum class BasisFctType {
     P0,
     P1,
     P2,
+    P2B,
     P3,
     P4,
     P1dc,
@@ -191,6 +192,7 @@ template <class mesh> struct DataFE {
     static GTypeOfFE<mesh> &P0;
     static GTypeOfFE<mesh> &P1;
     static GTypeOfFE<mesh> &P2;
+    static GTypeOfFE<mesh> &P2B;
     static GTypeOfFE<mesh> &P3;
     static GTypeOfFE<mesh> &P4;
 
