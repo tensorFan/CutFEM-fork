@@ -17,6 +17,8 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>.
 #define INTEGRATION_FUNFEM_HPP_
 
 #include <cassert>
+#include <cstdlib>
+#include <iostream>
 #include <list>
 #include <memory>
 
@@ -24,6 +26,40 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>.
 #include "macroElement.hpp"
 
 namespace IntegrationFunFEMDetail {
+
+#ifndef INTEGRATION_FUNFEM_DEBUG
+#define INTEGRATION_FUNFEM_DEBUG 1
+#endif
+
+#ifndef INTEGRATION_FUNFEM_DEBUG_LIMIT
+#define INTEGRATION_FUNFEM_DEBUG_LIMIT 2000
+#endif
+
+#ifndef INTEGRATION_FUNFEM_DEBUG_EVERY
+#define INTEGRATION_FUNFEM_DEBUG_EVERY 1
+#endif
+
+inline bool debug_enabled() {
+#if INTEGRATION_FUNFEM_DEBUG
+    return true;
+#else
+    return false;
+#endif
+}
+
+inline void debug_line(const char *msg) {
+#if INTEGRATION_FUNFEM_DEBUG
+    std::cerr << "[integrationFunFEM] " << msg << std::endl;
+#endif
+}
+
+inline bool debug_should_print(long long counter) {
+#if INTEGRATION_FUNFEM_DEBUG
+    if (counter < INTEGRATION_FUNFEM_DEBUG_LIMIT)
+        return (counter % INTEGRATION_FUNFEM_DEBUG_EVERY) == 0;
+#endif
+    return false;
+}
 
 inline double mpi_sum(double value) {
 #ifdef USE_MPI
@@ -55,27 +91,118 @@ double for_each_active_cut_quadrature(const ActiveMesh<M> &Th, int itq,
 
     const QF &qf(*QF_Simplex<typename FElement::RdHat>(5));
     double value = 0.;
+    long long debug_counter = 0;
+
+    if (debug_enabled()) {
+        std::cerr << "[integrationFunFEM] ENTER for_each_active_cut_quadrature"
+                  << " itq=" << itq
+                  << " first=" << Th.first_element()
+                  << " last=" << Th.last_element()
+                  << " step=" << Th.next_element()
+                  << " nb_dom=" << Th.get_nb_domain()
+                  << std::endl;
+    }
 
     for (int k = Th.first_element(); k < Th.last_element(); k += Th.next_element()) {
-        if (Th.isInactive(k, itq))
+        if (debug_should_print(debug_counter)) {
+            std::cerr << "[integrationFunFEM] element-begin"
+                      << " counter=" << debug_counter
+                      << " k=" << k
+                      << " itq=" << itq
+                      << std::endl;
+        }
+
+        if (Th.isInactive(k, itq)) {
+            if (debug_should_print(debug_counter)) {
+                std::cerr << "[integrationFunFEM] element-skip inactive"
+                          << " k=" << k << " itq=" << itq << std::endl;
+            }
+            ++debug_counter;
             continue;
-        if (!accept_element(k))
+        }
+
+        if (!accept_element(k)) {
+            if (debug_should_print(debug_counter)) {
+                std::cerr << "[integrationFunFEM] element-skip rejected"
+                          << " k=" << k << std::endl;
+            }
+            ++debug_counter;
             continue;
+        }
 
         const int domain = Th.get_domain_element(k);
         const int kb = Th.idxElementInBackMesh(k);
+
+        if (debug_should_print(debug_counter)) {
+            std::cerr << "[integrationFunFEM] element-accepted"
+                      << " counter=" << debug_counter
+                      << " active_k=" << k
+                      << " back_kb=" << kb
+                      << " domain=" << domain
+                      << std::endl;
+        }
+
         const Cut_Part<Element> cutK(Th.get_cut_part(k, itq));
 
-        for (auto it = cutK.element_begin(); it != cutK.element_end(); ++it) {
+        int subcell = 0;
+        for (auto it = cutK.element_begin(); it != cutK.element_end(); ++it, ++subcell) {
             const R measure = cutK.measure(it);
+
+            if (debug_should_print(debug_counter)) {
+                std::cerr << "[integrationFunFEM] subcell-begin"
+                          << " active_k=" << k
+                          << " back_kb=" << kb
+                          << " domain=" << domain
+                          << " subcell=" << subcell
+                          << " measure=" << measure
+                          << std::endl;
+            }
 
             for (int ipq = 0; ipq < qf.getNbrOfQuads(); ++ipq) {
                 QuadraturePoint ip(qf[ipq]);
                 Rd mip = cutK.mapToPhysicalElement(it, ip);
                 const R weight = measure * ip.getWeight();
-                value += weight * visit(k, kb, domain, mip);
+
+                if (debug_should_print(debug_counter)) {
+                    std::cerr << "[integrationFunFEM] before visit/eval"
+                              << " counter=" << debug_counter
+                              << " active_k=" << k
+                              << " back_kb=" << kb
+                              << " domain=" << domain
+                              << " subcell=" << subcell
+                              << " ipq=" << ipq
+                              << " weight=" << weight
+                              << " mip=" << mip
+                              << std::endl;
+                }
+
+                const double local_value = visit(k, kb, domain, mip);
+
+                if (debug_should_print(debug_counter)) {
+                    std::cerr << "[integrationFunFEM] after visit/eval"
+                              << " counter=" << debug_counter
+                              << " active_k=" << k
+                              << " back_kb=" << kb
+                              << " domain=" << domain
+                              << " subcell=" << subcell
+                              << " ipq=" << ipq
+                              << " local_value=" << local_value
+                              << " contribution=" << weight * local_value
+                              << std::endl;
+                }
+
+                value += weight * local_value;
+                ++debug_counter;
             }
         }
+    }
+
+    if (debug_enabled()) {
+        std::cerr << "[integrationFunFEM] EXIT for_each_active_cut_quadrature"
+                  << " itq=" << itq
+                  << " accumulated=" << value
+                  << " evaluations=" << debug_counter
+                  << std::endl;
     }
 
     return value;
@@ -85,6 +212,12 @@ template <typename M>
 double active_expression_integral_local(const ActiveMesh<M> &Th,
                                         const std::shared_ptr<const ExpressionVirtual> &fh,
                                         int itq) {
+    if (debug_enabled()) {
+        std::cerr << "[integrationFunFEM] ENTER active_expression_integral_local(all domains)"
+                  << " itq=" << itq
+                  << " expr_ptr=" << fh.get()
+                  << std::endl;
+    }
     return for_each_active_cut_quadrature(
         Th, itq,
         [](int) { return true; },
@@ -102,6 +235,13 @@ template <typename M>
 double active_expression_integral_local(const ActiveMesh<M> &Th,
                                         const std::shared_ptr<const ExpressionVirtual> &fh,
                                         int domain, int itq) {
+    if (debug_enabled()) {
+        std::cerr << "[integrationFunFEM] ENTER active_expression_integral_local(single domain)"
+                  << " requested_domain=" << domain
+                  << " itq=" << itq
+                  << " expr_ptr=" << fh.get()
+                  << std::endl;
+    }
     return for_each_active_cut_quadrature(
         Th, itq,
         [&](int k) { return Th.get_domain_element(k) == domain; },
@@ -377,8 +517,15 @@ double boundary_cut_face_integral_local(const std::shared_ptr<const ExpressionVi
 template <typename M>
 double integral(const ActiveMesh<M> &Th, const std::shared_ptr<const ExpressionVirtual> &fh,
                 int domain, int itq) {
-    return IntegrationFunFEMDetail::mpi_sum(
-        IntegrationFunFEMDetail::active_expression_integral_local(Th, fh, domain, itq));
+    if (IntegrationFunFEMDetail::debug_enabled()) {
+        std::cerr << "[integrationFunFEM] ENTER integral(ActiveMesh, shared_ptr<ExpressionVirtual>, domain, itq)"
+                  << " domain=" << domain
+                  << " itq=" << itq
+                  << std::endl;
+    }
+    double local = IntegrationFunFEMDetail::active_expression_integral_local(Th, fh, domain, itq);
+    IntegrationFunFEMDetail::debug_line("REDUCE integral(ActiveMesh, shared_ptr<ExpressionVirtual>, domain, itq)");
+    return IntegrationFunFEMDetail::mpi_sum(local);
 }
 
 template <typename M>
@@ -386,8 +533,10 @@ double integral(const ActiveMesh<M> &Th, const std::shared_ptr<const ExpressionV
                 int itq) {
     // Integrates over the actual active elements. This avoids assuming that
     // domains are numbered 0,...,Th.get_nb_domain()-1.
-    return IntegrationFunFEMDetail::mpi_sum(
-        IntegrationFunFEMDetail::active_expression_integral_local(Th, fh, itq));
+    IntegrationFunFEMDetail::debug_line("ENTER integral(ActiveMesh, shared_ptr<ExpressionVirtual>, itq)");
+    double local = IntegrationFunFEMDetail::active_expression_integral_local(Th, fh, itq);
+    IntegrationFunFEMDetail::debug_line("REDUCE integral(ActiveMesh, shared_ptr<ExpressionVirtual>, itq)");
+    return IntegrationFunFEMDetail::mpi_sum(local);
 }
 
 template <typename M>
@@ -398,17 +547,36 @@ double integral(const ActiveMesh<M> &Th, const std::shared_ptr<const ExpressionV
 template <typename M>
 double integral(const ActiveMesh<M> &Th, const FunFEM<M> &fh, int component,
                 int domain, int itq) {
+    if (IntegrationFunFEMDetail::debug_enabled()) {
+        std::cerr << "[integrationFunFEM] ENTER integral(ActiveMesh, FunFEM, component, domain, itq)"
+                  << " component=" << component
+                  << " domain=" << domain
+                  << " itq=" << itq
+                  << std::endl;
+    }
     return integral(Th, IntegrationFunFEMDetail::make_id_expression(fh, component), domain, itq);
 }
 
 template <typename M>
 double integral(const ActiveMesh<M> &Th, const FunFEM<M> &fh, int component,
                 int itq) {
+    if (IntegrationFunFEMDetail::debug_enabled()) {
+        std::cerr << "[integrationFunFEM] ENTER integral(ActiveMesh, FunFEM, component, itq)"
+                  << " component=" << component
+                  << " itq=" << itq
+                  << std::endl;
+    }
     return integral(Th, IntegrationFunFEMDetail::make_id_expression(fh, component), itq);
 }
 
 template <typename M>
 double integral(const ActiveMesh<M> &Th, const FunFEM<M> &fh, int component) {
+    if (IntegrationFunFEMDetail::debug_enabled()) {
+        std::cerr << "[integrationFunFEM] ENTER integral(ActiveMesh, FunFEM, component)"
+                  << " component=" << component
+                  << " -> dispatch itq=0"
+                  << std::endl;
+    }
     return integral(Th, fh, component, 0);
 }
 

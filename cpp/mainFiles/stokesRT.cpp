@@ -19,9 +19,10 @@
 // #define PROBLEM_UNFITTED_STOKES3D
 
 
-#define PROBLEM_UNFITTED_PRESROB2_STOKES_VORTICITY_4FIELD // (2023 autumn)
+// #define PROBLEM_UNFITTED_PRESROB2_STOKES_VORTICITY_4FIELD // (2023 autumn)
 // #define PROBLEM_UNFITTED_HANSBO_STOKES_VORTICITY_4FIELD // (2023 autumn)
 
+#define PROBLEM_UNFITTED_2026_CURL // (2026 autumn)
 
 
 
@@ -409,23 +410,23 @@
         , macro
       );
       // [For paper:]
-      // stokes.addFaceStabilization( // [previously h^(2k+1) + macro]
-      //   -innerProduct(pPenParam*pow(hi,0)*jump(p_itf), jump(q_itf))
-      //   -innerProduct(pPenParam*pow(hi,2)*jump(grad(p_itf)*n), jump(grad(q_itf)*n)) 
-      // , Kh_itf
-      // // , macro_itf // somehow fails at last iteration when not using macro (due to umfpack maybe?)
-      // );
-      // stokes.addBilinear( 
-      //   -innerProduct(pPenParam*pow(hi,1)*grad(p_itf)*n, grad(q_itf)*n) 
-      // , Kh_itf
-      // );
-      // [Saras test (12/03/24):]
       stokes.addFaceStabilization( // [previously h^(2k+1) + macro]
-        -innerProduct(pPenParam*pow(hi,1)*jump(p_itf), jump(q_itf))
-        -innerProduct(pPenParam*pow(hi,3)*jump(grad(p_itf)*n), jump(grad(q_itf)*n)) 
+        -innerProduct(pPenParam*pow(hi,0)*jump(p_itf), jump(q_itf))
+        -innerProduct(pPenParam*pow(hi,2)*jump(grad(p_itf)*n), jump(grad(q_itf)*n)) 
       , Kh_itf
       // , macro_itf // somehow fails at last iteration when not using macro (due to umfpack maybe?)
       );
+      stokes.addBilinear( 
+        -innerProduct(pPenParam*pow(hi,1)*grad(p_itf)*n, grad(q_itf)*n) 
+      , Kh_itf
+      );
+      // [Saras test (12/03/24):]
+      // stokes.addFaceStabilization( // [previously h^(2k+1) + macro]
+      //   -innerProduct(pPenParam*pow(hi,1)*jump(p_itf), jump(q_itf))
+      //   -innerProduct(pPenParam*pow(hi,3)*jump(grad(p_itf)*n), jump(grad(q_itf)*n)) 
+      // , Kh_itf
+      // // , macro_itf // somehow fails at last iteration when not using macro (due to umfpack maybe?)
+      // );
       // stokes.addBilinear( 
       //   -innerProduct(pPenParam*pow(hi,1)*grad(p_itf)*n, grad(q_itf)*n) 
       // , Kh_itf
@@ -442,7 +443,7 @@
         , Kh_itf, Khi, INTEGRAL_BOUNDARY
       );
       Fun_h u00(Vh, fun_exact_u);
-      stokes.setDirichlet(u00, Khi);
+      stokes.setDirichlet(u00, Khi.Th);
       // Sets uniqueness of the pressure
       R meanP = integral(Khi,p0,0);
       stokes.addLagrangeMultiplier(
@@ -451,7 +452,6 @@
       );
 
       }
-
       // std::cout << integral(Khi,exactp,0) << std::endl;
       matlab::Export(stokes.mat_[0], "mat"+std::to_string(i)+"Cut.dat");
       stokes.solve("umfpack");
@@ -888,6 +888,306 @@
       << std::setw(15) << std::setfill(' ') << divmax[i]
       // << std::setw(15) << std::setfill(' ') << convmaxdivPr[i]
     //   << std::setw(15) << std::setfill(' ') << gradul2[i]
+    //   << std::setw(15) << std::setfill(' ') << convgrad[i] 
+      << std::endl;
+    }
+
+  }
+#endif
+
+
+// 2026 Curl formulation Stokes example for possible reviewer comment
+#ifdef PROBLEM_UNFITTED_2026_CURL
+
+  namespace Erik_Data_UNFITTED_STOKES_VORTICITY {
+
+    R Ra = 1e2;
+
+    R fun_levelSet(const R2 P, const int i) {
+      return 1-P.y;
+    }
+
+    // [Example 1 from Neilan pressure robust paper]
+    R fun_div(const R2 P, int i, int dom) {
+      R x = P.x;
+      R y = P.y;
+      return 0;
+    }
+    R fun_rhs(const R2 P, int i, int dom) {
+      R x = P.x;
+      R y = P.y;
+      if(i==0) return      0;
+      else return Ra*(1-y+3*y*y);
+    }
+    R fun_exact_u(const R2 P, int i, int dom) {
+      R x = P.x;
+      R y = P.y;
+      if(i==0)    return  0;
+      else        return  0;
+    }
+    R fun_exact_p(const R2 P, int i, int dom ) {
+      R x = P.x;
+      R y = P.y;
+      return Ra*(y*y*y-y*y/2+y-7./12);
+    }
+  }
+  using namespace Erik_Data_UNFITTED_STOKES_VORTICITY;
+
+  int main(int argc, char** argv ) {
+    typedef TestFunction<Mesh2> FunTest;
+    typedef FunFEM<Mesh2> Fun_h;
+    typedef Mesh2 Mesh;
+    typedef ActiveMeshT2 CutMesh;
+    typedef FESpace2   Space;
+    typedef CutFESpaceT2 CutSpace;
+
+    const double cpubegin = CPUtime();
+    MPIcf cfMPI(argc,argv);
+
+    int nx = 11;
+    int ny = 11;
+    // int d = 2;
+
+    std::vector<double> ul2, pl2, divmax, divl2, h, convu, convp, gradul2, convgrad;
+
+    int iters = 3;
+    for(int i=0;i<iters;++i) { // i<3
+
+      std::cout << "\n ------------------------------------- " << std::endl;
+      Mesh Kh(nx, ny, 0., 0., 1., 1.+1e-12);
+      const R hi = 1./(nx-1); // 1./(nx-1)
+      // const R penaltyParam = 8e2; // 4e3, 8e2
+
+      Space Lh(Kh, DataFE<Mesh2>::P1);
+      Fun_h levelSet(Lh, fun_levelSet);
+      InterfaceLevelSet<Mesh> interface(Kh, levelSet);
+
+
+      Lagrange2 FEvelocity(4);
+      Space VELh_(Kh, FEvelocity);
+      Space SCAh_(Kh, DataFE<Mesh>::P2);
+
+      Space Uh_(Kh, DataFE<Mesh>::P1); // Nedelec order 0 type 1
+      Space Vh_(Kh, DataFE<Mesh2>::RT0); 
+      Space Wh_(Kh, DataFE<Mesh2>::P0);
+
+      // ACTIVE MESH
+      ActiveMesh<Mesh> Khi(Kh);
+      Khi.truncate(interface, -1);
+      MacroElement<Mesh> macro(Khi, 1); // we use 0.25 for vorticity BC2
+
+      CutSpace VELh(Khi, VELh_);
+      CutSpace SCAh(Khi, SCAh_);
+
+      CutSpace Uh(Khi, Uh_);
+      CutSpace Vh(Khi, Vh_);
+      CutSpace Wh(Khi, Wh_);
+
+      Fun_h fh(VELh, fun_rhs); // interpolates fun_rhs to fh of type Fun_h
+      Fun_h u0(VELh, fun_exact_u);
+      Fun_h p0(SCAh, fun_exact_p); 
+      
+      // PROBLEM SETUP
+      CutFEM<Mesh2> stokes(Vh); stokes.add(Wh); stokes.add(Uh);
+
+      Normal n;
+      Tangent t;
+      /* Syntax:
+      FunTest (fem space, #components, place in space)
+      */
+      FunTest w(Uh,1,0), tau(Uh,1,0), u(Vh,2,0), v(Vh,2,0), p(Wh,1,0), q(Wh,1,0);
+
+      R mu = 1;
+      {
+      // [Bulk]
+      stokes.addBilinear( // w = curl u 
+        + innerProduct(1./mu*w, tau)
+        - innerProduct(u, rotgrad(tau))
+        , Khi
+      );
+      stokes.addBilinear( // mu Delta u + grad p
+        + innerProduct(rotgrad(w), v)
+        - innerProduct(p, div(v))
+        , Khi
+      );
+      stokes.addLinear(
+        + innerProduct(fh.exprList(), v)
+        , Khi
+      );
+      stokes.addBilinear(
+        + innerProduct(div(u), q)
+        , Khi
+      );
+      // [Stabilization]
+      double wPenParam = 1e0; // 1e1
+      double uPenParam = 1e0; // 1e-1 ~ 1/penParam (2e0 for (0,lamm,0))
+      double pPenParam = 1e0; // 1e0 (2e0 for (0,lamm,0))
+      FunTest grad2un = grad(grad(u)*n)*n;
+      FunTest grad2wn = grad(grad(w)*n)*n;
+      stokes.addFaceStabilization( 
+        /* "Primal" stab: (lw,0,la) */
+        // innerProduct(uPenParam*pow(hi,1)*jump(w), jump(tau)) // [w in P1, continuous]
+        +innerProduct(wPenParam*pow(hi,3)*jump(grad(w)*n), jump(grad(tau)*n))
+        // +innerProduct(uPenParam*pow(hi,5)*jump(grad2wn), jump(grad2wn))
+        +innerProduct(uPenParam*pow(hi,1)*jump(u), jump(v)) 
+        +innerProduct(uPenParam*pow(hi,3)*jump(grad(u)*n), jump(grad(v)*n))
+        // +innerProduct(uPenParam*pow(hi,5)*jump(grad2un), jump(grad2un))
+
+        -innerProduct(pPenParam*pow(hi,1)*jump(p), jump(div(v)))
+        +innerProduct(pPenParam*pow(hi,1)*jump(div(u)), jump(q))
+        // -innerProduct(pPenParam*pow(hi,3)*jump(grad(p)), jump(grad(div(v))))
+        // +innerProduct(pPenParam*pow(hi,3)*jump(grad(div(u))) , jump(grad(q)))
+        // +innerProduct(pPenParam*pow(hi,1)*jump(p), jump(q))
+        // +innerProduct(pPenParam*pow(hi,3)*jump(grad(p)), jump(grad(q)))
+
+        , Khi
+        , macro
+      );
+
+      // [BC]
+      double penParam = 1e2;
+      Fun_h u0(Vh, fun_exact_u);
+      stokes.addBilinear(
+        + innerProduct(p, v*n)
+        + innerProduct(u*n, penParam*pow(hi,-1) * v*n)
+        , interface
+      );
+      stokes.addLinear(
+        + innerProduct(u0*n, penParam*pow(hi,-1) * v*n)
+        , interface
+      );
+      stokes.addBilinear(
+        + innerProduct(p, v*n)
+        + innerProduct(u*n, penParam*pow(hi,-1) * v*n)
+        , Khi, INTEGRAL_BOUNDARY
+      );
+      stokes.addLinear(
+        + innerProduct(u0*n, penParam*pow(hi,-1) * v*n)
+        , Khi, INTEGRAL_BOUNDARY
+      );
+      // Fun_h u00(Vh, fun_exact_u);
+      // stokes.setDirichlet(u00, Khi.Th);
+      // Sets uniqueness of the pressure
+      R meanP = integral(Khi,p0,0); //returning segfault...
+      stokes.addLagrangeMultiplier(
+        innerProduct(1, p), meanP
+        , Khi
+      );
+
+      }
+      // std::cout << integral(Khi,exactp,0) << std::endl;
+      // matlab::Export(stokes.mat_[0], "mat"+std::to_string(i)+"Cut.dat");
+      stokes.solve("umfpack");
+
+      // EXTRACT SOLUTION
+      int nb_vort_dof = Uh.get_nb_dof();
+      int nb_vel_dof = Vh.get_nb_dof();
+      int nb_pres_dof = Wh.get_nb_dof();
+
+      std::cout << "Lagrange multiplier value: " << std::endl;
+      std::cout << stokes.rhs_(nb_pres_dof+nb_vel_dof+nb_vort_dof)<< std::endl;
+
+      // Rn_ data_wh = stokes.rhs_(SubArray(nb_vort_dof,0));
+      // Rn_ data_uh = stokes.rhs_(SubArray(nb_vel_dof,nb_vort_dof));
+      // Rn_ data_ph = stokes.rhs_(SubArray(nb_pres_dof,nb_vel_dof + nb_vort_dof));
+      Rn_ data_uh = stokes.rhs_(SubArray(nb_vel_dof,0));
+      Rn_ data_ph = stokes.rhs_(SubArray(nb_pres_dof,nb_vel_dof));
+      Rn_ data_wh = stokes.rhs_(SubArray(nb_vort_dof,nb_vel_dof + nb_pres_dof));
+      Fun_h uh(Vh, data_uh);
+      Fun_h ph(Wh, data_ph);
+      // std::cout << data_ph_itf << std::endl;
+
+      // [Post process pressure]
+      // R meanP = integral(Khi,exactp,0);
+      // ExpressionFunFEM<Mesh> fem_p(ph,0,op_id);
+      // R meanPfem = integral(Khi,fem_p,0);
+      // // std::cout << meanP << std::endl;
+      // CutFEM<Mesh2> post(Wh);
+      // post.addLinear(
+      //   innerProduct(1,q)
+      //   , Khi
+      // ); 
+      // R area = post.rhs_.sum();
+      // ph.v -= meanPfem/area;
+      // ph.v += meanP/area;
+
+      auto uh_0dx = dx(uh.expr(0));
+      auto uh_1dy = dy(uh.expr(1));   
+
+      auto uh_0dy = dy(uh.expr(0));
+      auto uh_1dx = dx(uh.expr(1));   
+
+      // [Errors]
+      {
+        Fun_h soluErr(Vh, fun_exact_u);
+        Fun_h soluh(Vh, fun_exact_u);
+        soluErr.v -= uh.v;
+        soluErr.v.map(fabs);
+        // Fun_h divSolh(Wh, fun_div);
+        // ExpressionFunFEM<Mesh> femDiv(divSolh, 0, op_id);
+
+        Paraview<Mesh> writer(Khi, "stokes_"+std::to_string(i)+".vtk");
+        writer.add(uh, "velocity" , 0, 2);
+        writer.add(ph, "pressure" , 0, 1);
+        writer.add(uh_0dx+uh_1dy, "divergence");
+        writer.add(soluh, "velocityExact" , 0, 2);
+        writer.add(soluErr, "velocityError" , 0, 2);
+        // writer.add(solh, "velocityError" , 0, 2);
+
+        // writer.add(ph_itf, "itf_pressure" , 0, 1);
+
+        // writer.add(fabs(femDiv, "divergenceError");
+      }
+
+      R errU      = L2normCut(uh,fun_exact_u,0,2);
+      R errGradU  = sqrt(integral(Khi,uh_0dx*uh_0dx+uh_0dy*uh_0dy+uh_1dx*uh_1dx+uh_1dy*uh_1dy,0));
+      R errP      = L2normCut(ph,fun_exact_p,0,1);
+      R errDiv    = L2normCut(uh_0dx+uh_1dy,fun_div,Khi);
+      R maxErrDiv = maxNormCut(uh_0dx+uh_1dy,fun_div,Khi);
+      // R errDiv    = L2normCut(femSol_0dx+femSol_1dy+fflambdah,fun_div,Khi);
+      // R maxErrDiv = maxNormCut(femSol_0dx+femSol_1dy+fflambdah,fun_div,Khi);
+
+      h.push_back(hi);
+      ul2.push_back(errU);
+      pl2.push_back(errP);
+      divl2.push_back(errDiv);
+      divmax.push_back(maxErrDiv);
+      gradul2.push_back(errGradU);
+      if(i==0) {convu.push_back(0); convp.push_back(0); convgrad.push_back(0);}
+      else {
+        convu.push_back( log(ul2[i]/ul2[i-1])/log(h[i]/h[i-1]));
+        convp.push_back(log(pl2[i]/pl2[i-1])/log(h[i]/h[i-1]));
+        convgrad.push_back(log(gradul2[i]/gradul2[i-1])/log(h[i]/h[i-1]));
+      }
+
+      nx = 2*nx-1;
+      ny = 2*ny-1;
+    }
+    std::cout << "\n" << std::left
+    << std::setw(10) << std::setfill(' ') << "h"
+    << std::setw(15) << std::setfill(' ') << "err_p"
+    << std::setw(15) << std::setfill(' ') << "conv p"
+    << std::setw(15) << std::setfill(' ') << "err u"
+    << std::setw(15) << std::setfill(' ') << "conv u"
+    << std::setw(15) << std::setfill(' ') << "err divu"
+    // << std::setw(15) << std::setfill(' ') << "conv divu"
+    << std::setw(15) << std::setfill(' ') << "err maxdivu"
+    // << std::setw(15) << std::setfill(' ') << "conv maxdivu"
+    << std::setw(15) << std::setfill(' ') << "err gradu"
+    // << std::setw(15) << std::setfill(' ') << "conv gradu"
+    << "\n" << std::endl;
+    for(int i=0;i<h.size();++i) {
+      std::cout << std::left
+      << std::setw(10) << std::setfill(' ') << h[i]
+      << std::setw(15) << std::setfill(' ') << pl2[i]
+      << std::setw(15) << std::setfill(' ') << convp[i]
+      << std::setw(15) << std::setfill(' ') << ul2[i]
+      << std::setw(15) << std::setfill(' ') << convu[i]
+      << std::setw(15) << std::setfill(' ') << divl2[i]
+      // << std::setw(15) << std::setfill(' ') << convdivPr[i]
+      << std::setw(15) << std::setfill(' ') << divmax[i]
+      // << std::setw(15) << std::setfill(' ') << convmaxdivPr[i]
+      << std::setw(15) << std::setfill(' ') << gradul2[i]
     //   << std::setw(15) << std::setfill(' ') << convgrad[i] 
       << std::endl;
     }
