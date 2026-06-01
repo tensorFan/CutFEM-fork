@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 // #include "../util/cputime.h"
 // #ifdef USE_MPI
 // #include "cfmpi.hpp"
@@ -22,7 +23,8 @@
 // #define PROBLEM_UNFITTED_PRESROB2_STOKES_VORTICITY_4FIELD // (2023 autumn)
 // #define PROBLEM_UNFITTED_HANSBO_STOKES_VORTICITY_4FIELD // (2023 autumn)
 
-#define PROBLEM_UNFITTED_2026_CURL // (2026 autumn)
+// #define PROBLEM_UNFITTED_2026_CURL // (2026 autumn)
+#define PROBLEM_UNFITTED_2026_CURL_3D_ABC // (2026 autumn, 3D ABC Beltrami test)
 
 
 
@@ -252,7 +254,6 @@
         // }
     }
 #endif
-
 
 // problem 3 with 4fields
 #ifdef PROBLEM_UNFITTED_PRESROB2_STOKES_VORTICITY_4FIELD
@@ -895,6 +896,308 @@
   }
 #endif
 
+
+
+// 2026 Curl formulation Stokes example in 3D.
+// Manufactured Stokes data based on the Arnold--Beltrami--Childress flow
+//     u = (A sin z + C cos y, B sin x + A cos z, C sin y + B cos x),
+// for which div u = 0 and curl u = u when A=B=C=1.
+// The pressure p = sin(x) sin(y) sin(z) has mean zero on the centred ball.
+#ifdef PROBLEM_UNFITTED_2026_CURL_3D_ABC
+
+  namespace Erik_Data_ABC_BELTRAMI_STOKES_3D {
+
+    const R mu     = 1.0;
+    const R Aabc   = 1.0;
+    const R Babc   = 1.0;
+    const R Cabc   = 1.0;
+    const R radius = 0.78;
+    const R eps_ls = 1e-14;
+
+    R fun_levelSet(const R3 P, const int i) {
+      return P.x*P.x + P.y*P.y + P.z*P.z - radius*radius + eps_ls;
+    }
+
+    R fun_0(const R3 P, const int i, const int dom) {
+      return 0.0;
+    }
+
+    R fun_exact_u(const R3 P, const int i, const int dom) {
+      const R x = P.x;
+      const R y = P.y;
+      const R z = P.z;
+
+      if (i == 0) return Aabc*std::sin(z) + Cabc*std::cos(y);
+      if (i == 1) return Babc*std::sin(x) + Aabc*std::cos(z);
+      return Cabc*std::sin(y) + Babc*std::cos(x);
+    }
+
+    // For A=B=C=1 this agrees with curl u.  We keep the formula as mu*curl u
+    // since the first equation in this block is w = mu curl u.
+    R fun_exact_w(const R3 P, const int i, const int dom) {
+      return mu*fun_exact_u(P, i, dom);
+    }
+
+    R fun_exact_p(const R3 P, const int i, const int dom) {
+      const R x = P.x;
+      const R y = P.y;
+      const R z = P.z;
+      return std::sin(x)*std::sin(y)*std::sin(z);
+    }
+
+    R fun_grad_p(const R3 P, const int i, const int dom) {
+      const R x = P.x;
+      const R y = P.y;
+      const R z = P.z;
+
+      if (i == 0) return std::cos(x)*std::sin(y)*std::sin(z);
+      if (i == 1) return std::sin(x)*std::cos(y)*std::sin(z);
+      return std::sin(x)*std::sin(y)*std::cos(z);
+    }
+
+    // Since curl(curl u) = u for the ABC Beltrami field, the Stokes forcing is
+    //     f = curl(w) + grad p = mu*u + grad p.
+    R fun_rhs(const R3 P, const int i, const int dom) {
+      return mu*fun_exact_u(P, i, dom) + fun_grad_p(P, i, dom);
+    }
+
+    R fun_div(const R3 P, const int i, const int dom) {
+      return 0.0;
+    }
+
+  } 
+  using namespace Erik_Data_ABC_BELTRAMI_STOKES_3D;
+
+  int main(int argc, char** argv) {
+    typedef TestFunction<Mesh3> FunTest;
+    typedef FunFEM<Mesh3> Fun_h;
+    typedef Mesh3 Mesh;
+    typedef ActiveMeshT3 CutMesh;
+    typedef FESpace3 Space;
+    typedef CutFESpaceT3 CutSpace;
+
+    const double cpubegin = CPUtime();
+    MPIcf cfMPI(argc, argv);
+
+    int nx = 7;
+    int ny = 7;
+    int nz = 7;
+
+    std::vector<double> wl2, ul2, pl2, divl2, divmax, h, convw, convu, convp;
+
+    const int iters = 3;
+    for (int i = 0; i < iters; ++i) {
+      std::cout << "\n ------------------------------------- " << std::endl;
+      std::cout << " --- 3D ABC Beltrami Stokes curl test --- " << std::endl;
+
+      Mesh Kh(nx, ny, nz, -1.0, -1.0, -1.0, 2.0, 2.0, 2.0);
+      const R hi = 2.0/(nx - 1);
+
+      Space Lh(Kh, DataFE<Mesh>::P1);
+      Fun_h levelSet(Lh, fun_levelSet);
+      InterfaceLevelSet<Mesh> interface(Kh, levelSet);
+
+      Space Uh_(Kh, DataFE<Mesh>::Ned0); // H(curl), vorticity w
+      Space Vh_(Kh, DataFE<Mesh>::RT0);  // H(div), velocity u
+      Space Wh_(Kh, DataFE<Mesh>::P0);   // L2, pressure p
+
+      Lagrange3 FEvelocity(2);
+      Space VELh_(Kh, FEvelocity);
+
+      ActiveMesh<Mesh> Khi(Kh);
+      Khi.truncate(interface, 1);
+      Khi.info();
+
+      MacroElement<Mesh> macro(Khi, 0.25);
+
+      CutSpace Uh(Khi, Uh_);
+      CutSpace Vh(Khi, Vh_);
+      CutSpace Wh(Khi, Wh_);
+      CutSpace VELh(Khi, VELh_);
+
+      Fun_h fh(VELh, fun_rhs);
+      Fun_h u0(VELh, fun_exact_u);
+      Fun_h w0(VELh, fun_exact_w);
+
+      CutFEM<Mesh> stokes3D(Uh);
+      stokes3D.add(Vh);
+      stokes3D.add(Wh);
+
+      Normal n;
+      FunTest w(Uh, 3, 0), tau(Uh, 3, 0);
+      FunTest u(Vh, 3, 0), v(Vh, 3, 0), p(Wh, 1, 0), q(Wh, 1, 0);
+
+      // [Bulk]
+      // First-order Stokes curl system:
+      //     w = mu curl u,
+      //     curl w + grad p = f,
+      //     div u = 0.
+      stokes3D.addBilinear(
+        + innerProduct(1.0/mu*w, tau)
+        - innerProduct(u, curl(tau))
+        , Khi
+      );
+      stokes3D.addBilinear(
+        + innerProduct(curl(w), v)
+        - innerProduct(p, div(v))
+        , Khi
+      );
+      stokes3D.addLinear(
+        + innerProduct(fh.exprList(), v)
+        , Khi
+      );
+      stokes3D.addBilinear(
+        + innerProduct(div(u), q)
+        , Khi
+      );
+
+      // [Unfitted boundary conditions]
+      // Tangential velocity is inserted through the weak curl identity.
+      // Normal velocity is imposed by a normal penalty in the H(div) block.
+      const R penNormal = 1e2;
+      stokes3D.addLinear(
+        + innerProduct(cross(n, u0), tau)
+        , interface
+      );
+      stokes3D.addBilinear(
+        + innerProduct(p, v*n)
+        + innerProduct(u*n, penNormal/hi * v*n)
+        , interface
+      );
+      stokes3D.addLinear(
+        + innerProduct(u0*n, penNormal/hi * v*n)
+        , interface
+      );
+
+      // [Ghost penalties]
+      // The terms mirror the 2D curl Stokes block and the Maxwell 3-field file,
+      // with H(curl), H(div), and L2 pressure contributions.
+      const R wPenParam = 1e-2;
+      const R uPenParam = 1e-2;
+      const R pPenParam = 1e-2;
+      stokes3D.addPatchStabilization(
+        + innerProduct(wPenParam * jump(w), jump(tau))
+        - innerProduct(uPenParam * jump(u), jump(v))
+        + innerProduct(uPenParam * jump(curl(w)), jump(v))
+        - innerProduct(uPenParam * jump(u), jump(curl(tau)))
+        + innerProduct(pPenParam * jump(p), jump(div(v)))
+        - innerProduct(pPenParam * jump(div(u)), jump(q))
+        , Khi
+      );
+
+      // p has zero mean on the centred ball for this manufactured example.
+      stokes3D.addLagrangeMultiplier(
+        innerProduct(1, p), 0.0
+        , Khi
+      );
+
+      matlab::Export(stokes3D.mat_[0], "mat3D_abc_" + std::to_string(i) + "Cut.dat");
+      stokes3D.solve("umfpack");
+
+      const int nb_vort_dof = Uh.get_nb_dof();
+      const int nb_vel_dof  = Vh.get_nb_dof();
+      const int nb_pres_dof = Wh.get_nb_dof();
+
+      std::cout << "Lagrange multiplier value: " << std::endl;
+      std::cout << stokes3D.rhs_(nb_vort_dof + nb_vel_dof + nb_pres_dof) << std::endl;
+
+      Rn_ data_wh = stokes3D.rhs_(SubArray(nb_vort_dof, 0));
+      Rn_ data_uh = stokes3D.rhs_(SubArray(nb_vel_dof, nb_vort_dof));
+      Rn_ data_ph = stokes3D.rhs_(SubArray(nb_pres_dof, nb_vort_dof + nb_vel_dof));
+
+      Fun_h wh(Uh, data_wh);
+      Fun_h uh(Vh, data_uh);
+      Fun_h ph(Wh, data_ph);
+
+      auto uh_0dx = dx(uh.expr(0));
+      auto uh_1dy = dy(uh.expr(1));
+      auto uh_2dz = dz(uh.expr(2));
+
+      {
+        Fun_h solw(VELh, fun_exact_w);
+        Fun_h solu(VELh, fun_exact_u);
+        Fun_h solp(Wh, fun_exact_p);
+
+        Fun_h solwErr(Uh, fun_exact_w);
+        Fun_h soluErr(Vh, fun_exact_u);
+        Fun_h solpErr(Wh, fun_exact_p);
+        solwErr.v -= wh.v;
+        soluErr.v -= uh.v;
+        solpErr.v -= ph.v;
+        solwErr.v.map(fabs);
+        soluErr.v.map(fabs);
+        solpErr.v.map(fabs);
+
+        Paraview<Mesh> writer(Khi, "stokes3D_abc_" + std::to_string(i) + ".vtk");
+        writer.add(wh, "vorticity", 0, 3);
+        writer.add(uh, "velocity", 0, 3);
+        writer.add(ph, "pressure", 0, 1);
+        writer.add(uh_0dx + uh_1dy + uh_2dz, "divergence");
+        writer.add(solw, "vorticityExact", 0, 3);
+        writer.add(solu, "velocityExact", 0, 3);
+        writer.add(solp, "pressureExact", 0, 1);
+        writer.add(solwErr, "vorticityError", 0, 3);
+        writer.add(soluErr, "velocityError", 0, 3);
+        writer.add(solpErr, "pressureError", 0, 1);
+      }
+
+      const R errW      = L2normCut(wh, fun_exact_w, 0, 3);
+      const R errU      = L2normCut(uh, fun_exact_u, 0, 3);
+      const R errP      = L2normCut(ph, fun_exact_p, 0, 1);
+      const R errDiv    = L2normCut(uh_0dx + uh_1dy + uh_2dz, Khi);
+      const R maxErrDiv = maxNormCut(uh_0dx + uh_1dy + uh_2dz, Khi);
+
+      h.push_back(hi);
+      wl2.push_back(errW);
+      ul2.push_back(errU);
+      pl2.push_back(errP);
+      divl2.push_back(errDiv);
+      divmax.push_back(maxErrDiv);
+
+      if (i == 0) {
+        convw.push_back(0.0);
+        convu.push_back(0.0);
+        convp.push_back(0.0);
+      } else {
+        convw.push_back(std::log(wl2[i]/wl2[i-1])/std::log(h[i]/h[i-1]));
+        convu.push_back(std::log(ul2[i]/ul2[i-1])/std::log(h[i]/h[i-1]));
+        convp.push_back(std::log(pl2[i]/pl2[i-1])/std::log(h[i]/h[i-1]));
+      }
+
+      nx = 2*nx - 1;
+      ny = 2*ny - 1;
+      nz = 2*nz - 1;
+    }
+
+    std::cout << "\n" << std::left
+      << std::setw(10) << std::setfill(' ') << "h"
+      << std::setw(15) << std::setfill(' ') << "err p"
+      << std::setw(15) << std::setfill(' ') << "conv p"
+      << std::setw(15) << std::setfill(' ') << "err w"
+      << std::setw(15) << std::setfill(' ') << "conv w"
+      << std::setw(15) << std::setfill(' ') << "err u"
+      << std::setw(15) << std::setfill(' ') << "conv u"
+      << std::setw(15) << std::setfill(' ') << "err divu"
+      << std::setw(15) << std::setfill(' ') << "err maxdivu"
+      << "\n" << std::endl;
+
+    for (int i = 0; i < h.size(); ++i) {
+      std::cout << std::left
+        << std::setw(10) << std::setfill(' ') << h[i]
+        << std::setw(15) << std::setfill(' ') << pl2[i]
+        << std::setw(15) << std::setfill(' ') << convp[i]
+        << std::setw(15) << std::setfill(' ') << wl2[i]
+        << std::setw(15) << std::setfill(' ') << convw[i]
+        << std::setw(15) << std::setfill(' ') << ul2[i]
+        << std::setw(15) << std::setfill(' ') << convu[i]
+        << std::setw(15) << std::setfill(' ') << divl2[i]
+        << std::setw(15) << std::setfill(' ') << divmax[i]
+        << std::endl;
+    }
+
+    std::cout << "CPU time = " << CPUtime() - cpubegin << std::endl;
+  }
+#endif
 
 // 2026 Curl formulation Stokes example for possible reviewer comment
 #ifdef PROBLEM_UNFITTED_2026_CURL
