@@ -1027,6 +1027,7 @@
       FunTest w(Uh, 3, 0), tau(Uh, 3, 0);
       FunTest u(Vh, 3, 0), v(Vh, 3, 0), p(Wh, 1, 0), q(Wh, 1, 0);
 
+      std::cout << "Assembling..." << std::endl;
       // [Bulk]
       // First-order Stokes curl system:
       //     w = mu curl u,
@@ -1077,11 +1078,13 @@
       const R pPenParam = 1e-2;
       stokes3D.addPatchStabilization(
         + innerProduct(wPenParam * jump(w), jump(tau))
-        - innerProduct(uPenParam * jump(u), jump(v))
+        // + innerProduct(wPenParam * jump(grad(w)*n), jump(grad(tau)*n))
+        // + innerProduct(uPenParam * jump(u), jump(v))
+        // + innerProduct(uPenParam * jump(grad(u)*n), jump(grad(v)*n))
         + innerProduct(uPenParam * jump(curl(w)), jump(v))
         - innerProduct(uPenParam * jump(u), jump(curl(tau)))
-        + innerProduct(pPenParam * jump(p), jump(div(v)))
-        - innerProduct(pPenParam * jump(div(u)), jump(q))
+        - innerProduct(pPenParam * jump(p), jump(div(v)))
+        + innerProduct(pPenParam * jump(div(u)), jump(q))
         , Khi
         , macro
       );
@@ -1092,10 +1095,10 @@
         , Khi
       );
 
-      std::cout << "Assembling..." << std::endl;
-      matlab::Export(stokes3D.mat_[0], "mat3D_abc_" + std::to_string(i) + "Cut.dat");
+      // std::cout << "Exporting..." << std::endl;
+      // matlab::Export(stokes3D.mat_[0], "mat3D_abc_" + std::to_string(i) + "Cut.dat");
       std::cout << "Solving..." << std::endl;
-      stokes3D.solve("umfpack");
+      stokes3D.solve("mumps");
 
       const int nb_vort_dof = Uh.get_nb_dof();
       const int nb_vel_dof  = Vh.get_nb_dof();
