@@ -1083,6 +1083,7 @@
         + innerProduct(pPenParam * jump(p), jump(div(v)))
         - innerProduct(pPenParam * jump(div(u)), jump(q))
         , Khi
+        , macro
       );
 
       // p has zero mean on the centred ball for this manufactured example.
@@ -1091,7 +1092,9 @@
         , Khi
       );
 
+      std::cout << "Assembling..." << std::endl;
       matlab::Export(stokes3D.mat_[0], "mat3D_abc_" + std::to_string(i) + "Cut.dat");
+      std::cout << "Solving..." << std::endl;
       stokes3D.solve("umfpack");
 
       const int nb_vort_dof = Uh.get_nb_dof();

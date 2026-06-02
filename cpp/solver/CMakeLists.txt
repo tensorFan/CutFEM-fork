@@ -19,26 +19,31 @@ else()
       message("Not Found LAPACK")
 endif()
 endif()
-# if(${USE_MUMPS})
-# find_package(MUMPS)
-# if(MUMPS_LIBRARIES AND USE_MPI)
-#   include_directories(${MUMPS_INCLUDES})
-#   list(APPEND LINK_LIBRARY ${MUMPS_LIBRARIES})
-#   # option(USE_MUMPS "Found the mumps library" ON)
-#   message("Found MUMPS")
-# else()
-#   if(USE_MPI)
-#     message("Not Found MUMPS")
-#   elseif(MUMPS_LIBRARIES)
-#     include_directories(${MUMPS_INCLUDES})
-#     list(APPEND LINK_LIBRARY ${MUMPS_LIBRARIES})
-#     # option(USE_MUMPS "Found the mumps library" ON)
-#     message("Found seq MUMPS")
-#   else()
-#     message("Not Found MUMPS")
-#   endif()
-# endif()
-# endif()
+# 1. FORCE THE PATHS TO SATISFY THE INTERNAL find_package(MUMPS) SCRIPT for ubuntu
+if(${USE_MUMPS})
+    set(SCOTCH_scotch_LIBRARY "/usr/lib/x86_64-linux-gnu/libscotch.so" CACHE FILEPATH "Path to scotch library" FORCE)
+    set(SCOTCH_scotcherr_LIBRARY "/usr/lib/x86_64-linux-gnu/libscotcherr.so" CACHE FILEPATH "Path to scotcherr library" FORCE)
+endif()
+if(${USE_MUMPS})
+find_package(MUMPS)
+if(MUMPS_LIBRARIES AND USE_MPI)
+  include_directories(${MUMPS_INCLUDES})
+  list(APPEND LINK_LIBRARY ${MUMPS_LIBRARIES})
+  # option(USE_MUMPS "Found the mumps library" ON)
+  message("Found MUMPS")
+else()
+  if(USE_MPI)
+    message("Not Found MUMPS")
+  elseif(MUMPS_LIBRARIES)
+    include_directories(${MUMPS_INCLUDES})
+    list(APPEND LINK_LIBRARY ${MUMPS_LIBRARIES})
+    # option(USE_MUMPS "Found the mumps library" ON)
+    message("Found seq MUMPS")
+  else()
+    message("Not Found MUMPS")
+  endif()
+endif()
+endif()
 message(STATUS "=== MUMPS Configuration Debug ===")
 message(STATUS "USE_MUMPS: ${USE_MUMPS}")
 message(STATUS "USE_MPI: ${USE_MPI}")
@@ -49,31 +54,39 @@ if(${USE_MUMPS})
     enable_language(Fortran)
     find_package(MPI REQUIRED)
     
-    # MUMPS core libraries
+    # MUMPS core libraries arch
+    # set(MUMPS_CORE_LIBS
+    #     /usr/lib/libdmumps.so
+    #     /usr/lib/libsmumps.so
+    #     /usr/lib/libzmumps.so
+    #     /usr/lib/libcmumps.so
+    #     /usr/lib/libmumps_common.so
+    # )
+    # MUMPS core libraries ubuntu
     set(MUMPS_CORE_LIBS
-        /usr/lib/libdmumps.so
-        /usr/lib/libsmumps.so
-        /usr/lib/libzmumps.so
-        /usr/lib/libcmumps.so
-        /usr/lib/libmumps_common.so
+        /usr/lib/x86_64-linux-gnu/libdmumps.so
+        /usr/lib/x86_64-linux-gnu/libsmumps.so
+        /usr/lib/x86_64-linux-gnu/libzmumps.so
+        /usr/lib/x86_64-linux-gnu/libcmumps.so
+        /usr/lib/x86_64-linux-gnu/libmumps_common.so
     )
     
     # Find all the dependencies MUMPS needs
-    find_library(SCOTCH_LIB NAMES scotch PATHS /usr/lib)
-    find_library(SCOTCHERR_LIB NAMES scotcherr PATHS /usr/lib)
-    find_library(PTSCOTCH_LIB NAMES ptscotch PATHS /usr/lib)
-    find_library(PTSCOTCHERR_LIB NAMES ptscotcherr PATHS /usr/lib)
-    find_library(METIS_LIB NAMES metis PATHS /usr/lib)
-    find_library(SCALAPACK_LIB NAMES scalapack PATHS /usr/lib)
-    find_library(BLACS_LIB NAMES blacs PATHS /usr/lib)
-    find_library(BLAS_LIB NAMES blas PATHS /usr/lib)
-    find_library(LAPACK_LIB NAMES lapack PATHS /usr/lib)
-    find_library(GFORTRAN_LIB NAMES gfortran PATHS /usr/lib)
-    find_library(PORD_LIB NAMES pord PATHS /usr/lib)
+    find_library(SCOTCH_LIB NAMES scotch PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(SCOTCHERR_LIB NAMES scotcherr PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(PTSCOTCH_LIB NAMES ptscotch PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(PTSCOTCHERR_LIB NAMES ptscotcherr PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(METIS_LIB NAMES metis PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(SCALAPACK_LIB NAMES scalapack PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(BLACS_LIB NAMES blacs PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(BLAS_LIB NAMES blas PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(LAPACK_LIB NAMES lapack PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(GFORTRAN_LIB NAMES gfortran PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(PORD_LIB NAMES pord PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
     
     # ESMUMPS libraries (from SCOTCH)
-    find_library(ESMUMPS_LIB NAMES esmumps PATHS /usr/lib)
-    find_library(PTESMUMPS_LIB NAMES ptesmumps PATHS /usr/lib)
+    find_library(ESMUMPS_LIB NAMES esmumps PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
+    find_library(PTESMUMPS_LIB NAMES ptesmumps PATHS /usr/lib /usr/lib/x86_64-linux-gnu)
     
     # Build the complete library list
     set(MUMPS_LIBRARIES ${MUMPS_CORE_LIBS})
