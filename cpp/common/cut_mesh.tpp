@@ -237,8 +237,8 @@ template <typename Mesh> void ActiveMesh<Mesh>::truncate(const Interface<Mesh> &
             // Is cut so need to add interface and sign
             // if (signK.cut()) {    //! Was like this before
             if (is_cut) {
-                // interface_id_[0][std::make_pair(d, nt[d])].push_back(std::make_pair(&interface, -sign_domain_remove));
-                interface_id_[0][std::make_pair(d, nt[d])].push_back(std::make_pair(&interface, sign_domain_remove)); // Outward pointing normal
+                interface_id_[0][std::make_pair(d, nt[d])].push_back(std::make_pair(&interface, -sign_domain_remove));
+                // interface_id_[0][std::make_pair(d, nt[d])].push_back(std::make_pair(&interface, sign_domain_remove)); // Outward pointing normal but also makes geometry REALLY bad
             }
             nt[d]++;
             it_k++;
@@ -345,8 +345,8 @@ template <typename Mesh> void ActiveMesh<Mesh>::truncate(const TimeInterface<Mes
                 // if (signK.cut()) {
                 if (K_is_cut) {
                     interface_id_[it][std::make_pair(d, nt[d])].push_back(
-                        // std::make_pair(interface[it], -sign_domain_remove));
-                        std::make_pair(interface[it], sign_domain_remove)); // Outward pointing normal
+                        std::make_pair(interface[it], -sign_domain_remove));
+                        // std::make_pair(interface[it], sign_domain_remove)); // Outward pointing normal? but also makes the truncation REALLY bad
                 } else if (signK.sign() == sign_domain_remove && !K_is_cut) {
                     in_active_mesh_[d][it][nt[d]] = false;
                 }

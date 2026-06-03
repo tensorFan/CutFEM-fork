@@ -624,6 +624,72 @@ template <typeMesh mesh_t> ListItemVF<mesh_t> operator,(const ExpressionAverage 
     return item;
 }
 
+
+// Vector-valued average/jump coefficient.
+//
+// This is the essential overload for expressions such as
+// innerProduct(jump(fh.exprList()), jump(v)).  It expands the coefficient-side
+// jump componentwise before multiplying by the possibly jumped test function,
+// giving (f^+ - f^-)(v^+ - v^-) as the four expected face-side terms.
+template <typeMesh mesh_t>
+ListItemVF<mesh_t> operator,(const std::list<std::shared_ptr<ExpressionAverage>> &fh,
+                             const TestFunction<mesh_t> &F) {
+    if (F.nbRow() != fh.size()) {
+        std::cout << "size expression \t" << fh.size() << std::endl;
+        std::cout << "size test function \t" << F.nbRow() << std::endl;
+    }
+    assert(F.nbRow() == fh.size());
+
+    int l = 0;
+    for (int i = 0; i < F.nbRow(); ++i) {
+        for (int j = 0; j < F.nbCol(); ++j) {
+            l += F(i, j).size();
+        }
+    }
+
+    ListItemVF<mesh_t> item(2 * l);
+    int k = 0;
+
+    auto it = fh.begin();
+    for (int i = 0; i < F.nbRow(); ++i, ++it) {
+        const ExpressionAverage &avg = **it;
+        for (int j = 0; j < F.nbCol(); ++j) {
+            for (int ui = 0; ui < F(i, j).size(); ++ui) {
+                const ItemTestFunction<mesh_t> &v(F(i, j).getItem(ui));
+
+                item(k)             = ItemVF<mesh_t>(v.c * avg.k1, i, -1, v.cu, v.du, std::vector<int>(), v.ar_nu);
+                item(k).face_sideU_ = 0;
+                item(k).face_sideV_ = v.face_side_;
+                item(k).domainU_id_ = v.domain_id_;
+                item(k).domainV_id_ = v.domain_id_;
+                item(k).coefv       = v.coefu;
+                item(k).dtu         = 0;
+                item(k).dtv         = v.dtu;
+                item(k).expru       = avg.fun1;
+                item(k).exprv       = v.expru;
+                item(k).fespaceV    = v.fespace;
+                k++;
+
+                item(k)             = ItemVF<mesh_t>(v.c * avg.k2, i, -1, v.cu, v.du, std::vector<int>(), v.ar_nu);
+                item(k).face_sideU_ = 1;
+                item(k).face_sideV_ = v.face_side_;
+                item(k).domainU_id_ = v.domain_id_;
+                item(k).domainV_id_ = v.domain_id_;
+                item(k).coefv       = v.coefu;
+                item(k).dtu         = 0;
+                item(k).dtv         = v.dtu;
+                item(k).expru       = avg.fun1;
+                item(k).exprv       = v.expru;
+                item(k).fespaceV    = v.fespace;
+                k++;
+            }
+        }
+    }
+
+    item.reduce();
+    return item;
+}
+
 template <typeMesh mesh_t, typename Expr>
 ListItemVF<mesh_t> operator,(const std::list<std::shared_ptr<Expr>> &fh, const TestFunction<mesh_t> &F) {
     if (F.nbRow() != fh.size()) {

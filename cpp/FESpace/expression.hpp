@@ -6,6 +6,7 @@
 #include <memory>
 #include <list>
 #include <vector>
+#include <type_traits>
 
 // ============================================================================
 // Forward Declarations
@@ -146,7 +147,6 @@ public:
         int theDomain = (domain == -1) ? dom : domain;
         return evalOnBackMesh(k, theDomain, x, normal);
     }
-    
     R GevalOnBackMesh(const int k, int dom, const R *x, const R t, const R *normal) const {
         int theDomain = (domain == -1) ? dom : domain;
         return evalOnBackMesh(k, theDomain, x, t, normal);
@@ -183,7 +183,7 @@ public:
 // Main Template Classes
 // ============================================================================
 
-template <typename M> 
+template <typename M>
 class FunFEM : public FunFEMVirtual {
 public:
     typedef M Mesh;
@@ -782,8 +782,8 @@ std::shared_ptr<ExpressionAverage> average(const std::shared_ptr<ExpressionVirtu
 std::shared_ptr<ExpressionAverage> jump(const std::shared_ptr<ExpressionVirtual> &fh1, const double kk1 = 1, const double kk2 = -1);
 template <class Mesh>
 std::list<std::shared_ptr<ExpressionAverage>> jump(const FunFEM<Mesh> &fh, double kk1 = 1.0, double kk2 = -1.0);
-std::list<std::shared_ptr<ExpressionAverage>> jump(const std::list<std::shared_ptr<ExpressionVirtual>> &exprs,
-     const double kk1 = 1.0, const double kk2 = -1.0);
+std::list<std::shared_ptr<ExpressionAverage>> jump(const std::list<std::shared_ptr<ExpressionVirtual>> &exprs, const double kk1 = 1.0, const double kk2 = -1.0);
+template <class Expr> std::list<std::shared_ptr<ExpressionAverage>> jump(const std::list<std::shared_ptr<Expr>> &exprs, const double kk1 = 1.0, const double kk2 = -1.0);
 
 std::shared_ptr<ExpressionAverage> operator*(double c, const ExpressionAverage &fh);
 std::shared_ptr<ExpressionAverage> operator*(const ExpressionAverage &fh, double c);

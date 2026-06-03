@@ -624,6 +624,7 @@ int ExpressionAverage::idxElementFromBackMesh(int kb, int dd) const {
     return fun1->idxElementFromBackMesh(kb, dd); 
 }
 
+
 ExpressionBurgerFlux::ExpressionBurgerFlux(const ExpressionVirtual &fh1) : fun1(fh1) {}
 
 R ExpressionBurgerFlux::operator()(long i) const { return fabs(fun1(i)); }
@@ -761,7 +762,7 @@ std::shared_ptr<ExpressionAverage> average(const std::shared_ptr<ExpressionVirtu
 }
 
 std::shared_ptr<ExpressionAverage> jump(const std::shared_ptr<ExpressionVirtual> &f1, const double kk1, const double kk2) {
-    return std::make_shared<ExpressionAverage>(f1, 1, -1);
+    return std::make_shared<ExpressionAverage>(f1, kk1, kk2);
 }
 std::list<std::shared_ptr<ExpressionAverage>>
 jump(const std::list<std::shared_ptr<ExpressionVirtual>> &exprs,

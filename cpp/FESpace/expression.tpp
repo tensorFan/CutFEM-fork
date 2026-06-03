@@ -667,3 +667,19 @@ std::list<std::shared_ptr<ExpressionAverage>> jump(const FunFEM<Mesh> &fh, doubl
     }
     return res;
 }
+
+template <class Expr>
+std::list<std::shared_ptr<ExpressionAverage>>
+jump(const std::list<std::shared_ptr<Expr>> &exprs, const double kk1, const double kk2) {
+    static_assert(std::is_base_of<ExpressionVirtual, Expr>::value,
+                  "jump(list<shared_ptr<Expr>>) requires Expr derived from ExpressionVirtual");
+
+    std::list<std::shared_ptr<ExpressionAverage>> res;
+
+    for (const auto &expr : exprs) {
+        auto base_expr = std::static_pointer_cast<ExpressionVirtual>(expr);
+        res.push_back(std::make_shared<ExpressionAverage>(base_expr, kk1, kk2));
+    }
+
+    return res;
+}
