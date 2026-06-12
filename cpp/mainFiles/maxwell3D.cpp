@@ -17,7 +17,7 @@
 
 // f = 1/eps curl j => div f = 0 !
 // #define FITTED_WAVE_EIGEN
-// #define UNFITTED_WAVE_EIGEN
+#define UNFITTED_WAVE_EIGEN
 // #define FITTED_WAVE
 // #define UNFITTED_WAVE
 
@@ -30,7 +30,7 @@
 // #define UNFITTED_3FIELD_EIGEN
 // #define FITTED_3FIELD
 // #define UNFITTED_3FIELD
-#define UNFITTED_3FIELD_DIRICHLET
+// #define UNFITTED_3FIELD_DIRICHLET
 
 #ifdef FITTED_WAVE_EIGEN
 

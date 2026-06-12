@@ -65,6 +65,9 @@ target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 set(EX_NAME bernoulli_free_boundary)
 add_executable(${EX_NAME}  mainFiles/bernoulli_free_boundary.cpp )
 
+set(EX_NAME hdiv_complete_arrival_time)
+add_executable(${EX_NAME} mainFiles/hdiv_complete_arrival_time.cpp)
+target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 
 set(EX_NAME stokesRT)
 add_executable(${EX_NAME}  mainFiles/stokesRT.cpp )

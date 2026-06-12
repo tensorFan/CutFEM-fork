@@ -1,0 +1,389 @@
+#include <cassert>
+#include <cmath>
+#include <cstdlib>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <string>
+#include <vector>
+
+#ifdef USE_MPI
+#include "cfmpi.hpp"
+#endif
+
+#include "finiteElement.hpp"
+#include "baseProblem.hpp"
+#include "paraview.hpp"
+#include "../num/DA.hpp"
+
+/*
+  H(div)-conforming test driver for the convexified complete-arrival-time equation.
+
+  Continuous model in the convex variable w = exp(-u/eps^2):
+
+      -div( Dw / sqrt(|Dw|^2 + w^2/eps^2) )
+      +       w /(eps^2 sqrt(|Dw|^2 + w^2/eps^2)) = f.
+
+  Introduce
+
+      a(w) = 1 / sqrt(|Dw|^2 + w^2/eps^2),
+      p    = -a Dw,
+      m    =  a w / eps^2.
+
+  Then
+
+      a^{-1} p + Dw = 0,
+      div p + m = f,
+      m = a w/eps^2,
+      |p|^2 + eps^2 m^2 = 1  (for the unforced nonlinear coefficient).
+
+  The discrete test below solves the mixed H(div) problem with the exact coefficient
+  a from manufactured examples:
+
+      (a^{-1} p_h, v_h) - (w_h, div v_h) = - <w_D, v_h.n>_boundary,
+      (div p_h, q_h) + (a/eps^2 w_h, q_h) = (f, q_h).
+
+  Spaces: p_h in RT0, w_h in P0.  This is deliberately low order because then
+  the cellwise balance div p_h + m_h = f_h is the easiest thing to inspect.
+
+  Default examples:
+    0. exact 1D slab translator, f=0, cone saturation exact;
+    1. genuinely 2D wavy manufactured solution, f computed analytically.
+
+  How to add to CMakeLists.txt:
+
+      set(EX_NAME hdiv_complete_arrival_time)
+      add_executable(${EX_NAME} mainFiles/hdiv_complete_arrival_time.cpp)
+      target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
+
+  Then run, for example:
+
+      ./bin/hdiv_complete_arrival_time
+      ./bin/hdiv_complete_arrival_time 1   # only the wavy example
+*/
+
+using Mesh  = Mesh2;
+using space_t = FESpace2;
+using FunTest = TestFunction<Mesh>;
+using Fun_h = FunFEM<Mesh>;
+
+namespace HdivArrivalData {
+
+static int example_id = 0;
+static double eps = 0.20;
+static double xmin = -0.30, xmax = 0.30, ymin = 0.0, ymax = 1.0;
+static constexpr double pi = 3.141592653589793238462643383279502884;
+
+struct Bounds {
+    double x0, x1, y0, y1;
+};
+
+std::string example_name() {
+    if (example_id == 0) return "exact_slab_translator_f0";
+    if (example_id == 1) return "wavy_2d_manufactured";
+    return "unknown";
+}
+
+Bounds set_example(int id) {
+    example_id = id;
+    if (id == 0) {
+        // Exact regularized 1D translator on the slab |x| < R.
+        // Need R < pi*eps/2 so that cos(x/eps)>0.
+        eps = 0.25;
+        const double R = 0.30;
+        xmin = -R; xmax = R; ymin = 0.0; ymax = 1.0;
+    } else {
+        // Smooth genuinely two-dimensional manufactured solution on the unit square.
+        eps = 0.18;
+        xmin = 0.0; xmax = 1.0; ymin = 0.0; ymax = 1.0;
+    }
+    return {xmin, xmax, ymin, ymax};
+}
+
+// ---- exact w and derivatives -------------------------------------------------
+
+inline void exact_w_derivatives(const R2 P,
+                                double &w, double &wx, double &wy,
+                                double &wxx, double &wxy, double &wyy) {
+    const double x = P.x;
+    const double y = P.y;
+
+    if (example_id == 0) {
+        const double R = 0.5 * (xmax - xmin);
+        const double cR = std::cos(R / eps);
+        const double s  = x / eps;
+        const double c  = std::cos(s);
+        const double sn = std::sin(s);
+
+        // w = cos(R/eps) sec(x/eps).
+        w   = cR / c;
+        wx  = (w / eps) * (sn / c);
+        wy  = 0.0;
+        wxx = (w / (eps * eps)) * (1.0 + 2.0 * (sn / c) * (sn / c));
+        wxy = 0.0;
+        wyy = 0.0;
+        return;
+    }
+
+    // Genuinely 2D positive wavy test.  Min w = 0.75.
+    const double A  = 0.25;
+    const double k  = 2.0 * pi;
+    const double cx = std::cos(k * x);
+    const double sx = std::sin(k * x);
+    const double cy = std::cos(k * y);
+    const double sy = std::sin(k * y);
+
+    w   = 1.0 + A * cx * cy;
+    wx  = -A * k * sx * cy;
+    wy  = -A * k * cx * sy;
+    wxx = -A * k * k * cx * cy;
+    wyy = -A * k * k * cx * cy;
+    wxy =  A * k * k * sx * sy;
+}
+
+inline double coeff_a(const R2 P) {
+    double w, wx, wy, wxx, wxy, wyy;
+    exact_w_derivatives(P, w, wx, wy, wxx, wxy, wyy);
+    return 1.0 / std::sqrt(wx * wx + wy * wy + (w * w) / (eps * eps));
+}
+
+// ---- functions with the signatures expected by FunFEM -----------------------
+
+R fun_exact_w(const R2 P, int comp, int dom) {
+    double w, wx, wy, wxx, wxy, wyy;
+    exact_w_derivatives(P, w, wx, wy, wxx, wxy, wyy);
+    return w;
+}
+
+R fun_exact_flux(const R2 P, int comp, int dom) {
+    double w, wx, wy, wxx, wxy, wyy;
+    exact_w_derivatives(P, w, wx, wy, wxx, wxy, wyy);
+    const double a = coeff_a(P);
+    if (comp == 0) return -a * wx;
+    return -a * wy;
+}
+
+R fun_exact_m(const R2 P, int comp, int dom) {
+    double w, wx, wy, wxx, wxy, wyy;
+    exact_w_derivatives(P, w, wx, wy, wxx, wxy, wyy);
+    const double a = coeff_a(P);
+    return a * w / (eps * eps);
+}
+
+R fun_ainv(const R2 P, int comp, int dom) {
+    return 1.0 / coeff_a(P);
+}
+
+R fun_reaction(const R2 P, int comp, int dom) {
+    return coeff_a(P) / (eps * eps);
+}
+
+R fun_div_exact_flux(const R2 P, int comp, int dom) {
+    double w, wx, wy, wxx, wxy, wyy;
+    exact_w_derivatives(P, w, wx, wy, wxx, wxy, wyy);
+
+    const double a = coeff_a(P);
+    const double Bx = 2.0 * (wx * wxx + wy * wxy) + 2.0 * w * wx / (eps * eps);
+    const double By = 2.0 * (wx * wxy + wy * wyy) + 2.0 * w * wy / (eps * eps);
+    const double ax = -0.5 * a * a * a * Bx;
+    const double ay = -0.5 * a * a * a * By;
+
+    // p = -a grad w, so div p = -grad(a).grad(w) - a Delta w.
+    return -(ax * wx + ay * wy) - a * (wxx + wyy);
+}
+
+R fun_source(const R2 P, int comp, int dom) {
+    // div p + m = f.
+    return fun_div_exact_flux(P, comp, dom) + fun_exact_m(P, comp, dom);
+}
+
+
+inline R2 to_R2(double *P) { return R2(P[0], P[1]); }
+
+R fun_exact_w_ptr(double *P, int comp) { return fun_exact_w(to_R2(P), comp, 0); }
+R fun_exact_flux_ptr(double *P, int comp) { return fun_exact_flux(to_R2(P), comp, 0); }
+R fun_exact_m_ptr(double *P, int comp) { return fun_exact_m(to_R2(P), comp, 0); }
+R fun_ainv_ptr(double *P, int comp) { return fun_ainv(to_R2(P), comp, 0); }
+R fun_reaction_ptr(double *P, int comp) { return fun_reaction(to_R2(P), comp, 0); }
+R fun_source_ptr(double *P, int comp) { return fun_source(to_R2(P), comp, 0); }
+R fun_one_ptr(double *P, int comp) { return 1.0; }
+
+
+} // namespace HdivArrivalData
+
+using namespace HdivArrivalData;
+
+struct RunResult {
+    double h;
+    double err_p;
+    double err_w;
+    double err_m;
+    double err_balance;
+    double max_balance;
+    double max_cone;
+    double mass;
+};
+
+RunResult run_one_mesh(int nx, int ny, int level, bool write_vtk) {
+    Mesh Kh(nx, ny, xmin, ymin, xmax, ymax);
+    const double h = (xmax - xmin) / static_cast<double>(nx - 1);
+
+    // Low-order H(div) pair for the method.
+    space_t Vh(Kh, DataFE<Mesh>::RT0);
+    space_t Qh(Kh, DataFE<Mesh>::P0);
+
+    // Higher-order interpolation spaces only for exact data/output/errors.
+    Lagrange2 FEvecExact(4);
+    space_t Vex(Kh, FEvecExact);
+    space_t Qex(Kh, DataFE<Mesh>::P2);
+
+    Normal n;
+
+    FEM<Mesh> prob(Vh);
+    prob.add(Qh);
+
+    Fun_h aInv(Qex, fun_ainv_ptr);
+    Fun_h reaction(Qex, fun_reaction_ptr);
+    Fun_h source(Qex, fun_source_ptr);
+    Fun_h wD(Qex, fun_exact_w_ptr);
+    Fun_h one(Qex, fun_one_ptr);
+
+    FunTest p(Vh, 2), v(Vh, 2);
+    FunTest w(Qh, 1), q(Qh, 1);
+
+    // Mixed H(div) system:
+    //   (a^{-1}p,v) - (w,div v) = -<w_D,v.n>
+    //   (div p,q) + (a/eps^2 w,q) = (f,q)
+    prob.addBilinear(
+        +innerProduct(aInv.expr() * p, v)
+        -innerProduct(w, div(v))
+        +innerProduct(div(p), q)
+        +innerProduct(reaction.expr() * w, q),
+        Kh);
+
+    prob.addLinear(+innerProduct(source.expr(), q), Kh);
+    prob.addLinear(-innerProduct(wD.expr(), v * n), Kh, INTEGRAL_BOUNDARY);
+
+    prob.solve("umfpack");
+
+    const int ndof_p = Vh.get_nb_dof();
+    const int ndof_w = Qh.get_nb_dof();
+    Rn_ data_p = prob.rhs_(SubArray(ndof_p, 0));
+    Rn_ data_w = prob.rhs_(SubArray(ndof_w, ndof_p));
+
+    Fun_h ph(Vh, data_p);
+    Fun_h wh(Qh, data_w);
+
+    auto div_ph = dx(ph.expr(0)) + dy(ph.expr(1));
+    auto mh     = reaction.expr() * wh.expr();
+    auto balance = div_ph + mh - source.expr();
+    auto cone    = ph.expr(0) * ph.expr(0) + ph.expr(1) * ph.expr(1)
+                 + (eps * eps) * mh * mh - one.expr();
+
+    const double err_p = L2norm(ph, fun_exact_flux_ptr, 0, 2);
+    const double err_w = L2norm(wh, fun_exact_w_ptr, 0, 1);
+    const double err_m = L2norm(mh, fun_exact_m_ptr, Kh);
+    const double err_balance = L2norm(balance, Kh);
+    const double max_balance = maxNorm(balance, Kh);
+    const double max_cone = maxNorm(fabs(cone), Kh);
+    const double mass = integral(Kh, mh, 0);
+
+    if (write_vtk) {
+        Fun_h pExact(Vex, fun_exact_flux_ptr);
+        Fun_h wExact(Qex, fun_exact_w_ptr);
+        Fun_h mExact(Qex, fun_exact_m_ptr);
+
+        const std::string prefix = "hdiv_arrival_" + example_name() + "_L" + std::to_string(level);
+        Paraview<Mesh> writer(Kh, prefix + ".vtk");
+        writer.add(ph, "p_h", 0, 2);
+        writer.add(pExact, "p_exact", 0, 2);
+        writer.add(wh, "w_h", 0, 1);
+        writer.add(wExact, "w_exact", 0, 1);
+        writer.add(mh, "m_h");
+        writer.add(mExact, "m_exact", 0, 1);
+        writer.add(div_ph, "div_p_h");
+        writer.add(balance, "balance_divp_plus_m_minus_f");
+        writer.add(cone, "cone_ph_eps_mh_minus_1");
+    }
+
+    return {h, err_p, err_w, err_m, err_balance, max_balance, max_cone, mass};
+}
+
+void print_results(const std::vector<RunResult> &res) {
+    std::cout << "\nExample: " << example_name() << "  eps=" << eps << "\n";
+    std::cout << std::left
+              << std::setw(11) << "h"
+              << std::setw(15) << "err_p"
+              << std::setw(10) << "rate"
+              << std::setw(15) << "err_w"
+              << std::setw(10) << "rate"
+              << std::setw(15) << "err_m"
+              << std::setw(10) << "rate"
+              << std::setw(15) << "L2 balance"
+              << std::setw(15) << "max balance"
+              << std::setw(15) << "max cone"
+              << std::setw(15) << "mass"
+              << "\n";
+
+    for (std::size_t i = 0; i < res.size(); ++i) {
+        auto rate = [&](double now, double old, double hnow, double hold) -> double {
+            if (i == 0 || now <= 0.0 || old <= 0.0) return 0.0;
+            return std::log(now / old) / std::log(hnow / hold);
+        };
+        const double rp = (i == 0) ? 0.0 : rate(res[i].err_p, res[i-1].err_p, res[i].h, res[i-1].h);
+        const double rw = (i == 0) ? 0.0 : rate(res[i].err_w, res[i-1].err_w, res[i].h, res[i-1].h);
+        const double rm = (i == 0) ? 0.0 : rate(res[i].err_m, res[i-1].err_m, res[i].h, res[i-1].h);
+
+        std::cout << std::left
+                  << std::setw(11) << res[i].h
+                  << std::setw(15) << res[i].err_p
+                  << std::setw(10) << rp
+                  << std::setw(15) << res[i].err_w
+                  << std::setw(10) << rw
+                  << std::setw(15) << res[i].err_m
+                  << std::setw(10) << rm
+                  << std::setw(15) << res[i].err_balance
+                  << std::setw(15) << res[i].max_balance
+                  << std::setw(15) << res[i].max_cone
+                  << std::setw(15) << res[i].mass
+                  << "\n";
+    }
+}
+
+int main(int argc, char **argv) {
+#ifdef USE_MPI
+    MPIcf cfMPI(argc, argv);
+#endif
+
+    const double cpubegin = CPUtime();
+
+    std::vector<int> examples;
+    if (argc > 1) {
+        examples.push_back(std::atoi(argv[1]));
+    } else {
+        examples = {0, 1};
+    }
+
+    const int nlevels = 4;
+
+    for (int ex : examples) {
+        const Bounds B = set_example(ex);
+        (void)B;
+
+        int nx = (example_id == 0) ? 17 : 17;
+        int ny = (example_id == 0) ? 33 : 17;
+
+        std::vector<RunResult> res;
+        for (int lev = 0; lev < nlevels; ++lev) {
+            const bool write_vtk = (lev == nlevels - 1);
+            res.push_back(run_one_mesh(nx, ny, lev, write_vtk));
+
+            nx = 2 * nx - 1;
+            ny = 2 * ny - 1;
+        }
+        print_results(res);
+    }
+
+    std::cout << "\nCPU time: " << CPUtime() - cpubegin << " s\n";
+    return 0;
+}
