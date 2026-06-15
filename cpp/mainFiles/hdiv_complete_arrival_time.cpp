@@ -46,10 +46,9 @@
   Examples:
     0. 2D exact slab translator / elliptic-regularization toy, f=0.
     1. 2D genuinely wavy manufactured solution, f computed analytically.
-    2. 3D unforced regularized grim-reaper-cylinder translator analogue.
-       This is the visually useful one: contour u_h in ParaView.  In the
-       limit eps -> 0 its level surfaces are the classical mean-convex
-       grim-reaper-cylinder MCF translator.
+    2. 3D true MCF grim-reaper-cylinder translator, direct arrival-time form.
+       This is the visually useful one: contour u_h in ParaView.  It avoids
+       the exponential dynamic range of the finite-eps w-variable.
 
   Add to cpp/CMakeLists.txt inside if(${CUTFEM_BUILD_MAIN}):
 
@@ -357,8 +356,9 @@ void print_results_2d(const std::vector<RunResult2D> &res) {
     }
 }
 
+
 // -----------------------------------------------------------------------------
-// 3D visual example: regularized grim-reaper cylinder analogue.
+// 3D visual example: true unregularized MCF arrival-time translator.
 // -----------------------------------------------------------------------------
 
 using Mesh3T    = Mesh3;
@@ -368,47 +368,37 @@ using FunFEM3   = FunFEM<Mesh3T>;
 
 namespace HdivArrival3D {
 
-static double eps = 0.25;
-static double x0 = -0.70, lx = 1.40;
-static double yorigin = -0.25, ly = 0.85;
-static double z0 = -0.45, lz = 0.90;
+// This example is deliberately not written in the exponentially scaled w-variable.
+// The previous finite-eps w-formulation created enormous dynamic ranges on fine
+// meshes.  Here we solve the direct arrival-time mixed system for an exact
+// mean-convex MCF translator, which is much better conditioned for visual checks.
+//
+// Exact arrival time:
+//      u(x,y,z) = y + log(cos x),      |x| < pi/2.
+// Then
+//      Du       = (-tan x, 1, 0),
+//      |Du|     = sec x,
+//      p        = Du/|Du| = (-sin x, cos x, 0),
+//      m        = 1/|Du| = cos x,
+// and therefore
+//      div p + m = -cos x + cos x = 0.
+// The level surfaces {u=t} are grim-reaper cylinders.  They are genuine
+// mean-convex MCF translators: increasing t translates the same surface in y.
 
-std::string example_name() { return "grim_reaper_cylinder_3d_unforced"; }
+static double x0 = -1.15, lx = 2.30;
+static double yorigin = -0.90, ly = 1.80;
+static double z0 = -0.65, lz = 1.30;
+
+std::string example_name() { return "grim_reaper_cylinder_true_mcf_direct_u"; }
 
 inline void exact_u_grad(const R3 P,
                          double &u, double &ux, double &uy, double &uz) {
     const double x = P.x;
-    const double y = P.y;
-    const double L = std::sqrt(1.0 + eps * eps);
-    const double s = x / L;
-
-    // Regularized analogue of the grim-reaper-cylinder arrival time.
-    // As eps -> 0: u = y + log(cos x), whose level surfaces translate by MCF.
-    u  = y + L * L * std::log(std::cos(s));
-    ux = -L * std::tan(s);
+    u  = P.y + std::log(std::cos(x));
+    ux = -std::tan(x);
     uy = 1.0;
     uz = 0.0;
 }
-
-inline double exact_w(const R3 P) {
-    double u, ux, uy, uz;
-    exact_u_grad(P, u, ux, uy, uz);
-    return std::exp(-u / (eps * eps));
-}
-
-inline double exact_Q(const R3 P) {
-    double u, ux, uy, uz;
-    exact_u_grad(P, u, ux, uy, uz);
-    return std::sqrt(ux * ux + uy * uy + uz * uz + eps * eps);
-}
-
-inline double coeff_a(const R3 P) {
-    const double w = exact_w(P);
-    const double Q = exact_Q(P);
-    return eps * eps / (w * Q);
-}
-
-R fun_exact_w(const R3 P, int comp, int dom) { return exact_w(P); }
 
 R fun_exact_u(const R3 P, int comp, int dom) {
     double u, ux, uy, uz;
@@ -417,29 +407,37 @@ R fun_exact_u(const R3 P, int comp, int dom) {
 }
 
 R fun_exact_flux(const R3 P, int comp, int dom) {
-    double u, ux, uy, uz;
-    exact_u_grad(P, u, ux, uy, uz);
-    const double Q = exact_Q(P);
-    if (comp == 0) return ux / Q;
-    if (comp == 1) return uy / Q;
-    return uz / Q;
+    // p = Du/|Du|.  Since |Du| = sec x on the chosen strip,
+    // this simplifies to (-sin x, cos x, 0).
+    const double x = P.x;
+    if (comp == 0) return -std::sin(x);
+    if (comp == 1) return  std::cos(x);
+    return 0.0;
 }
 
-R fun_exact_m(const R3 P, int comp, int dom) { return 1.0 / exact_Q(P); }
-R fun_ainv(const R3 P, int comp, int dom) { return 1.0 / coeff_a(P); }
-R fun_reaction(const R3 P, int comp, int dom) { return coeff_a(P) / (eps * eps); }
-R fun_source(const R3 P, int comp, int dom) { return 0.0; }
+R fun_exact_m(const R3 P, int comp, int dom) {
+    return std::cos(P.x);
+}
+
+R fun_binv(const R3 P, int comp, int dom) {
+    // b = 1/|Du| = cos x, p=b Du, so b^{-1}=sec x.
+    return 1.0 / std::cos(P.x);
+}
+
+R fun_source(const R3 P, int comp, int dom) {
+    // div p + m = 0.
+    return 0.0;
+}
+
 R fun_one(const R3 P, int comp, int dom) { return 1.0; }
 R fun_zero(const R3 P, int comp, int dom) { return 0.0; }
 
 inline R3 to_R3(double *P) { return R3(P[0], P[1], P[2]); }
 
-R fun_exact_w_ptr(double *P, int comp) { return fun_exact_w(to_R3(P), comp, 0); }
 R fun_exact_u_ptr(double *P, int comp) { return fun_exact_u(to_R3(P), comp, 0); }
 R fun_exact_flux_ptr(double *P, int comp) { return fun_exact_flux(to_R3(P), comp, 0); }
 R fun_exact_m_ptr(double *P, int comp) { return fun_exact_m(to_R3(P), comp, 0); }
-R fun_ainv_ptr(double *P, int comp) { return fun_ainv(to_R3(P), comp, 0); }
-R fun_reaction_ptr(double *P, int comp) { return fun_reaction(to_R3(P), comp, 0); }
+R fun_binv_ptr(double *P, int comp) { return fun_binv(to_R3(P), comp, 0); }
 R fun_source_ptr(double *P, int comp) { return fun_source(to_R3(P), comp, 0); }
 R fun_one_ptr(double *P, int comp) { return 1.0; }
 R fun_zero_ptr(double *P, int comp) { return 0.0; }
@@ -449,19 +447,19 @@ R fun_zero_ptr(double *P, int comp) { return 0.0; }
 struct RunResult3D {
     double h;
     double err_p;
-    double err_w;
     double err_u;
     double err_m;
     double err_balance;
     double max_balance;
-    double max_cone;
+    double max_unit_flux;
     double mass;
 };
 
 RunResult3D run_one_mesh_3d(int nx, int ny, int nz, int level, bool write_vtk) {
     using namespace HdivArrival3D;
 
-    Mesh3T Kh(nx, ny, nz, HdivArrival3D::x0, HdivArrival3D::yorigin, HdivArrival3D::z0, HdivArrival3D::lx, HdivArrival3D::ly, HdivArrival3D::lz);
+    Mesh3T Kh(nx, ny, nz, HdivArrival3D::x0, HdivArrival3D::yorigin, HdivArrival3D::z0,
+              HdivArrival3D::lx, HdivArrival3D::ly, HdivArrival3D::lz);
     const double h = lx / static_cast<double>(nx - 1);
 
     Space3 Vh(Kh, DataFE<Mesh3T>::RT0);
@@ -476,60 +474,53 @@ RunResult3D run_one_mesh_3d(int nx, int ny, int nz, int level, bool write_vtk) {
     FEM<Mesh3T> prob(Vh);
     prob.add(Qh);
 
-    FunFEM3 aInv(Qex, fun_ainv_ptr);
-    FunFEM3 reaction(Qex, fun_reaction_ptr);
-    FunFEM3 source(Qex, fun_source_ptr);
-    FunFEM3 wD(Qex, fun_exact_w_ptr);
+    FunFEM3 bInv(Qex, fun_binv_ptr);
+    FunFEM3 uD(Qex, fun_exact_u_ptr);
+    FunFEM3 mExactField(Qex, fun_exact_m_ptr);
+    FunFEM3 zero(Qex, fun_zero_ptr);
     FunFEM3 one(Qex, fun_one_ptr);
 
-    FunTest3 p(Vh, 3), v(Vh, 3);
-    FunTest3 w(Qh, 1), q(Qh, 1);
+    FunTest3 p(Vh, 3), q(Vh, 3);
+    FunTest3 u(Qh, 1), v(Qh, 1);
 
+    // Direct unregularized arrival-time mixed method with frozen exact coefficient:
+    //      b^{-1} p - grad u = 0,      b=1/|Du_exact|,
+    //      div p + m_exact = 0.
+    // Weak first equation:
+    //      (b^{-1}p,q) + (u,div q) = <u_D, q.n>.
     prob.addBilinear(
-        +innerProduct(aInv.expr() * p, v)
-        -innerProduct(w, div(v))
-        +innerProduct(div(p), q)
-        +innerProduct(reaction.expr() * w, q),
+        +innerProduct(bInv.expr() * p, q)
+        +innerProduct(u, div(q))
+        +innerProduct(div(p), v),
         Kh);
 
-    prob.addLinear(+innerProduct(source.expr(), q), Kh);
-    prob.addLinear(-innerProduct(wD.expr(), v * n), Kh, INTEGRAL_BOUNDARY);
+    prob.addLinear(+innerProduct(uD.expr(), q * n), Kh, INTEGRAL_BOUNDARY);
+    prob.addLinear(-innerProduct(mExactField.expr(), v), Kh);
 
     prob.solve("umfpack");
 
     const int ndof_p = Vh.get_nb_dof();
-    const int ndof_w = Qh.get_nb_dof();
+    const int ndof_u = Qh.get_nb_dof();
     Rn_ data_p = prob.rhs_(SubArray(ndof_p, 0));
-    Rn_ data_w = prob.rhs_(SubArray(ndof_w, ndof_p));
-
-    Rn data_u(ndof_w, 0.0);
-    for (int i = 0; i < ndof_w; ++i) {
-        const double wi = (data_w[i] > 1e-300) ? data_w[i] : 1e-300;
-        data_u[i] = -eps * eps * std::log(wi);
-    }
+    Rn_ data_u = prob.rhs_(SubArray(ndof_u, ndof_p));
 
     FunFEM3 ph(Vh, data_p);
-    FunFEM3 wh(Qh, data_w);
     FunFEM3 uh(Qh, data_u);
 
     auto div_ph = dx(ph.expr(0)) + dy(ph.expr(1)) + dz(ph.expr(2));
-    auto mh     = reaction.expr() * wh.expr();
-    auto balance = div_ph + mh - source.expr();
-    auto cone    = ph.expr(0) * ph.expr(0) + ph.expr(1) * ph.expr(1) + ph.expr(2) * ph.expr(2)
-                 + (eps * eps) * mh * mh - one.expr();
+    auto balance = div_ph + mExactField.expr();
+    auto unit_flux_defect = ph.expr(0) * ph.expr(0) + ph.expr(1) * ph.expr(1) + ph.expr(2) * ph.expr(2) - one.expr();
 
     const double err_p = L2norm(ph, fun_exact_flux_ptr, 0, 3);
-    const double err_w = L2norm(wh, fun_exact_w_ptr, 0, 1);
     const double err_u = L2norm(uh, fun_exact_u_ptr, 0, 1);
-    const double err_m = L2norm(mh, fun_exact_m_ptr, Kh);
+    const double err_m = 0.0; // m is prescribed analytically in this direct-u benchmark.
     const double err_balance = L2norm(balance, fun_zero_ptr, Kh);
     const double max_balance = maxNorm(balance, Kh);
-    const double max_cone = maxNorm(fabs(cone), Kh);
-    const double mass = integral(Kh, mh, 0);
+    const double max_unit_flux = maxNorm(fabs(unit_flux_defect), Kh);
+    const double mass = integral(Kh, mExactField.expr(), 0);
 
     if (write_vtk) {
         FunFEM3 pExact(Vex, fun_exact_flux_ptr);
-        FunFEM3 wExact(Qex, fun_exact_w_ptr);
         FunFEM3 uExact(Qex, fun_exact_u_ptr);
         FunFEM3 mExact(Qex, fun_exact_m_ptr);
 
@@ -537,38 +528,32 @@ RunResult3D run_one_mesh_3d(int nx, int ny, int nz, int level, bool write_vtk) {
         Paraview<Mesh3T> writer(Kh, prefix + ".vtk");
         writer.add(ph, "p_h", 0, 3);
         writer.add(pExact, "p_exact", 0, 3);
-        writer.add(wh, "w_h", 0, 1);
-        writer.add(wExact, "w_exact", 0, 1);
         writer.add(uh, "u_h", 0, 1);
         writer.add(uExact, "u_exact", 0, 1);
-        writer.add(mh, "m_h");
         writer.add(mExact, "m_exact", 0, 1);
         writer.add(div_ph, "div_p_h");
-        writer.add(balance, "balance_divp_plus_m_minus_f");
-        writer.add(cone, "cone_ph_eps_mh_minus_1");
+        writer.add(balance, "balance_divp_plus_m");
+        writer.add(unit_flux_defect, "unit_flux_defect_ph_squared_minus_1");
     }
 
-    return {h, err_p, err_w, err_u, err_m, err_balance, max_balance, max_cone, mass};
+    return {h, err_p, err_u, err_m, err_balance, max_balance, max_unit_flux, mass};
 }
 
 void print_results_3d(const std::vector<RunResult3D> &res) {
     using namespace HdivArrival3D;
-    std::cout << "\nExample: " << example_name() << "  eps=" << eps << "\n";
-    std::cout << "This is the 3D visual example.  Contour u_h in ParaView.\n";
-    std::cout << "Recommended contour values for u_h: -0.20, -0.10, 0.00, 0.10, 0.20, 0.30, 0.40\n";
+    std::cout << "\nExample: " << example_name() << "\n";
+    std::cout << "This is the stable 3D visual example.  Contour u_h in ParaView.\n";
+    std::cout << "The initial surface may be taken as u_h=0; later translator surfaces are u_h=t.\n";
+    std::cout << "Recommended contour values for u_h: -0.80, -0.50, -0.25, 0.00, 0.25, 0.50, 0.80\n";
     std::cout << std::left
               << std::setw(11) << "h"
               << std::setw(15) << "err_p"
               << std::setw(10) << "rate"
-              << std::setw(15) << "err_w"
-              << std::setw(10) << "rate"
               << std::setw(15) << "err_u"
-              << std::setw(10) << "rate"
-              << std::setw(15) << "err_m"
               << std::setw(10) << "rate"
               << std::setw(15) << "L2 balance"
               << std::setw(15) << "max balance"
-              << std::setw(15) << "max cone"
+              << std::setw(15) << "max |p|^2-1"
               << std::setw(15) << "mass"
               << "\n";
 
@@ -578,23 +563,17 @@ void print_results_3d(const std::vector<RunResult3D> &res) {
             return std::log(now / old) / std::log(hnow / hold);
         };
         const double rp = (i == 0) ? 0.0 : rate(res[i].err_p, res[i-1].err_p, res[i].h, res[i-1].h);
-        const double rw = (i == 0) ? 0.0 : rate(res[i].err_w, res[i-1].err_w, res[i].h, res[i-1].h);
         const double ru = (i == 0) ? 0.0 : rate(res[i].err_u, res[i-1].err_u, res[i].h, res[i-1].h);
-        const double rm = (i == 0) ? 0.0 : rate(res[i].err_m, res[i-1].err_m, res[i].h, res[i-1].h);
 
         std::cout << std::left
                   << std::setw(11) << res[i].h
                   << std::setw(15) << res[i].err_p
                   << std::setw(10) << rp
-                  << std::setw(15) << res[i].err_w
-                  << std::setw(10) << rw
                   << std::setw(15) << res[i].err_u
                   << std::setw(10) << ru
-                  << std::setw(15) << res[i].err_m
-                  << std::setw(10) << rm
                   << std::setw(15) << res[i].err_balance
                   << std::setw(15) << res[i].max_balance
-                  << std::setw(15) << res[i].max_cone
+                  << std::setw(15) << res[i].max_unit_flux
                   << std::setw(15) << res[i].mass
                   << "\n";
     }
@@ -636,8 +615,11 @@ int main(int argc, char **argv) {
             }
             print_results_2d(res);
         } else if (ex == 2) {
-            int nx = 13, ny = 13, nz = 11;
-            const int nlevels = 3;
+            // Keep this intentionally modest: the previous 49x49x41 3D solve was
+            // slow and ill-conditioned in the exponential w-variable.  This one
+            // gives a quick, checkable 3D MCF visualization.
+            int nx = 15, ny = 13, nz = 11;
+            const int nlevels = 1;
 
             std::vector<RunResult3D> res;
             for (int lev = 0; lev < nlevels; ++lev) {
