@@ -46,8 +46,8 @@ endif()
 
 if(${CUTFEM_BUILD_MAIN})
 
-set(EX_NAME MeanCurvatureFlow)
-add_executable(${EX_NAME}  mainFiles/MeanCurvatureFlow.cpp )
+set(EX_NAME maxwell3D_eigen_compare)
+add_executable(${EX_NAME}  mainFiles/maxwell3D_eigen_compare.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 
 set(EX_NAME HodgeLaplace_torus)
@@ -81,13 +81,9 @@ set(EX_NAME maxwell2D)
 add_executable(${EX_NAME}  mainFiles/maxwell.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 
-#set(EX_NAME statbulk)
-#add_executable(${EX_NAME}  mainFiles/stationary_bulk.cpp )
-#target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
-
-#set(EX_NAME paper)
-#add_executable(${EX_NAME}  mainFiles/paper.cpp )
-#target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+set(EX_NAME scalar_obstacle)
+add_executable(${EX_NAME}  mainFiles/scalar_obstacle.cpp )
+target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 
 # DOESNT WORK ATM
 # -----------------------------------------------------------------------------
@@ -98,9 +94,13 @@ target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 # )
 # target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 
-set(EX_NAME scalar_obstacle)
-add_executable(${EX_NAME}  mainFiles/scalar_obstacle.cpp )
-target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+#set(EX_NAME statbulk)
+#add_executable(${EX_NAME}  mainFiles/stationary_bulk.cpp )
+#target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+
+#set(EX_NAME paper)
+#add_executable(${EX_NAME}  mainFiles/paper.cpp )
+#target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 
 # set(EX_NAME poisson)
 # add_executable(${EX_NAME}  mainFiles/poissonFEM.cpp )
