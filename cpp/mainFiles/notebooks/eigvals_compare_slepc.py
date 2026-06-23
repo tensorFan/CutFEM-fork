@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 One-command SLEPc postprocessor for maxwell3D_eigen_compare.cpp.
 
 1. Syntax:
@@ -26,13 +26,13 @@ chooses an appropriate SLEPc problem type, and writes
 
     <prefix>_eigenvalues.csv
 
-The v2 manifest contains both examples:
+The manifest contains both examples:
 
-    cube       : the simply connected [0,pi]^3 reference problem;
-    cube_hole  : [0,pi]^3 with a centred spherical hole removed.
+    cube             : the simply connected [0,pi]^3 reference problem;
+    spherical_shell  : the concentric shell R_inner < |x-c| < R_outer.
 
-For cube_hole the C++ driver can add one Lagrange multiplier removing the
-harmonic field h=(x-c)/|x-c|^3.  This makes B singular in the constrained rows,
+For spherical_shell the C++ driver can add one Lagrange multiplier removing the
+radial harmonic field h=(x-c)/|x-c|^3.  This makes B singular in the constrained rows,
 so the script prefers GHIEP for symmetric singular/indefinite pencils when the
 installed SLEPc exposes it; otherwise it falls back to GNHEP.
 """
@@ -55,6 +55,22 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 comm = MPI.COMM_WORLD
+
+
+# Canonical example names written by the current C++ driver.  The aliases are
+# accepted only so that older manifests and command lines remain readable.
+EXAMPLE_ALIASES = {
+    "cube": "cube",
+    "spherical_shell": "spherical_shell",
+    "shell": "spherical_shell",
+    "cube_hole": "spherical_shell",
+    "hole": "spherical_shell",
+}
+
+
+def canonical_example_name(name: str) -> str:
+    stripped = name.strip()
+    return EXAMPLE_ALIASES.get(stripped, stripped)
 
 
 def par_print(*args, **kwargs) -> None:
@@ -85,7 +101,7 @@ class MatrixCase:
     @classmethod
     def from_manifest_row(cls, row: dict[str, str]) -> "MatrixCase":
         return cls(
-            example=row.get("example", "cube"),
+            example=canonical_example_name(row.get("example", "cube")),
             method=row["method"],
             level=int(row["level"]),
             nx=int(row["nx"]),
@@ -109,7 +125,7 @@ class MatrixCase:
 
 
 # First Maxwell PEC cavity eigenvalues on [0,pi]^3.  These are only a reference
-# for the simple cube; the punctured cube does not use this column.
+# for the simple cube; the spherical shell has no closed-form reference here.
 EXACT_CUBE_REFERENCE = np.array([2.0, 2.0, 2.0, 3.0, 3.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0])
 
 
@@ -248,7 +264,7 @@ def condense_three_field(A: sp.csr_matrix, B: sp.csr_matrix, case: MatrixCase,
 
         (w, u, p, lambda_h),
 
-    with lambda_h present only for the punctured cube harmonic constraint.  The
+    with lambda_h present only for the spherical-shell harmonic constraint.  The
     first block row gives
 
         Aww*w + Awk*k = 0,   k=(u,p,lambda_h),
@@ -607,7 +623,11 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser.add_argument("--force-nonhermitian", action="store_true", help="always use GNHEP, even when symmetry checks pass")
     parser.add_argument("--no-condense-3field", action="store_true", help="solve the raw 3-field pencil instead of condensing w")
     parser.add_argument("--methods", default="all", help="comma-separated methods to run, or all")
-    parser.add_argument("--examples", default="all", help="comma-separated examples to run, or all")
+    parser.add_argument(
+        "--examples",
+        default="all",
+        help="comma-separated examples to run (cube,spherical_shell), or all",
+    )
     parser.add_argument("--levels", default="all", help="comma-separated levels to run, or all")
     parser.add_argument("--output", default=None, help="CSV output path; default <matrix-dir>/<prefix>_eigenvalues.csv")
     return parser.parse_args(argv)
@@ -618,7 +638,11 @@ def filter_cases(cases: list[MatrixCase], args: argparse.Namespace) -> list[Matr
         methods = {m.strip() for m in args.methods.split(",") if m.strip()}
         cases = [c for c in cases if c.method in methods]
     if args.examples != "all":
-        examples = {e.strip() for e in args.examples.split(",") if e.strip()}
+        examples = {
+            canonical_example_name(e)
+            for e in args.examples.split(",")
+            if e.strip()
+        }
         cases = [c for c in cases if c.example in examples]
     if args.levels != "all":
         levels = {int(x.strip()) for x in args.levels.split(",") if x.strip()}
