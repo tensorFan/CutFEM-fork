@@ -2,16 +2,25 @@
 """
 One-command SLEPc postprocessor for maxwell3D_eigen_compare.cpp.
 
-Typical workflow from the directory where the C++ driver wrote its .dat files:
+1. Syntax:
+python3 ../cpp/mainFiles/notebooks/eigvals_compare_slepc.py \
+    --matrix-dir . \        // directory containing the .dat matrices and manifest
+    --prefix eigcmp \       // eigcmp_manifest.csv, eigcmp_A_*.dat, eigcmp_B_*.dat etc
+    --target 1.0 \          // pivot
+    --nev 20 \              // #eigvals
+    --print-nev 20          // print #eigvals
+    --no-condense-3field    // optional flag to skip condensing the 3-field w-block
 
-    conda activate fenicsx-env
-    python3 ../cpp/mainFiles/notebooks/eigvals_compare_slepc.py --matrix-dir . --prefix eigcmp --target 3.2 --nev 41
+2. Typical workflow from the directory where the C++ driver wrote its .dat files:
+
+conda activate fenicsx-env
+python3 ../cpp/mainFiles/notebooks/eigvals_compare_slepc.py --matrix-dir . --prefix eigcmp --target 3.2 --nev 41 --no-condense-3field
 
 (For MPI/SLEPc runs, use for example:
-
     mpiexec -n 1 python3 eigvals_compare_slepc.py --matrix-dir . --prefix eigcmp --target 3.2 --nev 41
-) # Not necessary, no speedup
-The script reads <prefix>_manifest.csv, loads every exported A/B pair, checks
+) // Not necessary, no speedup
+
+3. The script reads <prefix>_manifest.csv, loads every exported A/B pair, checks
 relative symmetry defects, statically condenses the 3-field w-block by default,
 chooses an appropriate SLEPc problem type, and writes
 
@@ -299,7 +308,13 @@ def choose_problem_type(hermitian: bool, constrained_or_singular: bool) -> tuple
 def solve_eigenproblem(A: sp.csr_matrix, B: sp.csr_matrix, *, target: float, nev: int,
                        tol: float, max_it: int, hermitian_tol: float,
                        constrained_or_singular: bool,
-                       force_nonhermitian: bool = False) -> tuple[list[complex], dict[str, float | str | int]]:
+                       force_nonhermitian: bool = False,
+                       diagnostic_blocks: Optional[list[tuple[str, int, int]]] = None
+                       ) -> tuple[
+                           list[complex],
+                           dict[str, float | str | int],
+                           Optional[dict[str, object]],
+                       ]:
     asym_A = relative_asymmetry(A)
     asym_B = relative_asymmetry(B)
     hermitian = (asym_A <= hermitian_tol and asym_B <= hermitian_tol and not force_nonhermitian)
@@ -356,7 +371,60 @@ def solve_eigenproblem(A: sp.csr_matrix, B: sp.csr_matrix, *, target: float, nev
     eps.solve()
 
     nconv = eps.getConverged()
-    vals = [eps.getEigenvalue(i) for i in range(min(nconv, nev))]
+    vals = [eps.getEigenvalue(i) for i in range(nconv)]
+
+    # Minimal diagnostic for the three-field formulation: inspect the returned
+    # eigenvector whose eigenvalue has the smallest magnitude.  The block
+    # fractions show whether the vector is carried by u (a physical harmonic
+    # mode) or almost entirely by p/alpha (an algebraic mode in ker(B)).
+    zero_diagnostic: Optional[dict[str, object]] = None
+    if diagnostic_blocks and vals:
+        i0 = min(range(len(vals)), key=lambda i: abs(vals[i]))
+        z0 = vals[i0]
+
+        xr = Ap.createVecRight()
+        xi = Ap.createVecRight()
+        xr.set(0.0)
+        xi.set(0.0)
+        eps.getEigenpair(i0, xr, xi)
+
+        xnorm = math.hypot(xr.norm(), xi.norm())
+
+        Bxr = Bp.createVecLeft()
+        Bxi = Bp.createVecLeft()
+        Bp.mult(xr, Bxr)
+        Bp.mult(xi, Bxi)
+
+        b_quadratic = float(np.real(xr.dot(Bxr) + xi.dot(Bxi)))
+        relative_b_mass = math.sqrt(abs(b_quadratic)) / max(xnorm, 1.0e-300)
+
+        block_fractions: dict[str, float] = {}
+        if comm.size == 1:
+            ar = xr.getArray(readonly=True)
+            ai = xi.getArray(readonly=True)
+            for name, begin, size in diagnostic_blocks:
+                if size <= 0:
+                    block_fractions[name] = 0.0
+                    continue
+                end = begin + size
+                block_sq = float(
+                    np.vdot(ar[begin:end], ar[begin:end]).real
+                    + np.vdot(ai[begin:end], ai[begin:end]).real
+                )
+                block_fractions[name] = math.sqrt(max(block_sq, 0.0)) / max(
+                    xnorm, 1.0e-300
+                )
+
+        zero_diagnostic = {
+            "eigenvalue": z0,
+            "relative_b_mass": relative_b_mass,
+            "block_fractions": block_fractions,
+        }
+
+        xr.destroy()
+        xi.destroy()
+        Bxr.destroy()
+        Bxi.destroy()
 
     info = {
         "problem_type": problem_type_name,
@@ -370,7 +438,7 @@ def solve_eigenproblem(A: sp.csr_matrix, B: sp.csr_matrix, *, target: float, nev
     eps.destroy()
     Ap.destroy()
     Bp.destroy()
-    return vals, info
+    return vals, info, zero_diagnostic
 
 
 def nearest_reference_error(x: complex, reference: np.ndarray) -> float:
@@ -413,12 +481,32 @@ def process_case(case: MatrixCase, matrix_dir: Path, args: argparse.Namespace) -
     )
     force_nonhermitian = args.force_nonhermitian
 
+    three_field_condensed = False
     if case.method == "3field" and not args.no_condense_3field:
         A, B = condense_three_field(A, B, case, symmetrize_tol=args.hermitian_tol)
+        three_field_condensed = True
         par_print(f"  condensed size: A={A.shape}, B={B.shape}")
         par_print(f"  condensed asymmetry: A={relative_asymmetry(A):.3e}, B={relative_asymmetry(B):.3e}")
 
-    vals, info = solve_eigenproblem(
+    diagnostic_blocks: Optional[list[tuple[str, int, int]]] = None
+    if case.method == "3field":
+        if three_field_condensed:
+            # Condensed ordering: (u, p, alpha).
+            diagnostic_blocks = [
+                ("u", 0, case.n1),
+                ("p", case.n1, case.n2),
+                ("alpha", case.n1 + case.n2, case.nlambda),
+            ]
+        else:
+            # Raw ordering: (w, u, p, alpha).
+            diagnostic_blocks = [
+                ("w", 0, case.n0),
+                ("u", case.n0, case.n1),
+                ("p", case.n0 + case.n1, case.n2),
+                ("alpha", case.n0 + case.n1 + case.n2, case.nlambda),
+            ]
+
+    vals, info, zero_diagnostic = solve_eigenproblem(
         A, B,
         target=args.target,
         nev=args.nev,
@@ -427,6 +515,7 @@ def process_case(case: MatrixCase, matrix_dir: Path, args: argparse.Namespace) -
         hermitian_tol=args.hermitian_tol,
         constrained_or_singular=constrained_or_singular,
         force_nonhermitian=force_nonhermitian,
+        diagnostic_blocks=diagnostic_blocks,
     )
 
     vals_sorted = sorted(vals, key=lambda z: (z.real, abs(z.imag)))
@@ -442,6 +531,30 @@ def process_case(case: MatrixCase, matrix_dir: Path, args: argparse.Namespace) -
         par_print("  no closed-form reference eigenvalues supplied for this example")
     par_print("  computed real parts:")
     par_print("   ", np.array2string(np.array([z.real for z in vals_sorted[:args.print_nev]]), precision=6))
+
+    if zero_diagnostic is not None:
+        z0 = complex(zero_diagnostic["eigenvalue"])
+        bmass = float(zero_diagnostic["relative_b_mass"])
+        fractions = zero_diagnostic["block_fractions"]
+
+        par_print("  smallest-|lambda| three-field mode:")
+        par_print(f"    lambda = {z0.real:.6e}{z0.imag:+.2e}i")
+        par_print(f"    relative u mass sqrt(|x^* B x|)/||x|| = {bmass:.3e}")
+
+        if fractions:
+            formatted = ", ".join(
+                f"{name}={float(value):.3e}"
+                for name, value in fractions.items()
+            )
+            par_print(f"    coefficient fractions: {formatted}")
+
+            u_fraction = float(fractions.get("u", 0.0))
+            if bmass < 1.0e-8 and u_fraction < 1.0e-6:
+                par_print("    diagnosis: probable algebraic p/alpha mode (u is essentially zero)")
+            else:
+                par_print("    diagnosis: mode carries nontrivial u mass")
+        else:
+            par_print("    block fractions require a serial run (-n 1)")
 
     rows: list[dict[str, object]] = []
     for j, z in enumerate(vals_sorted):

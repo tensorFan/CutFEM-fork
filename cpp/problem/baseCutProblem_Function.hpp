@@ -2200,6 +2200,58 @@ void BaseCutFEM<M>::addFaceStabilizationRHS(const itemVFlist_t &VF, const CutMes
     bar.end();
 }
 
+template <typename M>
+void BaseCutFEM<M>::addFaceStabilizationRHS(const itemVFlist_t &VF,const CutMesh &Th) {
+    progress bar(
+        " Add Face Stabilization RHS CutMesh",
+        Th.get_nb_element(),
+        globalVariable::verbose
+    );
+
+    assert(VF.isRHS());
+
+    for (int k = Th.first_element();
+         k < Th.last_element();
+         k += Th.next_element()) {
+
+        bar += 1;
+
+        for (int ifac = 0; ifac < Element::nea; ++ifac) {
+
+            int jfac = ifac;
+            const int kn = Th.ElementAdj(k, jfac);
+
+            // kn < 0: boundary of the active mesh.
+            //
+            // kn <= k: the interior face has either already been
+            // assembled from the neighbouring element or is invalid.
+            if (kn < 0 || kn <= k) {
+                continue;
+            }
+
+            const std::pair<int, int> e1 =
+                std::make_pair(k, ifac);
+
+            const std::pair<int, int> e2 =
+                std::make_pair(kn, jfac);
+
+            BaseFEM<M>::addFaceContribution(
+                VF,
+                e1,
+                e2,
+                nullptr,
+                0,
+                1.
+            );
+        }
+
+        // Flush the contributions associated with element k.
+        this->addLocalContribution();
+    }
+
+    bar.end();
+}
+
 // LAGRANGE MULTIPLIER
 template <typename M> void BaseCutFEM<M>::addLagrangeMultiplier(const itemVFlist_t &VF, double val, const CutMesh &Th) {
     assert(VF.isRHS());

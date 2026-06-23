@@ -56,7 +56,8 @@
 //
 // Suggested terminal workflow inside build:
 //   ./bin/maxwell3D_eigen_compare --example all --levels 2 --nx0 7 --prefix eigcmp // OR 
-//   ./bin/maxwell3D_eigen_compare --example all --method 3field --levels 2 --nx0 7 --prefix eigcmp
+//   ./bin/maxwell3D_eigen_compare --example all --method 3field --levels 2 --nx0 7 --prefix eigcmp // OR
+//   ./bin/maxwell3D_eigen_compare --example all --method all --levels 2 --nx0 7 --prefix eigcmp --no-harmonic-filter
 //   
 //   conda activate fenicsx-env
 //   python3 ../cpp/mainFiles/notebooks/eigvals_compare_slepc.py --matrix-dir . --prefix eigcmp --target 3.2 --nev 41
@@ -77,24 +78,39 @@ namespace EigenCompareData {
 
     R hole_radius = M_PI / 3.;
     R hole_center[3] = {0.5 * M_PI, 0.5 * M_PI, 0.5 * M_PI};
+
+    R shell_center[3] = {0.5 * M_PI, 0.5 * M_PI, 0.5 * M_PI};
+    R radius_inner = M_PI / 5.;
+    R radius_outer = hole_radius;
+
     R levelset_eps = 1e-12;
 
     // Unfitted representation of the top face z=pi for the simple cube.
     // The active domain is {phi<0}, i.e. z<pi.
     R fun_levelSetCubeTop(double *P, int i, int dom) {
-        return P[2] - M_PI;
+        return -(P[2] - M_PI);
     }
 
-    // Unfitted representation of the internal spherical hole.  Since the active
-    // side is negative, this keeps the exterior of the ball and deletes the ball.
-    // The minus sign is intentional: it matches the outward normal convention on
-    // the boundary of the punctured box.
-    R fun_levelSetCenteredHole(double *P, int i, int dom) {
-        const R x = P[0] - hole_center[0];
-        const R y = P[1] - hole_center[1];
-        const R z = P[2] - hole_center[2];
-        return -(x*x + y*y + z*z - hole_radius*hole_radius + levelset_eps);
-    }
+    // Unfitted representation of the internal spherical hole.  
+    // R fun_levelSetCenteredHole(double *P, int i, int dom) {
+    //     const R x = P[0] - hole_center[0];
+    //     const R y = P[1] - hole_center[1];
+    //     const R z = P[2] - hole_center[2];
+    //     return x*x + y*y + z*z - hole_radius*hole_radius + levelset_eps;
+    // }
+    // Spherical shells in order for the harmonic form to satisfy the correct BCs n x h = 0 on all bdries
+    R fun_levelSetSphericalShell(double *P, int i, int dom) {
+    const R x = P[0] - shell_center[0];
+    const R y = P[1] - shell_center[1];
+    const R z = P[2] - shell_center[2];
+
+    const R r2 = x*x + y*y + z*z;
+
+    return
+        (r2 - radius_inner * radius_inner)
+        *
+        (radius_outer * radius_outer - r2);
+}
 
     R fun_0(double *P, int i, int dom) {
         return 0.;
@@ -127,7 +143,7 @@ typedef R (*LevelSetFunction)(double *, int, int);
 static LevelSetFunction level_set_function(ExampleKind ex) {
     using namespace EigenCompareData;
     if (ex == ExampleKind::Cube) return fun_levelSetCubeTop;
-    return fun_levelSetCenteredHole;
+    return fun_levelSetSphericalShell; // fun_levelSetCenteredHole;
 }
 
 struct Config {
@@ -160,7 +176,7 @@ struct Config {
     R tau_b_3field = 1e0;
 
     // Small pressure mass in mixed generalized eigenproblems, scaled by h^{-3}.
-    R pressure_regularizer = 1e-12;
+    R pressure_regularizer = 0; // 1e-12
 
     // Use one global constraint (u,h)_Omega=0 in the punctured box.  For 3field,
     // this is applied to the magnetic-flux / H(div) variable u, not to w.
@@ -183,9 +199,9 @@ static void print_usage(const char *exe) {
         << "  --no-harmonic-filter    do not constrain the harmonic field in cube_hole\n"
         << "  --hole-radius X         internal hole radius, default pi/3\n"
         << "  --penalty X             Nitsche penalty, default 1e2\n"
-        << "  --tau-curl X            curl ghost penalty, default 1e-2\n"
-        << "  --tau-mass X            mass ghost penalty, default 1e-2\n"
-        << "  --tau-p X               scalar pressure ghost penalty, default 1e-2\n"
+        << "  --tau-curl X            curl ghost penalty, default 1e0\n"
+        << "  --tau-mass X            mass ghost penalty, default 1e0\n"
+        << "  --tau-p X               scalar pressure ghost penalty, default 1e0\n"
         << "  --help\n";
 }
 
@@ -316,7 +332,7 @@ static void assemble_wave(const Config &cfg, ExampleKind ex, int level, int nx, 
     Normal n;
 
     ActiveMesh<Mesh> Khi(Kh);
-    Khi.truncate(interface, 1);
+    Khi.truncate(interface, -1); // remove where levelset function is negative
     Khi.info();
 
     CutSpace Uh(Khi, Uh_background);
@@ -404,7 +420,7 @@ static void assemble_kikuchi(const Config &cfg, ExampleKind ex, int level, int n
     Normal n;
 
     ActiveMesh<Mesh> Khi(Kh);
-    Khi.truncate(interface, 1);
+    Khi.truncate(interface, -1);
     Khi.info();
 
     CutSpace Uh(Khi, Uh_background);
@@ -507,7 +523,7 @@ static void assemble_3field(const Config &cfg, ExampleKind ex, int level, int nx
     InterfaceLevelSet<Mesh> interface(Kh, levelSet);
 
     ActiveMesh<Mesh> Khi(Kh);
-    Khi.truncate(interface, 1);
+    Khi.truncate(interface, -1);
     Khi.info();
 
     CutSpace Whcurl(Khi, Whcurl_background);
@@ -526,8 +542,8 @@ static void assemble_3field(const Config &cfg, ExampleKind ex, int level, int nx
     //   curl w + grad p = lambda u,
     //   div u = 0.
     // In the first equation the boundary term is (n x u) dot tau.  Dropping it
-    // is the natural mixed weak imposition of n x u = 0.  We deliberately do not
-    // use the old normal multiplier u.n=0, since that is a different boundary condition.
+    // is the natural mixed weak imposition of n x u = 0. The other boundary condition is p=0
+    // which appears on integrating by parts the second equation.
     A.addBilinear(
         -innerProduct(eps * mu * w, tau)
         +innerProduct(u, curl(tau))
@@ -569,12 +585,28 @@ static void assemble_3field(const Config &cfg, ExampleKind ex, int level, int nx
     const int n_p = Qh.get_nb_dof();
     const int base_dofs = n_w + n_u + n_p;
     if (use_harmonic_filter(cfg, ex)) {
-        Lagrange3 VelocitySpace(2);
-        Space Vel_background(Kh, VelocitySpace);
-        CutSpace Velh(Khi, Vel_background);
-        Fun_h harmonic(Velh, fun_harmonic_two_form);
+        // Lagrange3 VelocitySpace(2);
+        // Space Vel_background(Kh, VelocitySpace);
+        // CutSpace Velh(Khi, Vel_background);
+        Fun_h harmonic(Uhdiv, fun_harmonic_two_form);
 
-        A.addLagrangeMultiplier(+innerProduct(harmonic.exprList(), v), 0, Khi);
+        // A.addLagrangeMultiplier(+innerProduct(harmonic.exprList(), v), 0, Khi);
+        CutFEM<Mesh> lagr(Whcurl); lagr.add(Uhdiv); lagr.add(Qh);
+        // lagr.addLinear(innerProduct(harmonic.exprList(), u), Khi, INTEGRAL_EXTENSION, 1);
+        lagr.addLinear(innerProduct(harmonic.exprList(), u), Khi);
+        lagr.addFaceStabilizationRHS(
+            + innerProduct(jump(harmonic.exprList()), cfg.tau_m_3field * pow(h,1) *jump(u))
+            , Khi
+        );
+        Rn lag_row(lagr.rhs_);
+        lagr.rhs_ = 0.; 
+        // lagr.addLinear(innerProduct(harmonic.exprList(), v), Khi, INTEGRAL_EXTENSION, 1);
+        lagr.addLinear(innerProduct(harmonic.exprList(), v), Khi);
+        lagr.addFaceStabilizationRHS(
+            + innerProduct(jump(harmonic.exprList()), cfg.tau_m_3field * pow(h,1) *jump(v))
+            , Khi
+        );
+        A.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
         A.mat_[0][std::make_pair(base_dofs, base_dofs)] = 0.;
 
         B.addLagrangeMultiplier(+innerProduct(harmonic.exprList(), 0 * v), 0, Khi);
@@ -609,6 +641,9 @@ int main(int argc, char **argv) {
 
     for (ExampleKind ex : cfg.examples) {
         int nx = cfg.nx0, ny = cfg.ny0, nz = cfg.nz0;
+        nx = (ex == ExampleKind::Cube) ? nx : 2*nx - 1;
+        ny = (ex == ExampleKind::Cube) ? ny : 2*ny - 1;
+        nz = (ex == ExampleKind::Cube) ? nz : 2*nz - 1;
         for (int level = 0; level < cfg.levels; ++level) {
             if (cfg.do_wave)    assemble_wave(cfg, ex, level, nx, ny, nz, manifest);
             if (cfg.do_kikuchi) assemble_kikuchi(cfg, ex, level, nx, ny, nz, manifest);
