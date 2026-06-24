@@ -382,11 +382,13 @@ static void assemble_wave(const Config &cfg, ExampleKind ex, int level, int nx, 
         -innerProduct(epsi * mui * cross(n, u), curl(v))
         +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
     , interface);
+    if (ex == ExampleKind::Cube) {
     A.addBilinear(
         -innerProduct(epsi * mui * curl(u), cross(n, v))
         -innerProduct(epsi * mui * cross(n, u), curl(v))
         +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
     , Khi, INTEGRAL_BOUNDARY);
+    }
 
     A.addPatchStabilization(
         +innerProduct(cfg.tau_curl * h * h * jump(curl(u)), jump(curl(v)))
@@ -470,12 +472,14 @@ static void assemble_kikuchi(const Config &cfg, ExampleKind ex, int level, int n
         +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
         +innerProduct(p, cfg.penalty / h * q)
     , interface);
+    if (ex == ExampleKind::Cube) {
     A.addBilinear(
         -innerProduct(epsi * mui * curl(u), cross(n, v))
         -innerProduct(epsi * mui * cross(n, u), curl(v))
         +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
         +innerProduct(p, cfg.penalty / h * q)
     , Khi, INTEGRAL_BOUNDARY);
+    }
 
     A.addPatchStabilization(
         +innerProduct(cfg.tau_curl * h * h * jump(curl(u)), jump(curl(v)))
