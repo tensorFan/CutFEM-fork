@@ -3,19 +3,21 @@
 
 The script writes two three-level mesh families:
 
-    cube_0.msh, cube_1.msh, cube_2.msh
-    spherical_shell_0.msh, spherical_shell_1.msh, spherical_shell_2.msh
+    cube_0, cube_1, cube_2
+    spherical_shell_0, spherical_shell_1, spherical_shell_2
 
 Geometry and default resolution match the comparison driver:
 
     cube             = [0, pi]^3
     shell centre     = (pi/2, pi/2, pi/2)
-    shell inner rad. = pi/6
+    shell inner rad. = pi/5
     shell outer rad. = pi/3
     h_level          = pi / ((nx0 - 1) * 2**level),  nx0 = 7
 
-The files are written as first-order, ASCII Gmsh 2.2 meshes because that is the
-format used by Mesh3(..., MeshFormat::mesh_gmsh) in the CutFEM examples.
+The files are written as first-order, ASCII INRIA Medit meshes, using the same
+extensionless naming convention as existing CutFEM meshes such as ``cyli_0``.
+Despite its name, ``MeshFormat::mesh_gmsh`` is the selector used by the current
+CutFEM examples for these Gmsh-generated Medit files.
 
 In build:
 (fenicsx-env) [darth@darth-pc build]$ python3 ../cpp/mainFiles/notebooks/generate_fitted_maxwell_meshes.py     --output-dir ../cpp/mainFiles/meshes
@@ -40,7 +42,7 @@ except ImportError as exc:  # pragma: no cover - depends on user's environment
 PI = math.pi
 CUBE_LENGTH = PI
 SHELL_CENTER = (0.5 * PI, 0.5 * PI, 0.5 * PI)
-RADIUS_INNER = PI / 6.0
+RADIUS_INNER = PI / 5.0
 RADIUS_OUTER = PI / 3.0
 
 
@@ -52,7 +54,7 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         type=Path,
         default=Path("../cpp/mainFiles/meshes"),
-        help="directory receiving the .msh files (default: ../cpp/mainFiles/meshes)",
+        help="directory receiving the extensionless mesh files (default: ../cpp/mainFiles/meshes)",
     )
     parser.add_argument(
         "--levels",
@@ -89,21 +91,17 @@ def physical_group(dim: int, tags: Iterable[int], tag: int, name: str) -> None:
 
 
 def configure_mesh(h: float) -> None:
-    # Keep all refinement levels directly comparable: the prescribed target
-    # size is global and is halved from one level to the next.
     gmsh.option.setNumber("Mesh.MeshSizeMin", h)
     gmsh.option.setNumber("Mesh.MeshSizeMax", h)
     gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
     gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
     gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 1)
 
-    # Linear tetrahedra and a conservative 3-D Delaunay mesher.
     gmsh.option.setNumber("Mesh.ElementOrder", 1)
     gmsh.option.setNumber("Mesh.Algorithm3D", 1)
 
-    # CutFEM's existing Gmsh reader examples use legacy .msh input.  ASCII 2.2
-    # is the most portable variant and preserves triangle boundary labels.
-    gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
+    # gmsh.write() selects the export format from the filename extension.
+    # The ".mesh" extension selects INRIA Medit format.
     gmsh.option.setNumber("Mesh.Binary", 0)
     gmsh.option.setNumber("Mesh.SaveAll", 0)
 
@@ -111,8 +109,17 @@ def configure_mesh(h: float) -> None:
 def write_mesh(output_path: Path, show: bool) -> None:
     gmsh.model.mesh.generate(3)
     gmsh.model.mesh.removeDuplicateNodes()
-    gmsh.write(str(output_path))
-    print(f"Wrote {output_path}")
+
+    # Gmsh selects the output writer from the filename extension.  Write first
+    # to a temporary .mesh path to force the ASCII INRIA Medit writer, then
+    # rename it to the extensionless name expected by the CutFEM examples.
+    temporary_path = output_path.with_name(output_path.name + ".mesh")
+    if temporary_path.exists():
+        temporary_path.unlink()
+    gmsh.write(str(temporary_path))
+    temporary_path.replace(output_path)
+
+    print(f"Wrote {output_path} (INRIA Medit format)")
     if show:
         gmsh.fltk.run()
 
@@ -201,6 +208,8 @@ def main() -> None:
 
     for level in range(args.levels):
         h = h0 / (2**level)
+        h_shell = 0.5 * h
+
         equivalent_nx = (args.nx0 - 1) * (2**level) + 1
         print(
             f"\nlevel={level}, target h={h:.16g}, "
@@ -208,11 +217,11 @@ def main() -> None:
         )
 
         if args.only in ("all", "cube"):
-            generate_cube(args.output_dir / f"cube_{level}.msh", h, args.show)
+            generate_cube(args.output_dir / f"cube_{level}", h, args.show)
 
         if args.only in ("all", "spherical_shell"):
             generate_spherical_shell(
-                args.output_dir / f"spherical_shell_{level}.msh", h, args.show
+                args.output_dir / f"spherical_shell_{level}", h_shell, args.show
             )
 
 
