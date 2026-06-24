@@ -22,7 +22,7 @@
 // One executable exports all requested unfitted formulations and examples:
 //
 //   methods:  wave, kikuchi, 3field
-//   examples: cube, cube_hole, all
+//   examples: cube, spherical_shell, all
 //
 // Boundary condition:
 //   n x u = 0 for the curl-curl unknown.  If u is the electric field, this is
@@ -30,24 +30,14 @@
 //   text, this is the Dirichlet condition induced by PMC for the original E/H
 //   variables.
 //
-// Important level-set normal convention:
-//   In this CutFEM code, the level-set choice
-//       phi(x) = |x-c|^2 - R^2
-//   gives the opposite normal from the one used in the corresponding fitted
-//   single-domain boundary formulas for the punctured box.  Therefore, for the
-//   internal spherical hole we use
-//       phi_hole(x) = -(|x-c|^2 - R^2 + eps_ls),
-//   and keep the negative side.  This both deletes the ball and gives the
-//   standard outward normal for Omega = box \ ball on the inner boundary.
-//
-// Topological example:
-//   cube_hole is Omega = [0,pi]^3 \ B_{pi/3}(c), c=(pi/2,pi/2,pi/2).
-//   The harmonic vector proxy is
-//       h(x) = (x-c)/|x-c|^3,
-//   i.e. the formula (x,y,z)/r^3 only after shifting coordinates to the centre
-//   of the hole.  By default, h is filtered from the discrete space by one
-//   Lagrange multiplier for all three formulations when --example cube_hole is
-//   active.  Disable this with --no-harmonic-filter.
+// Spherical-shell example:
+//   Omega = {x : pi/5 < |x-c| < pi/3}, c=(pi/2,pi/2,pi/2).
+//   The radial harmonic representative is
+//       h(x) = (x-c)/|x-c|^3.
+//   By default one Lagrange multiplier filters this mode from every method.
+//   The harmonic function is interpolated into the method's u-space: Ned0 for
+//   wave/Kikuchi and RT0 for the three-field formulation.  Disable the filter
+//   with --no-harmonic-filter.
 //
 // Output files:
 //   <prefix>_A_<example>_<method>_<level>.dat
@@ -65,63 +55,51 @@
 
 using namespace globalVariable;
 
-enum class ExampleKind { Cube, CubeHole };
+enum class ExampleKind { Cube, SphericalShell };
 
 static std::string example_name(ExampleKind ex) {
     if (ex == ExampleKind::Cube) return "cube";
-    return "cube_hole";
+    return "spherical_shell";
 }
 
 namespace EigenCompareData {
     R eps = 1.;
     R mu  = 1.;
 
-    R hole_radius = M_PI / 3.;
-    R hole_center[3] = {0.5 * M_PI, 0.5 * M_PI, 0.5 * M_PI};
-
     R shell_center[3] = {0.5 * M_PI, 0.5 * M_PI, 0.5 * M_PI};
     R radius_inner = M_PI / 5.;
-    R radius_outer = hole_radius;
-
-    R levelset_eps = 1e-12;
+    R radius_outer = M_PI / 3.;
 
     // Unfitted representation of the top face z=pi for the simple cube.
-    // The active domain is {phi<0}, i.e. z<pi.
+    // The retained side is {phi>0}, i.e. z<pi.
     R fun_levelSetCubeTop(double *P, int i, int dom) {
         return -(P[2] - M_PI);
     }
 
-    // Unfitted representation of the internal spherical hole.  
-    // R fun_levelSetCenteredHole(double *P, int i, int dom) {
-    //     const R x = P[0] - hole_center[0];
-    //     const R y = P[1] - hole_center[1];
-    //     const R z = P[2] - hole_center[2];
-    //     return x*x + y*y + z*z - hole_radius*hole_radius + levelset_eps;
-    // }
-    // Spherical shells in order for the harmonic form to satisfy the correct BCs n x h = 0 on all bdries
+    // Spherical shell level set.  The retained side is positive, so this sign
+    // convention keeps radius_inner < r < radius_outer.
+    // On both spherical boundary components the radial harmonic field satisfies
+    // n x h = 0.
     R fun_levelSetSphericalShell(double *P, int i, int dom) {
-    const R x = P[0] - shell_center[0];
-    const R y = P[1] - shell_center[1];
-    const R z = P[2] - shell_center[2];
+        const R x = P[0] - shell_center[0];
+        const R y = P[1] - shell_center[1];
+        const R z = P[2] - shell_center[2];
+        const R r2 = x*x + y*y + z*z;
 
-    const R r2 = x*x + y*y + z*z;
-
-    return
-        (r2 - radius_inner * radius_inner)
-        *
-        (radius_outer * radius_outer - r2);
-}
+        return (r2 - radius_inner * radius_inner)
+             * (radius_outer * radius_outer - r2);
+    }
 
     R fun_0(double *P, int i, int dom) {
         return 0.;
     }
 
-    // Harmonic representative for the punctured cube, in centred coordinates.
-    // It is smooth on Omega because the ball containing r=0 is removed.
+    // Radial harmonic representative on the shell, in centred coordinates.
+    // It is smooth because r >= radius_inner > 0.
     R fun_harmonic_two_form(double *P, int i, int dom) {
-        const R x = P[0] - hole_center[0];
-        const R y = P[1] - hole_center[1];
-        const R z = P[2] - hole_center[2];
+        const R x = P[0] - shell_center[0];
+        const R y = P[1] - shell_center[1];
+        const R z = P[2] - shell_center[2];
         const R r2 = x*x + y*y + z*z;
         const R r  = std::sqrt(r2);
         const R r3 = r2 * r;
@@ -143,7 +121,7 @@ typedef R (*LevelSetFunction)(double *, int, int);
 static LevelSetFunction level_set_function(ExampleKind ex) {
     using namespace EigenCompareData;
     if (ex == ExampleKind::Cube) return fun_levelSetCubeTop;
-    return fun_levelSetSphericalShell; // fun_levelSetCenteredHole;
+    return fun_levelSetSphericalShell;
 }
 
 struct Config {
@@ -157,8 +135,8 @@ struct Config {
     bool do_3field = true;
 
     // Default is deliberately all: one terminal command can generate the full
-    // comparison.  Use --example cube or --example cube_hole to restrict it.
-    std::vector<ExampleKind> examples = {ExampleKind::Cube, ExampleKind::CubeHole};
+    // comparison.  Use --example cube or --example spherical_shell to restrict it.
+    std::vector<ExampleKind> examples = {ExampleKind::Cube, ExampleKind::SphericalShell};
 
     std::string prefix = "eigcmp";
 
@@ -178,13 +156,13 @@ struct Config {
     // Small pressure mass in mixed generalized eigenproblems, scaled by h^{-3}.
     R pressure_regularizer = 0; // 1e-12
 
-    // Use one global constraint (u,h)_Omega=0 in the punctured box.  For 3field,
-    // this is applied to the magnetic-flux / H(div) variable u, not to w.
-    bool filter_harmonic_in_hole = true;
+    // Use one global constraint (u,h)_Omega=0 on the spherical shell.  For
+    // three-field this acts on the magnetic-flux / H(div) variable u, not w.
+    bool filter_harmonic_in_shell = true;
 };
 
 static bool use_harmonic_filter(const Config &cfg, ExampleKind ex) {
-    return cfg.filter_harmonic_in_hole && ex == ExampleKind::CubeHole;
+    return cfg.filter_harmonic_in_shell && ex == ExampleKind::SphericalShell;
 }
 
 static void print_usage(const char *exe) {
@@ -195,9 +173,10 @@ static void print_usage(const char *exe) {
         << "  --nx0 N                 initial nx=ny=nz, default 7\n"
         << "  --prefix NAME           output prefix, default eigcmp\n"
         << "  --method all|wave|kikuchi|3field\n"
-        << "  --example all|cube|cube_hole\n"
-        << "  --no-harmonic-filter    do not constrain the harmonic field in cube_hole\n"
-        << "  --hole-radius X         internal hole radius, default pi/3\n"
+        << "  --example all|cube|spherical_shell\n"
+        << "  --no-harmonic-filter    do not constrain the shell harmonic field\n"
+        << "  --inner-radius X        shell inner radius, default pi/5\n"
+        << "  --outer-radius X        shell outer radius, default pi/3\n"
         << "  --penalty X             Nitsche penalty, default 1e2\n"
         << "  --tau-curl X            curl ghost penalty, default 1e0\n"
         << "  --tau-mass X            mass ghost penalty, default 1e0\n"
@@ -235,10 +214,13 @@ static void parse_args(int argc, char **argv, Config &cfg) {
             cfg.tau_mass = std::stod(require_value(key));
         } else if (key == "--tau-p") {
             cfg.tau_p = std::stod(require_value(key));
-        } else if (key == "--hole-radius") {
-            EigenCompareData::hole_radius = std::stod(require_value(key));
+        } else if (key == "--inner-radius") {
+            EigenCompareData::radius_inner = std::stod(require_value(key));
+        } else if (key == "--outer-radius" || key == "--hole-radius") {
+            // --hole-radius is retained as a backward-compatible alias.
+            EigenCompareData::radius_outer = std::stod(require_value(key));
         } else if (key == "--no-harmonic-filter") {
-            cfg.filter_harmonic_in_hole = false;
+            cfg.filter_harmonic_in_shell = false;
         } else if (key == "--method") {
             std::string m = require_value(key);
             cfg.do_wave = cfg.do_kikuchi = cfg.do_3field = false;
@@ -259,11 +241,13 @@ static void parse_args(int argc, char **argv, Config &cfg) {
             cfg.examples.clear();
             if (ex == "all") {
                 cfg.examples.push_back(ExampleKind::Cube);
-                cfg.examples.push_back(ExampleKind::CubeHole);
+                cfg.examples.push_back(ExampleKind::SphericalShell);
             } else if (ex == "cube") {
                 cfg.examples.push_back(ExampleKind::Cube);
-            } else if (ex == "cube_hole" || ex == "hole") {
-                cfg.examples.push_back(ExampleKind::CubeHole);
+            } else if (ex == "spherical_shell" || ex == "shell" ||
+                       ex == "cube_hole" || ex == "hole") {
+                // cube_hole/hole are retained as backward-compatible aliases.
+                cfg.examples.push_back(ExampleKind::SphericalShell);
             } else {
                 std::cerr << "Unknown example: " << ex << std::endl;
                 std::exit(2);
@@ -285,7 +269,7 @@ static std::string example_note(ExampleKind ex) {
     if (ex == ExampleKind::Cube) {
         return "Omega=[0,pi]^3 represented by plane cut z=pi";
     }
-    return "Omega=[0,pi]^3 minus centred ball; hole level-set is negated for outward normal";
+    return "spherical shell centered at (pi/2,pi/2,pi/2); configurable inner and outer radii";
 }
 
 static void write_manifest_row(std::ofstream &manifest,
@@ -304,10 +288,54 @@ static void write_manifest_row(std::ofstream &manifest,
              << std::setprecision(17) << cfg.penalty << ','
              << cfg.tau_curl << ',' << cfg.tau_mass << ',' << cfg.tau_p << ','
              << cfg.pressure_regularizer << ','
-             << EigenCompareData::hole_radius << ','
+             << EigenCompareData::radius_outer << ','
              << (use_harmonic_filter(cfg, ex) ? 1 : 0) << ','
              << '"' << example_note(ex) << '"' << ','
              << '"' << bc_note << '"' << '\n';
+}
+
+// Add the stabilized shell-harmonic constraint using the exact discrete space
+// of the eigenfield being filtered.  The caller supplies a temporary CutFEM
+// object with the same block layout as A and B.
+static void add_shell_harmonic_constraint(CutFEM<Mesh3> &A,
+                                          CutFEM<Mesh3> &B,
+                                          CutFEM<Mesh3> &lagr,
+                                          CutFESpaceT3 &harmonic_space,
+                                          TestFunction<Mesh3> &trial,
+                                          TestFunction<Mesh3> &test,
+                                          ActiveMesh<Mesh3> &Khi,
+                                          R h,
+                                          R stabilization,
+                                          int base_dofs) {
+    using namespace EigenCompareData;
+    typedef FunFEM<Mesh3> Fun_h;
+
+    // This constructor interpolates the analytic harmonic representative into
+    // harmonic_space: Ned0 for wave/Kikuchi and RT0 for three-field.
+    Fun_h harmonic(harmonic_space, fun_harmonic_two_form);
+
+    lagr.addLinear(innerProduct(harmonic.exprList(), trial), Khi);
+    lagr.addFaceStabilizationRHS(
+        +innerProduct(jump(harmonic.exprList()),
+                      stabilization * h * jump(trial))
+    , Khi);
+    Rn lag_row(lagr.rhs_);
+
+    lagr.rhs_ = 0.;
+    lagr.addLinear(innerProduct(harmonic.exprList(), test), Khi);
+    lagr.addFaceStabilizationRHS(
+        +innerProduct(jump(harmonic.exprList()),
+                      stabilization * h * jump(test))
+    , Khi);
+
+    A.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
+    A.mat_[0][std::make_pair(base_dofs, base_dofs)] = 0.;
+
+    // Append the same multiplier block to B, but leave its row and column zero.
+    B.addLagrangeMultiplier(
+        +innerProduct(harmonic.exprList(), 0 * test), 0, Khi
+    );
+    B.mat_[0][std::make_pair(base_dofs, base_dofs)] = 0.;
 }
 
 static void assemble_wave(const Config &cfg, ExampleKind ex, int level, int nx, int ny, int nz,
@@ -374,16 +402,10 @@ static void assemble_wave(const Config &cfg, ExampleKind ex, int level, int nx, 
     int nlambda = 0;
     const int base_dofs = Uh.get_nb_dof();
     if (use_harmonic_filter(cfg, ex)) {
-        Lagrange3 VelocitySpace(2);
-        Space Vel_background(Kh, VelocitySpace);
-        CutSpace Velh(Khi, Vel_background);
-        Fun_h harmonic(Velh, fun_harmonic_two_form);
-
-        A.addLagrangeMultiplier(+innerProduct(harmonic.exprList(), v), 0, Khi);
-        A.mat_[0][std::make_pair(base_dofs, base_dofs)] = 0.;
-
-        B.addLagrangeMultiplier(+innerProduct(harmonic.exprList(), 0 * v), 0, Khi);
-        B.mat_[0][std::make_pair(base_dofs, base_dofs)] = 0.;
+        CutFEM<Mesh> lagr(Uh);
+        add_shell_harmonic_constraint(
+            A, B, lagr, Uh, u, v, Khi, h, cfg.tau_mass, base_dofs
+        );
         nlambda = 1;
     }
 
@@ -477,16 +499,10 @@ static void assemble_kikuchi(const Config &cfg, ExampleKind ex, int level, int n
     const int n_p = Wh.get_nb_dof();
     const int base_dofs = n_u + n_p;
     if (use_harmonic_filter(cfg, ex)) {
-        Lagrange3 VelocitySpace(2);
-        Space Vel_background(Kh, VelocitySpace);
-        CutSpace Velh(Khi, Vel_background);
-        Fun_h harmonic(Velh, fun_harmonic_two_form);
-
-        A.addLagrangeMultiplier(+innerProduct(harmonic.exprList(), v), 0, Khi);
-        A.mat_[0][std::make_pair(base_dofs, base_dofs)] = 0.;
-
-        B.addLagrangeMultiplier(+innerProduct(harmonic.exprList(), 0 * v), 0, Khi);
-        B.mat_[0][std::make_pair(base_dofs, base_dofs)] = 0.;
+        CutFEM<Mesh> lagr(Uh); lagr.add(Wh);
+        add_shell_harmonic_constraint(
+            A, B, lagr, Uh, u, v, Khi, h, cfg.tau_mass, base_dofs
+        );
         nlambda = 1;
     }
 
@@ -585,32 +601,11 @@ static void assemble_3field(const Config &cfg, ExampleKind ex, int level, int nx
     const int n_p = Qh.get_nb_dof();
     const int base_dofs = n_w + n_u + n_p;
     if (use_harmonic_filter(cfg, ex)) {
-        // Lagrange3 VelocitySpace(2);
-        // Space Vel_background(Kh, VelocitySpace);
-        // CutSpace Velh(Khi, Vel_background);
-        Fun_h harmonic(Uhdiv, fun_harmonic_two_form);
-
-        // A.addLagrangeMultiplier(+innerProduct(harmonic.exprList(), v), 0, Khi);
         CutFEM<Mesh> lagr(Whcurl); lagr.add(Uhdiv); lagr.add(Qh);
-        // lagr.addLinear(innerProduct(harmonic.exprList(), u), Khi, INTEGRAL_EXTENSION, 1);
-        lagr.addLinear(innerProduct(harmonic.exprList(), u), Khi);
-        lagr.addFaceStabilizationRHS(
-            + innerProduct(jump(harmonic.exprList()), cfg.tau_m_3field * pow(h,1) *jump(u))
-            , Khi
+        add_shell_harmonic_constraint(
+            A, B, lagr, Uhdiv, u, v, Khi, h,
+            cfg.tau_m_3field, base_dofs
         );
-        Rn lag_row(lagr.rhs_);
-        lagr.rhs_ = 0.; 
-        // lagr.addLinear(innerProduct(harmonic.exprList(), v), Khi, INTEGRAL_EXTENSION, 1);
-        lagr.addLinear(innerProduct(harmonic.exprList(), v), Khi);
-        lagr.addFaceStabilizationRHS(
-            + innerProduct(jump(harmonic.exprList()), cfg.tau_m_3field * pow(h,1) *jump(v))
-            , Khi
-        );
-        A.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
-        A.mat_[0][std::make_pair(base_dofs, base_dofs)] = 0.;
-
-        B.addLagrangeMultiplier(+innerProduct(harmonic.exprList(), 0 * v), 0, Khi);
-        B.mat_[0][std::make_pair(base_dofs, base_dofs)] = 0.;
         nlambda = 1;
     }
 
@@ -637,6 +632,8 @@ int main(int argc, char **argv) {
         std::cerr << "Could not open manifest for writing: " << manifest_name << std::endl;
         return 1;
     }
+    // Keep the historical hole_radius column name so the existing SLEPc
+    // reader remains compatible; for spherical_shell it stores radius_outer.
     manifest << "example,method,level,nx,ny,nz,h,Afile,Bfile,n0,n1,n2,nlambda,penalty,tau_curl,tau_mass,tau_p,pressure_regularizer,hole_radius,harmonic_filter,example_note,bc_note\n";
 
     for (ExampleKind ex : cfg.examples) {
@@ -656,7 +653,7 @@ int main(int argc, char **argv) {
     }
 
     std::cout << "\nWrote manifest: " << manifest_name << std::endl;
-    std::cout << "Next step: python3 eigvals_compare_slepc_v2.py --matrix-dir . --prefix "
+    std::cout << "Next step: python3 ../cpp/mainFiles/notebooks/eigvals_compare_slepc.py --matrix-dir . --prefix "
               << cfg.prefix << " --target 3.2 --nev 41" << std::endl;
     return 0;
 }
