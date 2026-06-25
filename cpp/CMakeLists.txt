@@ -50,6 +50,10 @@ set(EX_NAME maxwell3D_eigen_compare)
 add_executable(${EX_NAME}  mainFiles/maxwell3D_eigen_compare.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 
+set(EX_NAME maxwell3D_eigen_compare_curl_bc)
+add_executable(${EX_NAME}  mainFiles/maxwell3D_eigen_compare_curl_bc.cpp )
+target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
+
 set(EX_NAME maxwell3D_fitted_eigen_compare)
 add_executable(${EX_NAME}  mainFiles/maxwell3D_fitted_eigen_compare.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})

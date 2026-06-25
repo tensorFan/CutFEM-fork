@@ -5,7 +5,6 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
-#include <vector>
 
 #ifdef USE_MPI
 #include "cfmpi.hpp"
@@ -17,27 +16,36 @@
 #include "../num/matlab.hpp"
 
 // -----------------------------------------------------------------------------
-// Maxwell cavity eigenvalue comparison driver, v2.
+// Maxwell cavity eigenvalue comparison driver with the complementary
+// (absolute / magnetic) Maxwell boundary conditions.
 //
-// One executable exports all requested unfitted formulations and examples:
+// One executable exports the three requested unfitted formulations on the
+// spherical shell:
 //
-//   methods:  wave, kikuchi, 3field
-//   examples: cube, spherical_shell, all
+//   methods: wave, kikuchi, 3field
 //
-// Boundary condition:
-//   n x u = 0 for the curl-curl unknown.  If u is the electric field, this is
-//   the usual PEC condition.  For the magnetic-flux formulation in the appendix
-//   text, this is the Dirichlet condition induced by PMC for the original E/H
-//   variables.
+// Boundary conditions for the curl-curl eigenfield u:
 //
-// Spherical-shell example:
-//   Omega = {x : pi/5 < |x-c| < pi/3}, c=(pi/2,pi/2,pi/2).
-//   The radial harmonic representative is
-//       h(x) = (x-c)/|x-c|^3.
-//   By default one Lagrange multiplier filters this mode from every method.
-//   The harmonic function is interpolated into the method's u-space: Ned0 for
-//   wave/Kikuchi and RT0 for the three-field formulation.  Disable the filter
-//   with --no-harmonic-filter.
+//   n x curl(u) = 0,
+//   n . u       = 0.
+//
+// For the wave and Kikuchi formulations, n x curl(u) = 0 is the natural
+// H(curl) boundary condition.  The normal condition is encoded variationally:
+// positive wave eigenmodes are orthogonal to gradients, while the Kikuchi
+// constraint (u,grad(q))=0 with q in H1 also enforces n.u=0.
+//
+// In the three-field formulation
+//
+//   eps*mu*w = curl(u),
+//
+// so n x curl(u)=0 becomes the essential condition n x w=0.  The companion
+// essential condition is n.u=0 on the RT0 field.  Both are imposed weakly by a
+// symmetric Nitsche formulation on the unfitted boundary.
+//
+// The radial shell field (x-c)/|x-c|^3 does not satisfy n.u=0.  Consequently
+// this boundary-condition variant does not use the shell harmonic filter from
+// the n x u=0 driver.  The mixed formulations instead receive one scalar
+// Lagrange multiplier fixing the zero-mean gauge of p.
 //
 // Output files:
 //   <prefix>_A_<example>_<method>_<level>.dat
@@ -45,22 +53,15 @@
 //   <prefix>_manifest.csv
 //
 // Suggested terminal workflow inside build:
-//   ./bin/maxwell3D_eigen_compare --example all --levels 2 --nx0 7 --prefix eigcmp // OR 
-//   ./bin/maxwell3D_eigen_compare --example all --method 3field --levels 2 --nx0 7 --prefix eigcmp // OR
-//   ./bin/maxwell3D_eigen_compare --example all --method all --levels 2 --nx0 7 --prefix eigcmp --no-harmonic-filter
-//   
+//   ./bin/maxwell3D_eigen_compare_curl_bc --method all \
+//       --levels 2 --nx0 7 --prefix eigcmp_curlbc
+//
 //   conda activate fenicsx-env
-//   python3 ../cpp/mainFiles/notebooks/eigvals_compare_slepc.py --matrix-dir . --prefix eigcmp --target 3.2 --nev 41
+//   python3 ../cpp/mainFiles/notebooks/eigvals_compare_slepc.py \
+//       --matrix-dir . --prefix eigcmp_curlbc --target 3.2 --nev 41
 // -----------------------------------------------------------------------------
 
 using namespace globalVariable;
-
-enum class ExampleKind { Cube, SphericalShell };
-
-static std::string example_name(ExampleKind ex) {
-    if (ex == ExampleKind::Cube) return "cube";
-    return "spherical_shell";
-}
 
 namespace EigenCompareData {
     R eps = 1.;
@@ -70,16 +71,8 @@ namespace EigenCompareData {
     R radius_inner = M_PI / 5.;
     R radius_outer = M_PI / 3.;
 
-    // Unfitted representation of the top face z=pi for the simple cube.
-    // The retained side is {phi>0}, i.e. z<pi.
-    R fun_levelSetCubeTop(double *P, int i, int dom) {
-        return -(P[2] - M_PI);
-    }
-
     // Spherical shell level set.  The retained side is positive, so this sign
     // convention keeps radius_inner < r < radius_outer.
-    // On both spherical boundary components the radial harmonic field satisfies
-    // n x h = 0.
     R fun_levelSetSphericalShell(double *P, int i, int dom) {
         const R x = P[0] - shell_center[0];
         const R y = P[1] - shell_center[1];
@@ -90,38 +83,6 @@ namespace EigenCompareData {
              * (radius_outer * radius_outer - r2);
     }
 
-    R fun_0(double *P, int i, int dom) {
-        return 0.;
-    }
-
-    // Radial harmonic representative on the shell, in centred coordinates.
-    // It is smooth because r >= radius_inner > 0.
-    R fun_harmonic_two_form(double *P, int i, int dom) {
-        const R x = P[0] - shell_center[0];
-        const R y = P[1] - shell_center[1];
-        const R z = P[2] - shell_center[2];
-        const R r2 = x*x + y*y + z*z;
-        const R r  = std::sqrt(r2);
-        const R r3 = r2 * r;
-        if (i == 0) return x / r3;
-        if (i == 1) return y / r3;
-        return z / r3;
-    }
-
-    // Kept only for optional visualization/debugging.
-    R fun_exact_u(double *P, int i, int dom) {
-        const R z = P[2];
-        if (i == 0) return std::sin(pi*z);
-        return 0.;
-    }
-}
-
-typedef R (*LevelSetFunction)(double *, int, int);
-
-static LevelSetFunction level_set_function(ExampleKind ex) {
-    using namespace EigenCompareData;
-    if (ex == ExampleKind::Cube) return fun_levelSetCubeTop;
-    return fun_levelSetSphericalShell;
 }
 
 struct Config {
@@ -134,13 +95,9 @@ struct Config {
     bool do_kikuchi = true;
     bool do_3field = true;
 
-    // Default is deliberately all: one terminal command can generate the full
-    // comparison.  Use --example cube or --example spherical_shell to restrict it.
-    std::vector<ExampleKind> examples = {ExampleKind::Cube, ExampleKind::SphericalShell};
+    std::string prefix = "eigcmp_curlbc";
 
-    std::string prefix = "eigcmp";
-
-    // Symmetric Nitsche penalty for n x u = 0.
+    // Symmetric Nitsche penalty for the three-field essential traces.
     R penalty = 1e2;
 
     // Ghost penalties.  These are configurable because the three formulations
@@ -154,16 +111,9 @@ struct Config {
     R tau_b_3field = 1e0;
 
     // Small pressure mass in mixed generalized eigenproblems, scaled by h^{-3}.
+    // The present driver uses an exact zero-mean multiplier instead.
     R pressure_regularizer = 0; // 1e-12
-
-    // Use one global constraint (u,h)_Omega=0 on the spherical shell.  For
-    // three-field this acts on the magnetic-flux / H(div) variable u, not w.
-    bool filter_harmonic_in_shell = true;
 };
-
-static bool use_harmonic_filter(const Config &cfg, ExampleKind ex) {
-    return cfg.filter_harmonic_in_shell && ex == ExampleKind::SphericalShell;
-}
 
 static void print_usage(const char *exe) {
     std::cout
@@ -171,10 +121,8 @@ static void print_usage(const char *exe) {
         << "Options:\n"
         << "  --levels N              number of refinement levels, default 2\n"
         << "  --nx0 N                 initial nx=ny=nz, default 7\n"
-        << "  --prefix NAME           output prefix, default eigcmp\n"
+        << "  --prefix NAME           output prefix, default eigcmp_curlbc\n"
         << "  --method all|wave|kikuchi|3field\n"
-        << "  --example all|cube|spherical_shell\n"
-        << "  --no-harmonic-filter    do not constrain the shell harmonic field\n"
         << "  --inner-radius X        shell inner radius, default pi/5\n"
         << "  --outer-radius X        shell outer radius, default pi/3\n"
         << "  --penalty X             Nitsche penalty, default 1e2\n"
@@ -219,8 +167,6 @@ static void parse_args(int argc, char **argv, Config &cfg) {
         } else if (key == "--outer-radius" || key == "--hole-radius") {
             // --hole-radius is retained as a backward-compatible alias.
             EigenCompareData::radius_outer = std::stod(require_value(key));
-        } else if (key == "--no-harmonic-filter") {
-            cfg.filter_harmonic_in_shell = false;
         } else if (key == "--method") {
             std::string m = require_value(key);
             cfg.do_wave = cfg.do_kikuchi = cfg.do_3field = false;
@@ -236,22 +182,6 @@ static void parse_args(int argc, char **argv, Config &cfg) {
                 std::cerr << "Unknown method: " << m << std::endl;
                 std::exit(2);
             }
-        } else if (key == "--example") {
-            std::string ex = require_value(key);
-            cfg.examples.clear();
-            if (ex == "all") {
-                cfg.examples.push_back(ExampleKind::Cube);
-                cfg.examples.push_back(ExampleKind::SphericalShell);
-            } else if (ex == "cube") {
-                cfg.examples.push_back(ExampleKind::Cube);
-            } else if (ex == "spherical_shell" || ex == "shell" ||
-                       ex == "cube_hole" || ex == "hole") {
-                // cube_hole/hole are retained as backward-compatible aliases.
-                cfg.examples.push_back(ExampleKind::SphericalShell);
-            } else {
-                std::cerr << "Unknown example: " << ex << std::endl;
-                std::exit(2);
-            }
         } else {
             std::cerr << "Unknown option: " << key << std::endl;
             print_usage(argv[0]);
@@ -261,26 +191,23 @@ static void parse_args(int argc, char **argv, Config &cfg) {
 }
 
 static std::string mat_name(const Config &cfg, const std::string &AB,
-                            ExampleKind ex, const std::string &method, int level) {
-    return cfg.prefix + "_" + AB + "_" + example_name(ex) + "_" + method + "_" + std::to_string(level) + ".dat";
+                            const std::string &method, int level) {
+    return cfg.prefix + "_" + AB + "_spherical_shell_" + method + "_"
+         + std::to_string(level) + ".dat";
 }
 
-static std::string example_note(ExampleKind ex) {
-    if (ex == ExampleKind::Cube) {
-        return "Omega=[0,pi]^3 represented by plane cut z=pi";
-    }
+static std::string example_note() {
     return "spherical shell centered at (pi/2,pi/2,pi/2); configurable inner and outer radii";
 }
 
 static void write_manifest_row(std::ofstream &manifest,
-                               ExampleKind ex,
                                const std::string &method, int level,
                                int nx, int ny, int nz, R h,
                                const std::string &Afile, const std::string &Bfile,
                                int n0, int n1, int n2, int nlambda,
                                const Config &cfg,
                                const std::string &bc_note) {
-    manifest << example_name(ex) << ',' << method << ',' << level << ','
+    manifest << "spherical_shell" << ',' << method << ',' << level << ','
              << nx << ',' << ny << ',' << nz << ','
              << std::setprecision(17) << h << ','
              << Afile << ',' << Bfile << ','
@@ -289,56 +216,32 @@ static void write_manifest_row(std::ofstream &manifest,
              << cfg.tau_curl << ',' << cfg.tau_mass << ',' << cfg.tau_p << ','
              << cfg.pressure_regularizer << ','
              << EigenCompareData::radius_outer << ','
-             << (use_harmonic_filter(cfg, ex) ? 1 : 0) << ','
-             << '"' << example_note(ex) << '"' << ','
+             << 0 << ','
+             << '"' << example_note() << '"' << ','
              << '"' << bc_note << '"' << '\n';
 }
 
-// Add the stabilized shell-harmonic constraint using the exact discrete space
-// of the eigenfield being filtered.  The caller supplies a temporary CutFEM
-// object with the same block layout as A and B.
-static void add_shell_harmonic_constraint(CutFEM<Mesh3> &A,
-                                          CutFEM<Mesh3> &B,
-                                          CutFEM<Mesh3> &lagr,
-                                          CutFESpaceT3 &harmonic_space,
-                                          TestFunction<Mesh3> &trial,
-                                          TestFunction<Mesh3> &test,
-                                          ActiveMesh<Mesh3> &Khi,
-                                          R h,
-                                          R stabilization,
-                                          int base_dofs) {
-    using namespace EigenCompareData;
-    typedef FunFEM<Mesh3> Fun_h;
-
-    // This constructor interpolates the analytic harmonic representative into
-    // harmonic_space: Ned0 for wave/Kikuchi and RT0 for three-field.
-    Fun_h harmonic(harmonic_space, fun_harmonic_two_form);
-
-    lagr.addLinear(innerProduct(harmonic.exprList(), trial), Khi);
-    lagr.addFaceStabilizationRHS(
-        +innerProduct(jump(harmonic.exprList()),
-                      stabilization * h * jump(trial))
-    , Khi);
-    Rn lag_row(lagr.rhs_);
-
-    lagr.rhs_ = 0.;
-    lagr.addLinear(innerProduct(harmonic.exprList(), test), Khi);
-    lagr.addFaceStabilizationRHS(
-        +innerProduct(jump(harmonic.exprList()),
-                      stabilization * h * jump(test))
-    , Khi);
-
-    A.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
+// Add one scalar multiplier imposing integral_Omega p = 0.  This removes the
+// constant gauge in the mixed formulations when the normal trace of u is zero.
+static void add_zero_mean_scalar_constraint(CutFEM<Mesh3> &A,
+                                            CutFEM<Mesh3> &B,
+                                            TestFunction<Mesh3> &p,
+                                            TestFunction<Mesh3> &q,
+                                            ActiveMesh<Mesh3> &Khi,
+                                            int base_dofs) {
+    A.addLagrangeMultiplier(
+        +innerProduct(1, p), 0, Khi
+    );
     A.mat_[0][std::make_pair(base_dofs, base_dofs)] = 0.;
 
     // Append the same multiplier block to B, but leave its row and column zero.
     B.addLagrangeMultiplier(
-        +innerProduct(harmonic.exprList(), 0 * test), 0, Khi
+        +innerProduct(1, 0 * q), 0, Khi
     );
     B.mat_[0][std::make_pair(base_dofs, base_dofs)] = 0.;
 }
 
-static void assemble_wave(const Config &cfg, ExampleKind ex, int level, int nx, int ny, int nz,
+static void assemble_wave(const Config &cfg, int level, int nx, int ny, int nz,
                           std::ofstream &manifest) {
     using namespace EigenCompareData;
     typedef TestFunction<Mesh3> FunTest;
@@ -347,17 +250,15 @@ static void assemble_wave(const Config &cfg, ExampleKind ex, int level, int nx, 
     typedef FESpace3 Space;
     typedef CutFESpaceT3 CutSpace;
 
-    std::cout << "\n=== " << example_name(ex) << ": UNFITTED_WAVE_EIGEN, level " << level << " ===" << std::endl;
+    std::cout << "\n=== spherical_shell: UNFITTED_WAVE_EIGEN, level " << level << " ===" << std::endl;
 
-    const R zmax = (ex == ExampleKind::Cube) ? M_PI + 1e-12 : M_PI;
-    Mesh3 Kh(nx, ny, nz, 0., 0., 0., M_PI, M_PI, zmax);
+    Mesh3 Kh(nx, ny, nz, 0., 0., 0., M_PI, M_PI, M_PI);
     const R h = M_PI / R(nx - 1);
 
     Space Uh_background(Kh, DataFE<Mesh>::Ned0);
     Space Lh(Kh, DataFE<Mesh>::P1);
-    Fun_h levelSet(Lh, level_set_function(ex));
+    Fun_h levelSet(Lh, fun_levelSetSphericalShell);
     InterfaceLevelSet<Mesh> interface(Kh, levelSet);
-    Normal n;
 
     ActiveMesh<Mesh> Khi(Kh);
     Khi.truncate(interface, -1); // remove where levelset function is negative
@@ -376,25 +277,14 @@ static void assemble_wave(const Config &cfg, ExampleKind ex, int level, int nx, 
         +innerProduct(epsi * mui * curl(u), curl(v))
     , Khi);
 
-    // Symmetric H(curl)-Nitsche imposition of n x u = 0.
-    A.addBilinear(
-        -innerProduct(epsi * mui * curl(u), cross(n, v))
-        -innerProduct(epsi * mui * cross(n, u), curl(v))
-        +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
-    , interface);
-    if (ex == ExampleKind::Cube) {
-    A.addBilinear(
-        -innerProduct(epsi * mui * curl(u), cross(n, v))
-        -innerProduct(epsi * mui * cross(n, u), curl(v))
-        +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
-    , Khi, INTEGRAL_BOUNDARY);
-    }
+    // No boundary term is added: n x curl(u)=0 is the natural condition for
+    // the curl-curl form.  For every positive eigenvalue, testing with gradients
+    // gives (u,grad(q))=0, hence div(u)=0 and n.u=0 in the weak sense.
 
     A.addPatchStabilization(
         +innerProduct(cfg.tau_curl * jump(curl(u)), jump(curl(v)))
     , Khi);
 
-    // No boundary term is added on B. Nitsche works differently than fitted imposed BC.
     B.addBilinear(
         +innerProduct(u, v)
     , Khi);
@@ -402,27 +292,20 @@ static void assemble_wave(const Config &cfg, ExampleKind ex, int level, int nx, 
         +innerProduct(cfg.tau_mass * jump(u), jump(v))
     , Khi);
 
-    int nlambda = 0;
+    const int nlambda = 0;
     const int base_dofs = Uh.get_nb_dof();
-    if (use_harmonic_filter(cfg, ex)) {
-        CutFEM<Mesh> lagr(Uh);
-        add_shell_harmonic_constraint(
-            A, B, lagr, Uh, u, v, Khi, h, cfg.tau_mass, base_dofs
-        );
-        nlambda = 1;
-    }
 
-    const std::string Afile = mat_name(cfg, "A", ex, "wave", level);
-    const std::string Bfile = mat_name(cfg, "B", ex, "wave", level);
+    const std::string Afile = mat_name(cfg, "A", "wave", level);
+    const std::string Bfile = mat_name(cfg, "B", "wave", level);
     matlab::Export(A.mat_[0], Afile);
     matlab::Export(B.mat_[0], Bfile);
 
-    write_manifest_row(manifest, ex, "wave", level, nx, ny, nz, h, Afile, Bfile,
+    write_manifest_row(manifest, "wave", level, nx, ny, nz, h, Afile, Bfile,
                        base_dofs, 0, 0, nlambda, cfg,
-                       "symmetric Hcurl Nitsche for n_cross_u_equals_0");
+                       "natural n_cross_curl_u_equals_0; positive modes satisfy n_dot_u_equals_0 variationally");
 }
 
-static void assemble_kikuchi(const Config &cfg, ExampleKind ex, int level, int nx, int ny, int nz,
+static void assemble_kikuchi(const Config &cfg, int level, int nx, int ny, int nz,
                              std::ofstream &manifest) {
     using namespace EigenCompareData;
     typedef TestFunction<Mesh3> FunTest;
@@ -431,18 +314,16 @@ static void assemble_kikuchi(const Config &cfg, ExampleKind ex, int level, int n
     typedef FESpace3 Space;
     typedef CutFESpaceT3 CutSpace;
 
-    std::cout << "\n=== " << example_name(ex) << ": UNFITTED_KIKUCHI_EIGEN, level " << level << " ===" << std::endl;
+    std::cout << "\n=== spherical_shell: UNFITTED_KIKUCHI_EIGEN, level " << level << " ===" << std::endl;
 
-    const R zmax = (ex == ExampleKind::Cube) ? M_PI + 1e-12 : M_PI;
-    Mesh3 Kh(nx, ny, nz, 0., 0., 0., M_PI, M_PI, zmax);
+    Mesh3 Kh(nx, ny, nz, 0., 0., 0., M_PI, M_PI, M_PI);
     const R h = M_PI / R(nx - 1);
 
     Space Uh_background(Kh, DataFE<Mesh>::Ned0);
     Space Wh_background(Kh, DataFE<Mesh>::P1);
     Space Lh(Kh, DataFE<Mesh>::P1);
-    Fun_h levelSet(Lh, level_set_function(ex));
+    Fun_h levelSet(Lh, fun_levelSetSphericalShell);
     InterfaceLevelSet<Mesh> interface(Kh, levelSet);
-    Normal n;
 
     ActiveMesh<Mesh> Khi(Kh);
     Khi.truncate(interface, -1);
@@ -467,25 +348,15 @@ static void assemble_kikuchi(const Config &cfg, ExampleKind ex, int level, int n
         +innerProduct(0 * p, q)
     , Khi);
 
-    A.addBilinear(
-        -innerProduct(epsi * mui * curl(u), cross(n, v))
-        -innerProduct(epsi * mui * cross(n, u), curl(v))
-        +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
-        +innerProduct(p, cfg.penalty / h * q)
-    , interface);
-    if (ex == ExampleKind::Cube) {
-    A.addBilinear(
-        -innerProduct(epsi * mui * curl(u), cross(n, v))
-        -innerProduct(epsi * mui * cross(n, u), curl(v))
-        +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
-        +innerProduct(p, cfg.penalty / h * q)
-    , Khi, INTEGRAL_BOUNDARY);
-    }
+    // No boundary form is needed.  The curl-curl term gives the natural
+    // condition n x curl(u)=0, and (u,grad(q))=0 for all q in H1 gives both
+    // div(u)=0 and n.u=0.  The scalar p therefore belongs to H1/R.
 
     A.addPatchStabilization(
         +innerProduct(cfg.tau_curl * jump(curl(u)), jump(curl(v)))
         +innerProduct(cfg.tau_p * jump(grad(p)), jump(v))
         +innerProduct(cfg.tau_p * jump(u), jump(grad(q)))
+        // +innerProduct(cfg.tau_p * jump(p), jump(q))
     , Khi);
 
     // const R regularizer = cfg.pressure_regularizer / (h * h * h);
@@ -498,29 +369,23 @@ static void assemble_kikuchi(const Config &cfg, ExampleKind ex, int level, int n
         +innerProduct(cfg.tau_mass * jump(u), jump(v))
     , Khi);
 
-    int nlambda = 0;
     const int n_u = Uh.get_nb_dof();
     const int n_p = Wh.get_nb_dof();
     const int base_dofs = n_u + n_p;
-    if (use_harmonic_filter(cfg, ex)) {
-        CutFEM<Mesh> lagr(Uh); lagr.add(Wh);
-        add_shell_harmonic_constraint(
-            A, B, lagr, Uh, u, v, Khi, h, cfg.tau_mass, base_dofs
-        );
-        nlambda = 1;
-    }
+    add_zero_mean_scalar_constraint(A, B, p, q, Khi, base_dofs);
+    const int nlambda = 1;
 
-    const std::string Afile = mat_name(cfg, "A", ex, "kikuchi", level);
-    const std::string Bfile = mat_name(cfg, "B", ex, "kikuchi", level);
+    const std::string Afile = mat_name(cfg, "A", "kikuchi", level);
+    const std::string Bfile = mat_name(cfg, "B", "kikuchi", level);
     matlab::Export(A.mat_[0], Afile);
     matlab::Export(B.mat_[0], Bfile);
 
-    write_manifest_row(manifest, ex, "kikuchi", level, nx, ny, nz, h, Afile, Bfile,
+    write_manifest_row(manifest, "kikuchi", level, nx, ny, nz, h, Afile, Bfile,
                        n_u, n_p, 0, nlambda, cfg,
-                       "symmetric Hcurl Nitsche for n_cross_u_equals_0 plus scalar p boundary penalty");
+                       "natural n_cross_curl_u_equals_0 and n_dot_u_equals_0; zero_mean_p gauge");
 }
 
-static void assemble_3field(const Config &cfg, ExampleKind ex, int level, int nx, int ny, int nz,
+static void assemble_3field(const Config &cfg, int level, int nx, int ny, int nz,
                             std::ofstream &manifest) {
     using namespace EigenCompareData;
     typedef TestFunction<Mesh3> FunTest;
@@ -529,18 +394,18 @@ static void assemble_3field(const Config &cfg, ExampleKind ex, int level, int nx
     typedef FESpace3 Space;
     typedef CutFESpaceT3 CutSpace;
 
-    std::cout << "\n=== " << example_name(ex) << ": UNFITTED_3FIELD_EIGEN, level " << level << " ===" << std::endl;
+    std::cout << "\n=== spherical_shell: UNFITTED_3FIELD_EIGEN, level " << level << " ===" << std::endl;
 
-    const R zmax = (ex == ExampleKind::Cube) ? M_PI + 1e-12 : M_PI;
-    Mesh3 Kh(nx, ny, nz, 0., 0., 0., M_PI, M_PI, zmax);
+    Mesh3 Kh(nx, ny, nz, 0., 0., 0., M_PI, M_PI, M_PI);
     const R h = M_PI / R(nx - 1);
 
     Space Whcurl_background(Kh, DataFE<Mesh>::Ned0); // w variable
     Space Uhdiv_background(Kh, DataFE<Mesh>::RT0);   // u variable, magnetic flux density in the appendix text
     Space Qh_background(Kh, DataFE<Mesh>::P0);       // p variable
     Space Lh(Kh, DataFE<Mesh>::P1);
-    Fun_h levelSet(Lh, level_set_function(ex));
+    Fun_h levelSet(Lh, fun_levelSetSphericalShell);
     InterfaceLevelSet<Mesh> interface(Kh, levelSet);
+    Normal n;
 
     ActiveMesh<Mesh> Khi(Kh);
     Khi.truncate(interface, -1);
@@ -559,11 +424,13 @@ static void assemble_3field(const Config &cfg, ExampleKind ex, int level, int nx
 
     // First-order system:
     //   eps*mu*w = curl u,
-    //   curl w + grad p = lambda u,
+    //   curl w - grad p = lambda u,
     //   div u = 0.
-    // In the first equation the boundary term is (n x u) dot tau.  Dropping it
-    // is the natural mixed weak imposition of n x u = 0. The other boundary condition is p=0
-    // which appears on integrating by parts the second equation.
+    //
+    // The absolute Maxwell boundary pair becomes
+    //   n x w = 0,   n.u = 0.
+    // Both traces are essential for the H(curl)-H(div)-L2 complex and are
+    // imposed below by a symmetric unfitted Nitsche form.
     A.addBilinear(
         -innerProduct(eps * mu * w, tau)
         +innerProduct(u, curl(tau))
@@ -579,6 +446,18 @@ static void assemble_3field(const Config &cfg, ExampleKind ex, int level, int nx
         +innerProduct(u, 0 * v)
         +innerProduct(p, 0 * q)
     , Khi);
+
+    // Symmetric Nitsche imposition of n x w=0 and n.u=0.  The consistency
+    // terms are the boundary traces paired with the two mixed equations; the
+    // final terms penalize the essential H(curl) and H(div) traces.
+    A.addBilinear(
+        -innerProduct(u, cross(n, tau))
+        -innerProduct(cross(n, w), v)
+        +innerProduct(cross(n, w), cfg.penalty / h * cross(n, tau))
+        -innerProduct(p, v * n)
+        -innerProduct(u * n, q)
+        +innerProduct(u * n, cfg.penalty / h * v * n)
+    , interface);
 
     A.addPatchStabilization(
         -innerProduct(cfg.tau_w_3field * jump(w), jump(tau))
@@ -599,28 +478,21 @@ static void assemble_3field(const Config &cfg, ExampleKind ex, int level, int nx
         +innerProduct(cfg.tau_mass * jump(u), jump(v))
     , Khi);
 
-    int nlambda = 0;
     const int n_w = Whcurl.get_nb_dof();
     const int n_u = Uhdiv.get_nb_dof();
     const int n_p = Qh.get_nb_dof();
     const int base_dofs = n_w + n_u + n_p;
-    if (use_harmonic_filter(cfg, ex)) {
-        CutFEM<Mesh> lagr(Whcurl); lagr.add(Uhdiv); lagr.add(Qh);
-        add_shell_harmonic_constraint(
-            A, B, lagr, Uhdiv, u, v, Khi, h,
-            cfg.tau_m_3field, base_dofs
-        );
-        nlambda = 1;
-    }
+    add_zero_mean_scalar_constraint(A, B, p, q, Khi, base_dofs);
+    const int nlambda = 1;
 
-    const std::string Afile = mat_name(cfg, "A", ex, "3field", level);
-    const std::string Bfile = mat_name(cfg, "B", ex, "3field", level);
+    const std::string Afile = mat_name(cfg, "A", "3field", level);
+    const std::string Bfile = mat_name(cfg, "B", "3field", level);
     matlab::Export(A.mat_[0], Afile);
     matlab::Export(B.mat_[0], Bfile);
 
-    write_manifest_row(manifest, ex, "3field", level, nx, ny, nz, h, Afile, Bfile,
+    write_manifest_row(manifest, "3field", level, nx, ny, nz, h, Afile, Bfile,
                        n_w, n_u, n_p, nlambda, cfg,
-                       "natural mixed weak imposition of n_cross_u_equals_0; optional harmonic constraint on u");
+                       "symmetric Nitsche for n_cross_w_equals_0 and n_dot_u_equals_0; zero_mean_p gauge");
 }
 
 int main(int argc, char **argv) {
@@ -636,24 +508,21 @@ int main(int argc, char **argv) {
         std::cerr << "Could not open manifest for writing: " << manifest_name << std::endl;
         return 1;
     }
-    // Keep the historical hole_radius column name so the existing SLEPc
-    // reader remains compatible; for spherical_shell it stores radius_outer.
+    // Keep the historical hole_radius and harmonic_filter columns so the
+    // existing SLEPc reader remains compatible.  Here harmonic_filter is zero.
     manifest << "example,method,level,nx,ny,nz,h,Afile,Bfile,n0,n1,n2,nlambda,penalty,tau_curl,tau_mass,tau_p,pressure_regularizer,hole_radius,harmonic_filter,example_note,bc_note\n";
 
-    for (ExampleKind ex : cfg.examples) {
-        int nx = cfg.nx0, ny = cfg.ny0, nz = cfg.nz0;
-        nx = (ex == ExampleKind::Cube) ? nx : 2*nx - 1;
-        ny = (ex == ExampleKind::Cube) ? ny : 2*ny - 1;
-        nz = (ex == ExampleKind::Cube) ? nz : 2*nz - 1;
-        for (int level = 0; level < cfg.levels; ++level) {
-            if (cfg.do_wave)    assemble_wave(cfg, ex, level, nx, ny, nz, manifest);
-            if (cfg.do_kikuchi) assemble_kikuchi(cfg, ex, level, nx, ny, nz, manifest);
-            if (cfg.do_3field)  assemble_3field(cfg, ex, level, nx, ny, nz, manifest);
+    int nx = 2 * cfg.nx0 - 1;
+    int ny = 2 * cfg.ny0 - 1;
+    int nz = 2 * cfg.nz0 - 1;
+    for (int level = 0; level < cfg.levels; ++level) {
+        if (cfg.do_wave)    assemble_wave(cfg, level, nx, ny, nz, manifest);
+        if (cfg.do_kikuchi) assemble_kikuchi(cfg, level, nx, ny, nz, manifest);
+        if (cfg.do_3field)  assemble_3field(cfg, level, nx, ny, nz, manifest);
 
-            nx = 2 * nx - 1;
-            ny = 2 * ny - 1;
-            nz = 2 * nz - 1;
-        }
+        nx = 2 * nx - 1;
+        ny = 2 * ny - 1;
+        nz = 2 * nz - 1;
     }
 
     std::cout << "\nWrote manifest: " << manifest_name << std::endl;
