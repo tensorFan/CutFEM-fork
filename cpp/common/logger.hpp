@@ -2,6 +2,9 @@
 #ifndef CUTFEM_COMMON_LOGGER_HPP
 #define CUTFEM_COMMON_LOGGER_HPP
 
+#include <chrono>
+#include <ctime>
+
 enum class Severity {
     Trace,
     Debug,

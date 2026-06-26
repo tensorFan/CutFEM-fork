@@ -7,6 +7,7 @@
 #include <list>
 #include <vector>
 #include <type_traits>
+#include <stdexcept>
 
 // ============================================================================
 // Forward Declarations
@@ -139,9 +140,20 @@ public:
     virtual R evalOnBackMesh(const int k, int dom, const R *x, const R *normal = nullptr) const = 0;
     virtual R evalOnBackMesh(const int k, int dom, const R *x, const R t, const R *normal = nullptr) const = 0;
     virtual int idxElementFromBackMesh(int kb, int dd = 0) const = 0;
-    virtual std::vector<int> getAllDomainId(int k) const { assert(0); };
-
-    virtual int size() const { assert(0); };
+    
+    // virtual std::vector<int> getAllDomainId(int k) const { assert(0); };
+    // virtual int size() const { assert(0); };
+    virtual std::vector<int> getAllDomainId(int k) const {
+        (void)k;
+        throw std::logic_error(
+            "ExpressionVirtual::getAllDomainId is not implemented"
+        );
+    }
+    virtual int size() const {
+        throw std::logic_error(
+            "ExpressionVirtual::size is not implemented"
+        );
+    }
 
     R GevalOnBackMesh(const int k, int dom, const R *x, const R *normal) const {
         int theDomain = (domain == -1) ? dom : domain;

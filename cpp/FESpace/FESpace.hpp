@@ -581,8 +581,11 @@ DataFENodeDF GFESpace<Mesh>::BuildDFNumbering(const Mesh &TTh, int dfon[4], int 
     int nbb             = 0;
 
     const int nk[] = {Element::nv, Element::ne, Element::nf, Element::nt};
-    int nbNodeInK  = nk[0] * nndon[0] + nk[1] * nndon[1] + nk[2] * nndon[2] + nk[3] * nndon[3];
-    int keysdim[nbNodeInK];
+    // int nbNodeInK  = nk[0] * nndon[0] + nk[1] * nndon[1] + nk[2] * nndon[2] + nk[3] * nndon[3];
+    // int keysdim[nbNodeInK];
+    const int nbNodeInK = nk[0] * nndon[0] + nk[1] * nndon[1] + nk[2] * nndon[2] + nk[3] * nndon[3];
+    std::vector<int> keysdim(  static_cast<std::size_t>(nbNodeInK) );
+    
     int mindf   = 1000;
     int maxdf   = 0;
     int nbnzero = 0;

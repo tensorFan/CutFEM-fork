@@ -11,6 +11,7 @@
 #include <bitset>
 #include <vector>
 #include <algorithm>
+#include <type_traits>
 #include "real.hpp"
 #include "gaussquad.hpp"
 #include "interval.hpp"
@@ -557,7 +558,12 @@ namespace algoim
         }
 
         // Evaluate an integral applied to a given functional
-        template<typename F, typename R = typename std::result_of<F(const uvector<real,N>&)>::type>
+        // template<typename F, typename R = typename std::result_of<F(const uvector<real,N>&)>::type>
+        template <
+            typename F,
+            typename R =
+                std::invoke_result_t<const F &, const uvector<real, N> &>
+        >
         R operator()(const F& f) const
         {
             R sum = 0;

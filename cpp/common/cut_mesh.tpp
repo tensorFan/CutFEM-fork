@@ -1356,7 +1356,8 @@ Physical_Partition<typename ActiveMesh<Mesh>::Element> ActiveMesh<Mesh>::build_l
 
     typedef typename ActiveMesh<Mesh>::Element Element;
 
-    int nvc = Element::Rd::d + 1;
+    // int nvc = Element::Rd::d + 1;
+    constexpr int nvc = Element::Rd::d + 1;
     typedef SortArray<Ubyte, Element::Rd::d + 1> ElementIdx;
     // GET THE Mesh::Element TO BE CUT
     const Element &K((*this)[k]);

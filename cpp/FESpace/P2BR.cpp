@@ -258,19 +258,30 @@ void TypeOfFE_P2BRLagrange::FB(const What_d whatd, const Element &K,
                      E[2].perp() * (0.5 * sgE[2])};
       double a[6] = {eN[1].x, eN[1].y, eN[2].x, eN[2].y, eN[0].x, eN[0].y};
       double b[6] = {eN[2].x, eN[2].y, eN[0].x, eN[0].y, eN[1].x, eN[1].y};
-      int nop     = 0;
+      // int nop     = 0;
 
-      int vop[max_op]; // = {};
+      // int vop[max_op]; // = {};
 
-      for (int j = 0; j < max_op; j++) {
-         vop[nop++] = j;
-      }
+      // for (int j = 0; j < max_op; j++) {
+      //    vop[nop++] = j;
+      // }
 
+      // for (int i = 0; i < 6; ++i) {
+      //    for (int jj = 0; jj < nop; ++jj) {
+      //       int j = vop[jj];
+      //       val(i, 0, j) -= a[i] * val(k[i], 0, j) + b[i] * val(l[i], 0, j);
+      //       val(i, 1, j) -= a[i] * val(k[i], 1, j) + b[i] * val(l[i], 1, j);
+      //    }
+      // }
       for (int i = 0; i < 6; ++i) {
-         for (int jj = 0; jj < nop; ++jj) {
-            int j = vop[jj];
-            val(i, 0, j) -= a[i] * val(k[i], 0, j) + b[i] * val(l[i], 0, j);
-            val(i, 1, j) -= a[i] * val(k[i], 1, j) + b[i] * val(l[i], 1, j);
+         for (int j = 0; j < max_op; ++j) {
+            val(i, 0, j) -=
+                  a[i] * val(k[i], 0, j) +
+                  b[i] * val(l[i], 0, j);
+
+            val(i, 1, j) -=
+                  a[i] * val(k[i], 1, j) +
+                  b[i] * val(l[i], 1, j);
          }
       }
    }

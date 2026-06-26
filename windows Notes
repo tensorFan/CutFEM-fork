@@ -1,0 +1,28 @@
+# To activate this environment, use
+#
+#     $ conda activate math-env
+#
+# To deactivate an active environment, use
+#
+#     $ conda deactivate
+
+# In /build:
+cmake .. `
+    -G "Visual Studio 17 2022" `
+    -A x64 `
+    -T "fortran=ifx" `
+    -DUSE_MPI=ON `
+    -DUSE_MUMPS=ON `
+    -DUSE_UMFPACK=OFF `
+    -DCUTFEM_MUMPS_USE_SCALAPACK=OFF `
+    -DLAPACK_VENDOR=MKL
+
+cmake --build . `
+    --config Release `
+    --target maxwell3D_eigen_compare `
+    --parallel 4
+
+.\bin\Release\maxwell3D_eigen_compare.exe
+
+# or for MPI run with 4 processors
+mpiexec -n 4 .\bin\Release\maxwell3D_eigen_compare.exe

@@ -107,10 +107,12 @@ template <typename T> class SignPattern {
     SignPattern(const double ls[nve]) : sign_element(ls) {
         assign(ls);
     }                                  ///< Assign a sign pattern on the vertices; throws if ls is identically 0.
-    void assign(const byte ls[nve]);   ///< Assign a sign pattern on the vertices;
+    // void assign(const byte ls[nve]);   ///< Assign a sign pattern on the vertices;
                                        ///< throws if ls is identically 0.
-    void assign(const double ls[nve]); ///< Assign a sign pattern on the vertices;
+    // void assign(const double ls[nve]); ///< Assign a sign pattern on the vertices;
                                        ///< throws if ls is identically 0.
+    void assign(const byte *ls);
+    void assign(const double *ls);
 
     byte sign(int i) const { return sign_[i]; } ///< -1,0,1; sign of vertex i.
 
@@ -135,7 +137,7 @@ template <typename T> class SignPattern {
     ///@}
 };
 
-template <typename T> void SignPattern<T>::assign(const byte ls[Element::nv]) {
+template <typename T> void SignPattern<T>::assign(const byte *ls) { // void SignPattern<T>::assign(const byte ls[Element::nv]) {
     num_root_vert_ = num_root_ = 0;
 
     byte sum = 0;
@@ -146,7 +148,7 @@ template <typename T> void SignPattern<T>::assign(const byte ls[Element::nv]) {
     compute_cuts();
 }
 
-template <typename T> void SignPattern<T>::assign(const double ls[Element::nv]) {
+template <typename T> void SignPattern<T>::assign(const double *ls) { // void SignPattern<T>::assign(const double ls[Element::nv]) {
     num_root_vert_ = num_root_ = 0;
 
     byte sum = 0;

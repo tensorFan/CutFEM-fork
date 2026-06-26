@@ -1,6 +1,7 @@
 /build/
 build/
-CmakeLists.txt
-cpp/CmakeLists.txt
-cpp/solver/CMakeLists.txt
-cpp/parallel/CMakeLists.txt
+# CMakeLists can be removed from local tracking by the command:
+# git update-index --skip-worktree CMakeLists.txt `
+#     cpp/CMakeLists.txt `
+#     cpp/solver/CMakeLists.txt `
+#     cpp/parallel/CMakeLists.txt

@@ -34,6 +34,7 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
 
 #ifndef COMMON_GENERIC_ELEMENT_HPP
 #define COMMON_GENERIC_ELEMENT_HPP
+#include <array>
 #include <cassert>
 #include <vector>
 #include "global.hpp"

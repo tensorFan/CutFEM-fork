@@ -35,6 +35,7 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
  */
 
 #include "cut_method.hpp"
+#include <cstdlib>
 
 template <> int SignElement<Hexa>::nb_node_positif() const {
    int s = util::fsign(sum_);
@@ -242,6 +243,10 @@ template <> RefPartition<Triangle3>::InitializerCL::InitializerCL() {
    //     }
    //   }
    // }
+}
+template <>
+RefPartition<Quad3>::InitializerCL::InitializerCL() {
+    // Embedded quadrilateral partition initialization is currently unused.
 }
 template <> RefPartition<Quad2>::InitializerCL::InitializerCL() {
    // std::cout << " initialize instances Quad" << std::endl;
@@ -749,9 +754,18 @@ template <> bool RefPartition<Hexa>::assign(const SignPattern<Hexa> &cut) {
    return is_uncut();
 }
 
+// template <>
+// Ubyte RefPartition<Hexa>::first_uncut_edge(const SignPattern<Hexa> &cut) const {
+//    assert(0);
+// }
 template <>
-Ubyte RefPartition<Hexa>::first_uncut_edge(const SignPattern<Hexa> &cut) const {
-   assert(0);
+Ubyte RefPartition<Hexa>::first_uncut_edge(
+    const SignPattern<Hexa> &cut
+) const {
+    (void)cut;
+    assert(false &&
+           "RefPartition<Hexa>::first_uncut_edge is not implemented");
+    std::abort();
 }
 template <>
 void Partition<Edge2>::get_list_node(std::vector<R2> &node, int s) const {
