@@ -182,6 +182,9 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
     // using namespace Data_Sphere;
     using namespace Data_Torus;
     int main(int argc, char **argv) {
+        std::fprintf(stderr, "Entered main, argc = %d\n", argc);
+        std::fflush(stderr);
+
         typedef Mesh3 Mesh;
         typedef TestFunction<Mesh3> FunTest;
         typedef FunFEM<Mesh3> Fun_h;
@@ -195,7 +198,7 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
         int nx = 14;
 
         std::vector<double> uPrint, wPrint, curluPrint, gradwPrint, meanwPrint, h, convuPr, convwPr;
-        int iters = 3;
+        int iters = 4;
 
         for (int i = 0; i < iters; ++i) {
             double ox = -1.0+1e-15; // offset to avoid singularity
