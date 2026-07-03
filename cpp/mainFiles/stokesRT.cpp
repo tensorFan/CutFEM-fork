@@ -28,6 +28,10 @@
 // #define PROBLEM_2026_KIKUCHI_3D_PRESROB_FITTED // Section 5.2 pressure-robustness test
 #define PROBLEM_2026_KIKUCHI_3D_PRESROB_UNFITTED // pressure-robustness test, unfitted version
 
+// Data set for the cut-sphere Kikuchi test below.  Comment this line to recover
+// the original pure-gradient test with u_exact = 0.
+#define KIKUCHI_SPHERE_USE_NONZERO_SWIRL
+
 
 // 3D
 #ifdef PROBLEM_UNFITTED_STOKES3D
@@ -1398,7 +1402,7 @@
       // std::cout << "Exporting..." << std::endl;
       // matlab::Export(stokes3D.mat_[0], "mat3D_abc_" + std::to_string(i) + "Cut.dat");
       std::cout << "Solving..." << std::endl;
-      stokes3D.solve("mumps");
+      stokes3D.solve("umfpack");
 
       const int nb_vort_dof = Uh.get_nb_dof();
       const int nb_vel_dof  = Vh.get_nb_dof();
@@ -1822,16 +1826,17 @@
 // -----------------------------------------------------------------------------
 // 2026 Kikuchi-style H(curl)-H1 Stokes test on a cut filled sphere.
 //
-// Purpose: pressure robustness in the genuinely cut case.  We use a pure
-// gradient forcing
-//      u_exact = 0,
-//      p_exact = lambda * (|x|^2 - 3 R^2 / 5),
-//      f       = grad p_exact = 2 lambda x.
-// The exact pressure has zero mean on the exact filled ball of radius R, and the
-// exact velocity satisfies the natural Kikuchi boundary conditions
+// Purpose: pressure robustness in the genuinely cut case.  Two manufactured
+// data namespaces are provided below:
+//   (1) the original pure-gradient test with u_exact = 0;
+//   (2) a nonzero divergence-free swirl, independent of lambda, with
+//           f = curl(curl u_exact) + grad p_exact.
+// In both cases
+//      p_exact = lambda * (|x|^2 - 3 R^2 / 5)
+// has zero mean on the exact filled ball.  Both exact velocities satisfy
 //      u . n = 0,       curl(u) x n = 0
-// on the sphere.  Hence any velocity growth with lambda is a direct sign that
-// the pressure gradient is leaking into the velocity solve.
+// on the sphere.  Thus velocity errors should be essentially independent of
+// lambda for a pressure-robust discretisation.
 //
 // IMPORTANT: f is interpolated into the H(curl) velocity space before addLinear.
 // This is the key pressure-robust ingredient; do not replace fh by a vector
@@ -1839,23 +1844,34 @@
 // -----------------------------------------------------------------------------
 #ifdef PROBLEM_2026_KIKUCHI_3D_PRESROB_UNFITTED
 
-  namespace Erik_Data_KIKUCHI_3D_PRESROB_SPHERE {
+  // ---------------------------------------------------------------------------
+  // Original data set: a pure pressure gradient with u_exact = 0.
+  // ---------------------------------------------------------------------------
+  namespace Erik_Data_KIKUCHI_3D_PRESROB_SPHERE_ZERO {
 
-    const R radius = 2.0/3.0;
+    const R radius  = 2.0/3.0;
     const R radius2 = radius*radius;
+    const R eps_ls  = 1e-14;
 
     // Default value; override with argv[1], e.g. ./bin/stokesRT 1e7
     R pressureLambda = 1e5;
 
-    // R fun_levelSet(const R3 P, const int i) {
-    //   return std::sqrt(P.x*P.x + P.y*P.y + P.z*P.z) - radius;
-    // }
-    const R eps_ls = 1e-14;
+    const char* dataName = "pure-gradient data (u_exact = 0)";
+    const char* dataStem = "kikuchi_sphere_zero";
+
     R fun_levelSet(const R3 P, const int i) {
-      return P.x*P.x + P.y*P.y + P.z*P.z - radius*radius + eps_ls;
+      return P.x*P.x + P.y*P.y + P.z*P.z - radius2 + eps_ls;
     }
 
     R fun_exact_u(const R3 P, const int i, const int dom) {
+      return 0.0;
+    }
+
+    R fun_exact_curl_u(const R3 P, const int i, const int dom) {
+      return 0.0;
+    }
+
+    R fun_curlcurl_u(const R3 P, const int i, const int dom) {
       return 0.0;
     }
 
@@ -1872,7 +1888,17 @@
     }
 
     R fun_rhs(const R3 P, const int i, const int dom) {
-      return fun_grad_p(P, i, dom);
+      return fun_curlcurl_u(P, i, dom) + fun_grad_p(P, i, dom);
+    }
+
+    R fun_exact_curl_u_0(const R3 P, const int i, const int dom) {
+      return fun_exact_curl_u(P, 0, dom);
+    }
+    R fun_exact_curl_u_1(const R3 P, const int i, const int dom) {
+      return fun_exact_curl_u(P, 1, dom);
+    }
+    R fun_exact_curl_u_2(const R3 P, const int i, const int dom) {
+      return fun_exact_curl_u(P, 2, dom);
     }
 
     R fun_grad_p_0(const R3 P, const int i, const int dom) {
@@ -1886,7 +1912,111 @@
     }
 
   }
-  using namespace Erik_Data_KIKUCHI_3D_PRESROB_SPHERE;
+
+  // ---------------------------------------------------------------------------
+  // Nonzero-velocity pressure-robustness data.
+  //
+  // Let s = R^2 - |x|^2 and choose the vector potential
+  //     A = (0,0,s^3).
+  // Then
+  //     u = curl A = (-6 y s^2, 6 x s^2, 0)
+  // is a smooth divergence-free swirl.  Moreover u = 0 and curl u = 0 on
+  // |x| = R, so it satisfies the same natural sphere boundary conditions as
+  // the zero-velocity test.  The pressure is kept at size lambda, while the
+  // exact velocity is independent of lambda.  Thus velocity convergence curves
+  // for different lambda should lie on top of each other for a robust method.
+  // ---------------------------------------------------------------------------
+  namespace Erik_Data_KIKUCHI_3D_PRESROB_SPHERE_SWIRL {
+
+    const R radius  = 2.0/3.0;
+    const R radius2 = radius*radius;
+    const R eps_ls  = 1e-14;
+    const R velocityAmplitude = 1.0;
+
+    // Default value; override with argv[1], e.g. ./bin/stokesRT 1e7
+    R pressureLambda = 1e5;
+
+    const char* dataName = "nonzero divergence-free swirl";
+    const char* dataStem = "kikuchi_sphere_swirl";
+
+    R fun_levelSet(const R3 P, const int i) {
+      return P.x*P.x + P.y*P.y + P.z*P.z - radius2 + eps_ls;
+    }
+
+    R fun_exact_u(const R3 P, const int i, const int dom) {
+      const R r2 = P.x*P.x + P.y*P.y + P.z*P.z;
+      const R s  = radius2 - r2;
+
+      if (i == 0) return -6.0*velocityAmplitude*P.y*s*s;
+      if (i == 1) return  6.0*velocityAmplitude*P.x*s*s;
+      return 0.0;
+    }
+
+    R fun_exact_curl_u(const R3 P, const int i, const int dom) {
+      const R x = P.x;
+      const R y = P.y;
+      const R z = P.z;
+      const R s = radius2 - x*x - y*y - z*z;
+
+      if (i == 0) return 24.0*velocityAmplitude*x*z*s;
+      if (i == 1) return 24.0*velocityAmplitude*y*z*s;
+      return 12.0*velocityAmplitude*s*(radius2 - 3.0*x*x - 3.0*y*y - z*z);
+    }
+
+    // Since div u = 0, curl(curl u) = -Delta u.  For the swirl above,
+    // curl(curl u) is the following cubic polynomial.
+    R fun_curlcurl_u(const R3 P, const int i, const int dom) {
+      const R r2 = P.x*P.x + P.y*P.y + P.z*P.z;
+      const R radialFactor = 7.0*r2 - 5.0*radius2;
+
+      if (i == 0) return  24.0*velocityAmplitude*P.y*radialFactor;
+      if (i == 1) return -24.0*velocityAmplitude*P.x*radialFactor;
+      return 0.0;
+    }
+
+    R fun_exact_p(const R3 P, const int i, const int dom) {
+      const R r2 = P.x*P.x + P.y*P.y + P.z*P.z;
+      // Average of r^2 over B_R in 3D is 3 R^2 / 5.
+      return pressureLambda * (r2 - 3.0*radius2/5.0);
+    }
+
+    R fun_grad_p(const R3 P, const int i, const int dom) {
+      if (i == 0) return 2.0*pressureLambda*P.x;
+      if (i == 1) return 2.0*pressureLambda*P.y;
+      return 2.0*pressureLambda*P.z;
+    }
+
+    R fun_rhs(const R3 P, const int i, const int dom) {
+      return fun_curlcurl_u(P, i, dom) + fun_grad_p(P, i, dom);
+    }
+
+    R fun_exact_curl_u_0(const R3 P, const int i, const int dom) {
+      return fun_exact_curl_u(P, 0, dom);
+    }
+    R fun_exact_curl_u_1(const R3 P, const int i, const int dom) {
+      return fun_exact_curl_u(P, 1, dom);
+    }
+    R fun_exact_curl_u_2(const R3 P, const int i, const int dom) {
+      return fun_exact_curl_u(P, 2, dom);
+    }
+
+    R fun_grad_p_0(const R3 P, const int i, const int dom) {
+      return fun_grad_p(P, 0, dom);
+    }
+    R fun_grad_p_1(const R3 P, const int i, const int dom) {
+      return fun_grad_p(P, 1, dom);
+    }
+    R fun_grad_p_2(const R3 P, const int i, const int dom) {
+      return fun_grad_p(P, 2, dom);
+    }
+
+  }
+
+#ifdef KIKUCHI_SPHERE_USE_NONZERO_SWIRL
+  using namespace Erik_Data_KIKUCHI_3D_PRESROB_SPHERE_SWIRL;
+#else
+  using namespace Erik_Data_KIKUCHI_3D_PRESROB_SPHERE_ZERO;
+#endif
 
   int main(int argc, char** argv) {
     typedef TestFunction<Mesh3> FunTest;
@@ -1914,6 +2044,7 @@
     for (int i = 0; i < iters; ++i) {
       std::cout << "\n ------------------------------------- " << std::endl;
       std::cout << " --- 3D Kikuchi cut filled-sphere pressure-robustness test --- " << std::endl;
+      std::cout << " data   = " << dataName << std::endl;
       std::cout << " lambda = " << pressureLambda << std::endl;
 
       Mesh Kh(nx, ny, nz, -1.0, -1.0, -1.0, 2.0, 2.0, 2.0);
@@ -1938,6 +2069,7 @@
 
       // Pressure-robust load handling: H(curl) interpolation before addLinear.
       Fun_h fh(Uh, fun_rhs);
+      Fun_h gradph(Uh, fun_grad_p);   // grad(p) RHS only
 
       CutFEM<Mesh> stokes(Uh);
       stokes.add(Ph);
@@ -1973,67 +2105,13 @@
         , macro
       );
 
-      // DEBUG block 1
-      // {
-      // auto print_vec_stats = [](const Rn &x, const std::string &name) {
-      //     R linf = 0.;
-      //     R l2   = 0.;
-      //     R l1   = 0.;
-      //     int imax = -1;
-
-      //     for (int i = 0; i < x.size(); ++i) {
-      //         R a = std::abs(x(i));
-      //         l1 += a;
-      //         l2 += x(i) * x(i);
-      //         if (a > linf) {
-      //             linf = a;
-      //             imax = i;
-      //         }
-      //     }
-
-      //     std::cout << name
-      //               << " size=" << x.size()
-      //               << " l1=" << l1
-      //               << " l2=" << std::sqrt(l2)
-      //               << " linf=" << linf
-      //               << " imax=" << imax
-      //               << std::endl;
-      // };
-      // Rn rhs_before_ghost(stokes.rhs_);
-      // }
-
       // RHS ghost product contribution: s_h(f_h, v_h)
       stokes.addFaceStabilizationRHS(
-        // + innerProduct(jump(fh, 1., -1.), etaGhost * pow(hi,1) *jump(v))
-        + innerProduct(jump(fh.exprList()), etaGhost * pow(hi,1) *jump(v))
+        + innerProduct(jump(fh.exprList()), etaGhost * pow(hi,1) *jump(v)) // + innerProduct(jump(fh, 1., -1.), etaGhost * pow(hi,1) *jump(v))
+        // + innerProduct(jump(gradph.exprList()), etaGhost * pow(hi,1) * jump(v))
         , Khi
         , macro
       );
-
-      // DEBUG block 2
-      // {
-      // Rn rhs_after_ghost(stokes.rhs_);
-      // Rn rhs_ghost(rhs_after_ghost);
-      // rhs_ghost -= rhs_before_ghost;
-
-      // print_vec_stats(rhs_before_ghost, "rhs before ghost");
-      // print_vec_stats(rhs_after_ghost,  "rhs after ghost ");
-      // print_vec_stats(rhs_ghost,        "rhs ghost delta ");
-      // int nb_u = Uh.get_nb_dof();
-      // int nb_p = Ph.get_nb_dof();
-
-      // Rn rhs_ghost_u(nb_u);
-      // Rn rhs_ghost_p(nb_p);
-
-      // for (int j = 0; j < nb_u; ++j)
-      //     rhs_ghost_u(j) = rhs_ghost(j);
-
-      // for (int j = 0; j < nb_p; ++j)
-      //     rhs_ghost_p(j) = rhs_ghost(nb_u + j);
-
-      // print_vec_stats(rhs_ghost_u, "rhs ghost delta, velocity block");
-      // print_vec_stats(rhs_ghost_p, "rhs ghost delta, pressure block");
-      // }
       
       // p_exact has zero mean over the exact ball
       stokes.addLagrangeMultiplier(
@@ -2075,12 +2153,19 @@
       auto ph_dz = dz(ph.expr(0));
 
       {
+        Fun_h solu(Uh, fun_exact_u);
         Fun_h solp(Ph, fun_exact_p);
+        Fun_h soluErr(Uh, fun_exact_u);
         Fun_h solpErr(Ph, fun_exact_p);
+        soluErr.v -= uh.v;
         solpErr.v -= ph.v;
+        soluErr.v.map(fabs);
         solpErr.v.map(fabs);
 
-        Paraview<Mesh> writer(Khi, "stokes3D_kikuchi_sphere_presrob_" + std::to_string(i) + ".vtk");
+        Paraview<Mesh> writer(
+          Khi,
+          std::string("stokes3D_") + dataStem + "_" + std::to_string(i) + ".vtk"
+        );
         writer.add(uh, "velocity", 0, 3);
         writer.add(ph, "pressure", 0, 1);
         writer.add(fh, "rhs_Hcurl", 0, 3);
@@ -2088,13 +2173,17 @@
         writer.add(curl_uh_1, "curl_u_1");
         writer.add(curl_uh_2, "curl_u_2");
         writer.add(uh_0dx + uh_1dy + uh_2dz, "divergence");
+        writer.add(solu, "velocityExact", 0, 3);
         writer.add(solp, "pressureExact", 0, 1);
+        writer.add(soluErr, "velocityError", 0, 3);
         writer.add(solpErr, "pressureError", 0, 1);
       }
 
       const R errU = L2normCut(uh, fun_exact_u, 0, 3);
       const R errCurlU = std::sqrt(
-        integral(Khi, curl_uh_0*curl_uh_0 + curl_uh_1*curl_uh_1 + curl_uh_2*curl_uh_2, 0)
+        std::pow(L2normCut(curl_uh_0, fun_exact_curl_u_0, Khi), 2)
+        + std::pow(L2normCut(curl_uh_1, fun_exact_curl_u_1, Khi), 2)
+        + std::pow(L2normCut(curl_uh_2, fun_exact_curl_u_2, Khi), 2)
       );
       const R errP = L2normCut(ph, fun_exact_p, 0, 1);
       const R errGradP = std::sqrt(
@@ -2159,6 +2248,21 @@
         << std::setw(15) << std::setfill(' ') << divmax[i]
         << std::endl;
     }
+
+    const std::string csvName = std::string(dataStem) + "_lambda_"
+      + std::to_string(pressureLambda) + "_convergence.csv";
+    std::ofstream csv(csvName);
+    csv << "h,err_u,rate_u,err_curl_u,rate_curl_u,err_p,rate_p,err_grad_p,rate_grad_p,err_div_u,err_max_div_u\n";
+    csv << std::setprecision(16);
+    for (int i = 0; i < h.size(); ++i) {
+      csv << h[i] << ","
+          << ul2[i] << "," << convu[i] << ","
+          << curlul2[i] << "," << convcurlu[i] << ","
+          << pl2[i] << "," << convp[i] << ","
+          << gradpl2[i] << "," << convgradp[i] << ","
+          << divl2[i] << "," << divmax[i] << "\n";
+    }
+    std::cout << "Wrote convergence data to " << csvName << std::endl;
 
     std::cout << "CPU time = " << CPUtime() - cpubegin << std::endl;
   }
