@@ -5,18 +5,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${LDFLAGS}  -std=c++20 -fPIC -O3")
 
 
-#if(USE_MPI)
-#  find_package(MPI REQUIRED)
-#
-#  set(CMAKE_CXX_COMPILER ${MPI_CXX_COMPILER})
-#  include_directories(${MPI_CXX_INCLUDE_PATH})
-#
-#  add_subdirectory(parallel)
-#  list(APPEND EXTRA_LIBS parallel)
-#endif()
 if(USE_MPI)
-    find_package(MPI REQUIRED COMPONENTS CXX)
+  find_package(MPI REQUIRED)
+
+  set(CMAKE_CXX_COMPILER ${MPI_CXX_COMPILER})
+  include_directories(${MPI_CXX_INCLUDE_PATH})
+
+  add_subdirectory(parallel)
+  list(APPEND EXTRA_LIBS parallel)
 endif()
+#if(USE_MPI)
+#    find_package(MPI REQUIRED COMPONENTS CXX)
+#endif()
 
 add_subdirectory(common)
 list(APPEND EXTRA_LIBS common)

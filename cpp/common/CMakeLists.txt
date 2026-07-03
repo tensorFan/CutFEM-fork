@@ -21,17 +21,24 @@ ${CMAKE_CURRENT_SOURCE_DIR}/geometry.cpp
 # ${CMAKE_CURRENT_SOURCE_DIR}/spline.cpp
 )
 
-add_library(common SHARED ${COMMON_SOURCES})
-target_include_directories(common
-PRIVATE
-"${CMAKE_CURRENT_SOURCE_DIR}"
-"${CMAKE_CURRENT_BINARY_DIR}"
-"${PROJECT_BINARY_DIR}")
+add_library(common SHARED
+    ${COMMON_SOURCES}
+)
 
-if(USE_MPI)                   
-target_link_libraries(common PRIVATE parallel)
-else()
-target_link_libraries(common)
+target_include_directories(common
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+
+    PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}
+        ${PROJECT_BINARY_DIR}
+)
+
+if(USE_MPI)
+    target_link_libraries(common
+        PUBLIC
+            parallel
+    )
 endif()
 
 

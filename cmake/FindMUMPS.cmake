@@ -1,111 +1,106 @@
-
+# Find the double-precision MUMPS installation.
 #
-# Module to find the library MUMPS
+# Optional hints:
+#   MUMPS_ROOT
+#   MUMPS_DIR
+#   CMAKE_PREFIX_PATH
 #
+# Result variables:
+#   MUMPS_FOUND
+#   MUMPS_INCLUDE_DIR
+#   MUMPS_INCLUDES
+#   MUMPS_LIBRARIES
 
-#
-# If MUMPS is found, it will set the following variables. Otherwise,
-# MUMPS_FOUND will be set to false
-#
-#  MUMPS_FOUND        True if MUMPS is found
-#  MUMPS_LIBRARIES    MUMPS_librarie
-#  MUMPS_INCLUDE_DIR  where to find mumps_compat.h
+include(FindPackageHandleStandardArgs)
 
-set(MUMPS_FOUND "NO")
+set(_MUMPS_HINTS
+    ${MUMPS_ROOT}
+    ${MUMPS_DIR}
+    $ENV{MUMPS_ROOT}
+    $ENV{MUMPS_DIR}
+)
 
-#if MUMPS_DIR is specified
-if(MUMPS_DIR)
-  set(MUMPS_INCLUDE_DIR ${MUMPS_DIR}/include)
-  set(MUMPS_LIBRARY_DIR ${MUMPS_DIR}/lib)
-else()
-find_path (MUMPS_INCLUDE_DIR
-  NAMES dmumps_struc.h
-  PATHS
-  /usr/local/Cellar/brewsci-mumps/5.2.1/include
-  /opt/homebrew/Cellar/brewsci-mumps/5.3.5/include
-  /usr/local/MUMPS/include
-  /usr/local/include
-  /opt/MUMPS/include
-  /usr/include/MUMPS
-  /usr/include
-  ~/lib/include)
+find_path(MUMPS_INCLUDE_DIR
+    NAMES dmumps_c.h
+    HINTS ${_MUMPS_HINTS}
+    PATH_SUFFIXES include include/mumps MUMPS
+)
 
-find_path(MUMPS_LIBRARY_DIR
-  NAMES libmumps_common.so libdmumps.so libpord.so
-#  NAMES libmumps_common.a libdmumps.a libpord.a
-
-  PATHS
-  /usr/local/Cellar/brewsci-mumps/5.2.1/lib
-  /opt/homebrew/Cellar/brewsci-mumps/5.3.5/lib
-  /opt/MUMPS/lib
-  /usr/local/MUMPS/lib
-  /usr/local/lib
-  /usr/lib/x86_64-linux-gnu
-  /usr/lib
-  ~/lib/lib)
-endif()
-
-if(MUMPS_INCLUDE_DIR AND MUMPS_LIBRARY_DIR)
-  set(MUMPS_FOUND YES)
-
-  find_library(MUMPS_COMMON_LIBRARY
-    NAMES mumps_common
-    PATHS ${MUMPS_LIBRARY_DIR}
-    NO_DEFAULT_PATH)
-
-  find_library(MUMPS_D_LIBRARY
+find_library(MUMPS_D_LIBRARY
     NAMES dmumps
-    PATHS ${MUMPS_LIBRARY_DIR}
-    NO_DEFAULT_PATH)
+    HINTS ${_MUMPS_HINTS}
+    PATH_SUFFIXES lib lib64
+)
 
-  find_library(MUMPS_PORD_LIBRARY
+find_library(MUMPS_COMMON_LIBRARY
+    NAMES mumps_common
+    HINTS ${_MUMPS_HINTS}
+    PATH_SUFFIXES lib lib64
+)
+
+find_library(MUMPS_PORD_LIBRARY
     NAMES pord
-    PATHS ${MUMPS_LIBRARY_DIR}
-    NO_DEFAULT_PATH)
+    HINTS ${_MUMPS_HINTS}
+    PATH_SUFFIXES lib lib64
+)
 
-  find_library(MUMPS_PARMETIS_LIBRARY
+find_library(MUMPS_PARMETIS_LIBRARY
     NAMES parmetis
-    PATHS 
-    /usr/lib
-    /usr/local/Cellar/brewsci-parmetis/4.0.3_1/lib
-		/opt/homebrew/Cellar/brewsci-parmetis/4.0.3_1/lib
-    NO_DEFAULT_PATH)
+    HINTS ${_MUMPS_HINTS}
+    PATH_SUFFIXES lib lib64
+)
 
-#  set(SCOTCH_LIBRARY_DIR /usr/lib )
-#  find_library(SCOTCH_esmumps_LIBRARY
-#    NAMES esmumps
-#    PATHS ${SCOTCH_LIBRARY_DIR}
-#    NO_DEFAULT_PATH)
+find_library(MUMPS_ESMUMPS_LIBRARY
+    NAMES esmumps
+    HINTS ${_MUMPS_HINTS}
+    PATH_SUFFIXES lib lib64
+)
 
-  find_library(SCOTCH_scotch_LIBRARY
-    NAMES scotch scotch-6
-    PATHS /usr/lib
-		/opt/homebrew/Cellar/scotch/7.0.2/lib
-		/usr/local/Cellar/brewsci-scotch/6.0.4/lib
-    NO_DEFAULT_PATH)
+find_library(MUMPS_SCOTCH_LIBRARY
+    NAMES scotch scotch-7 scotch-6
+    HINTS ${_MUMPS_HINTS}
+    PATH_SUFFIXES lib lib64
+)
 
-  find_library(SCOTCH_scotcherr_LIBRARY
-    NAMES scotcherr scotcherr-6
-    PATHS /usr/lib
-		/opt/homebrew/Cellar/scotch/7.0.2/lib
-		/usr/local/Cellar/brewsci-scotch/6.0.4/lib
-    NO_DEFAULT_PATH)
+find_library(MUMPS_SCOTCHERR_LIBRARY
+    NAMES scotcherr scotcherr-7 scotcherr-6
+    HINTS ${_MUMPS_HINTS}
+    PATH_SUFFIXES lib lib64
+)
 
-  set(SCOTCH_LIBRARIES ${SCOTCH_scotcherr_LIBRARY} ${SCOTCH_scotch_LIBRARY})
-  # ${SCOTCH_esmumps_LIBRARY})
+find_package_handle_standard_args(MUMPS
+    REQUIRED_VARS
+        MUMPS_INCLUDE_DIR
+        MUMPS_D_LIBRARY
+        MUMPS_COMMON_LIBRARY
+)
 
-  set(MUMPS_LIBRARIES ${MUMPS_COMMON_LIBRARY} ${MUMPS_D_LIBRARY}   ${SCOTCH_LIBRARIES} ${MUMPS_PARMETIS_LIBRARY} ${MUMPS_PORD_LIBRARY})
+if(MUMPS_FOUND)
+    set(MUMPS_INCLUDES ${MUMPS_INCLUDE_DIR})
+    set(MUMPS_LIBRARIES
+        ${MUMPS_D_LIBRARY}
+        ${MUMPS_COMMON_LIBRARY}
+    )
 
-  set(MUMPS_INCLUDES ${MUMPS_INCLUDE_DIR})
-
-  message( "-- MUMPS_library FOUND")
-  message( " MUMPS_includes = ${MUMPS_INCLUDES}")
-  message( " MUMPS_library = ${MUMPS_LIBRARIES}")
-
-else()
-  if(MUMPS_FIND_REQUIRED)
-    message( "MUMPS_include_dirs = ${MUMPS_INCLUDE_DIR}")
-    message( "MUMPS_library = ${MUMPS_LIBRARIES}")
-    message(FATAL_ERROR "MUMPS not found, please set MUMPS_DIR to your MUMPS install directory")
-  endif()
+    foreach(_library
+            MUMPS_PORD_LIBRARY
+            MUMPS_PARMETIS_LIBRARY
+            MUMPS_ESMUMPS_LIBRARY
+            MUMPS_SCOTCH_LIBRARY
+            MUMPS_SCOTCHERR_LIBRARY)
+        if(${_library})
+            list(APPEND MUMPS_LIBRARIES ${${_library}})
+        endif()
+    endforeach()
 endif()
+
+mark_as_advanced(
+    MUMPS_INCLUDE_DIR
+    MUMPS_D_LIBRARY
+    MUMPS_COMMON_LIBRARY
+    MUMPS_PORD_LIBRARY
+    MUMPS_PARMETIS_LIBRARY
+    MUMPS_ESMUMPS_LIBRARY
+    MUMPS_SCOTCH_LIBRARY
+    MUMPS_SCOTCHERR_LIBRARY
+)

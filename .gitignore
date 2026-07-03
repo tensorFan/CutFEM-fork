@@ -1,5 +1,6 @@
 /build/
 build/
+*.old
 # CMakeLists can be removed from local tracking by the command:
 # git update-index --skip-worktree CMakeLists.txt `
 #     cpp/CMakeLists.txt `
