@@ -22,7 +22,8 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
 #include "../num/matlab.hpp"
 #include "../num/gnuplot.hpp"
 
-#define TORUS_UNFITTED_3D
+// #define TORUS_UNFITTED_3D
+#define TORUS_UNFITTED_CUT_POSITION_TEST_3D
 
 
 #ifdef TORUS_UNFITTED_3D
@@ -406,5 +407,317 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
                     << std::endl;
         }
     }
+
+#endif
+
+#ifdef TORUS_UNFITTED_CUT_POSITION_TEST_3D
+    namespace HodgeCutPositionData {
+
+    // Same torus geometry as in the uploaded Hodge-Laplace file.
+    const R major_rad = 0.5;
+    const R rad       = 0.25;
+
+    // The torus is translated only in the x direction.  All functions below are
+    // written in coordinates centered at the translated torus axis.
+    R torusShiftX = 0.0;
+
+    R shifted_x(double *P) {
+    return P[0] - torusShiftX;
+    }
+
+    R fun_major_rad_sq(double *P) {
+    const R x = shifted_x(P);
+    const R y = P[1];
+    return x*x + y*y;
+    }
+
+    R fun_levelSet(double *P, const int i) {
+    const R x = shifted_x(P);
+    const R y = P[1];
+    const R z = P[2];
+    const R rho = std::sqrt(x*x + y*y);
+    return std::sqrt(std::pow(rho - major_rad, 2) + z*z) - rad;
+    }
+
+    // Harmonic-form-like constraint adapted to the translated torus axis.
+    // Only this function is needed for the matrix experiment.
+    R fun_closed_form(double *P, int comp, int dom) {
+    const R x = shifted_x(P);
+    const R y = P[1];
+    const R r2 = x*x + y*y;
+
+    if (comp == 0) return -y / r2;
+    if (comp == 1) return  x / r2;
+    return 0.0;
+    }
+
+    } // namespace HodgeCutPositionData
+
+    using namespace HodgeCutPositionData;
+
+    struct CutQuality {
+    R minCutVolume   = std::numeric_limits<R>::infinity();
+    R minCutFraction = std::numeric_limits<R>::infinity();
+    int activeElementIndex     = -1;
+    int backgroundElementIndex = -1;
+    int numberOfCutElements    = 0;
+    };
+
+    template <typename CutMesh>
+    CutQuality computeSmallestActiveCut(const CutMesh &Khi) {
+    CutQuality quality;
+
+    for (int k = 0; k < Khi.get_nb_element(); ++k) {
+        if (!Khi.isCut(k, 0)) {
+        continue;
+        }
+
+        ++quality.numberOfCutElements;
+
+        const R cutVolume     = Khi.get_cut_part(k, 0).measure();
+        const R elementVolume = Khi[k].measure();
+        const R cutFraction   = cutVolume / elementVolume;
+
+        if (cutFraction < quality.minCutFraction) {
+        quality.minCutVolume           = cutVolume;
+        quality.minCutFraction         = cutFraction;
+        quality.activeElementIndex     = k;
+        quality.backgroundElementIndex = Khi.idxElementInBackMesh(k);
+        }
+    }
+
+    assert(quality.numberOfCutElements > 0);
+    assert(std::isfinite(quality.minCutVolume));
+    assert(std::isfinite(quality.minCutFraction));
+    return quality;
+    }
+
+    template <typename Mesh, typename CutMesh>
+    int assembleAndExportMatrix(
+        const Mesh &Kh,
+        CutMesh &Khi,
+        const R h,
+        const bool useMacroStabilization,
+        const std::string &matrixFile) {
+
+    typedef TestFunction<Mesh> FunTest;
+    typedef FunFEM<Mesh> Fun_h;
+    typedef FESpace3 Space;
+    typedef CutFESpaceT3 CutSpace;
+
+    Normal n;
+
+    Space Wh_(Kh, DataFE<Mesh>::P1);
+    Space Vh_(Kh, DataFE<Mesh>::Ned0);
+
+    CutSpace Wh(Khi, Wh_);
+    CutSpace Vh(Khi, Vh_);
+
+    CutFEM<Mesh> HL(Wh);
+    HL.add(Vh);
+
+    Fun_h not_exact_form(Vh, fun_closed_form);
+
+    FunTest w(Wh, 1, 0), tau(Wh, 1, 0);
+    FunTest u(Vh, 3, 0), v(Vh, 3, 0);
+
+    const R wPenParam = 1.0;
+    const R uPenParam = 1.0;
+    const R hi1 = std::pow(h, 1);
+    const R hi3 = std::pow(h, 3);
+
+    // Core mixed Hodge-Laplace matrix from the uploaded file.
+    HL.addBilinear(
+        innerProduct(w, tau)
+        - innerProduct(u, grad(tau)),
+        Khi);
+
+    HL.addBilinear(
+        innerProduct(grad(w), v)
+        + innerProduct(curl(u), curl(v)),
+        Khi);
+
+    if (useMacroStabilization) {
+        MacroElement<Mesh> macro(Khi, 0.25);
+
+        // Harmonic constraint row/column with the same s-stabilization as in the
+        // uploaded Hodge-Laplace file.
+        CutFEM<Mesh> lagr(Wh);
+        lagr.add(Vh);
+        lagr.addLinear(innerProduct(not_exact_form.exprList(), u), Khi);
+        lagr.addFaceStabilization(
+            innerProduct(jump(not_exact_form), uPenParam * hi1 * jump(u)),
+            Khi,
+            macro);
+        lagr.addFaceStabilization(
+            innerProduct(jump(dnormal(not_exact_form)),
+                        uPenParam * hi3 * jump(grad(u) * n)),
+            Khi,
+            macro);
+
+        Rn lag_row(lagr.rhs_);
+        lagr.rhs_ = 0.;
+
+        lagr.addLinear(innerProduct(not_exact_form.exprList(), v), Khi);
+        lagr.addFaceStabilization(
+            innerProduct(jump(not_exact_form), uPenParam * hi1 * jump(v)),
+            Khi,
+            macro);
+        lagr.addFaceStabilization(
+            innerProduct(jump(dnormal(not_exact_form)),
+                        uPenParam * hi3 * jump(grad(v) * n)),
+            Khi,
+            macro);
+
+        HL.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
+
+        // Facet ghost stabilization from the uploaded Hodge-Laplace file.
+        HL.addFaceStabilization(
+            innerProduct(wPenParam * hi1 * jump(w), jump(tau))
+            + innerProduct(wPenParam * hi3 * jump(grad(w) * n),
+                        jump(grad(tau) * n))
+
+            - innerProduct(uPenParam * hi1 * jump(u), jump(grad(tau)))
+            + innerProduct(uPenParam * hi1 * jump(grad(w)), jump(v))
+
+            + innerProduct(uPenParam * hi1 * jump(curl(u)), jump(curl(v)))
+            + innerProduct(uPenParam * hi3 * jump(grad(curl(u)) * n),
+                        jump(grad(curl(v)) * n)),
+            Khi,
+            macro);
+
+    } else {
+        // Same harmonic constraint, but without ghost stabilization.  This gives a
+        // fair no-stabilization comparison while still removing the harmonic mode.
+        CutFEM<Mesh> lagr(Wh);
+        lagr.add(Vh);
+        lagr.addLinear(innerProduct(not_exact_form.exprList(), u), Khi);
+        Rn lag_row(lagr.rhs_);
+
+        lagr.rhs_ = 0.;
+        lagr.addLinear(innerProduct(not_exact_form.exprList(), v), Khi);
+
+        HL.addLagrangeVecToRowAndCol(lag_row, lagr.rhs_, 0);
+    }
+
+    matlab::Export(HL.mat_[0], matrixFile);
+
+    return Wh.get_nb_dof() + Vh.get_nb_dof() + 1;
+    }
+
+    std::string caseTag(const int caseIndex) {
+    std::ostringstream out;
+    out << "case_" << std::setw(2) << std::setfill('0') << caseIndex;
+    return out.str();
+    }
+
+    int main(int argc, char **argv) {
+    typedef Mesh3 Mesh;
+    typedef FunFEM<Mesh3> Fun_h;
+    typedef ActiveMeshT3 CutMesh;
+    typedef FESpace3 Space;
+
+    MPIcf cfMPI(argc, argv);
+
+    if (!MPIcf::IamMaster()) {
+        std::cerr << "Warning: this matrix-export test should be run in serial.\n";
+    }
+
+    // Same fixed mesh as in the Stokes/Kikuchi cut-position file: the second
+    // refinement level of the cut-sphere experiment, with h = 1/8 on [-1,1]^3.
+    const int nx = 17;
+    const R h = 2.0 / (nx - 1);
+
+    const R ox = -1.0 + 1e-15;
+    const R lx = 2.0 * std::fabs(ox);
+    Mesh Kh(nx, nx, nx, ox, ox, ox, lx, lx, lx);
+
+    // x = 5/8 is a background-grid vertex for h = 1/8.  The base translation
+    // places the rightmost outer point of the torus at this vertex.  A positive
+    // gap alpha*h then makes a controlled small cut as alpha tends to zero.
+    const R targetVertexX = 5.0 / 8.0;
+    const R outerRadius   = major_rad + rad;
+    const std::array<R, 5> gapOverH = {
+        0.30,// 0.006,
+        0.13,// 0.003,
+        0.09,// 0.0015,
+        0.085,// 0.00075,
+        0.105};// 0.000375};
+
+    const std::string manifestName = "hodge_cut_position_manifest.csv";
+    std::ofstream manifest(manifestName);
+    if (!manifest) {
+        std::cerr << "Could not open " << manifestName << " for writing.\n";
+        return EXIT_FAILURE;
+    }
+
+    manifest
+        << "case,method,nx,h,shift_x,gap_over_h,min_cut_volume,"
+        << "min_cut_fraction,n_cut_elements,min_active_element,"
+        << "min_background_element,matrix_size,matrix_file\n";
+    manifest << std::setprecision(17);
+
+    for (int caseIndex = 0; caseIndex < static_cast<int>(gapOverH.size()); ++caseIndex) {
+        const R alpha = gapOverH[caseIndex];
+        torusShiftX = targetVertexX - outerRadius + alpha * h;
+
+        Space Lh(Kh, DataFE<Mesh>::P1);
+        Fun_h levelSet(Lh, fun_levelSet);
+        InterfaceLevelSet<Mesh> interface(Kh, levelSet);
+
+        CutMesh Khi(Kh);
+        // phi > 0 is outside the torus tube, so sign +1 removes the exterior.
+        Khi.truncate(interface, 1);
+
+        const CutQuality quality = computeSmallestActiveCut(Khi);
+        const std::string tag = caseTag(caseIndex);
+
+        std::cout << "\n" << tag
+                << ": shift_x = " << torusShiftX
+                << ", gap/h = " << alpha
+                << ", min cut volume = " << quality.minCutVolume
+                << ", min cut fraction = " << quality.minCutFraction
+                << std::endl;
+
+        for (int stabilized = 0; stabilized <= 1; ++stabilized) {
+        const bool useMacro = (stabilized == 1);
+        const std::string method = useMacro
+            ? "macro_stabilization"
+            : "no_stabilization";
+        const std::string matrixFile =
+            "hodge_cut_position_" + tag + "_" + method + ".dat";
+
+        const int matrixSize = assembleAndExportMatrix(
+            Kh,
+            Khi,
+            h,
+            useMacro,
+            matrixFile);
+
+        manifest
+            << caseIndex << ","
+            << method << ","
+            << nx << ","
+            << h << ","
+            << torusShiftX << ","
+            << alpha << ","
+            << quality.minCutVolume << ","
+            << quality.minCutFraction << ","
+            << quality.numberOfCutElements << ","
+            << quality.activeElementIndex << ","
+            << quality.backgroundElementIndex << ","
+            << matrixSize << ","
+            << matrixFile << "\n";
+
+        std::cout << "  exported " << matrixFile
+                    << " (size " << matrixSize << " x " << matrixSize << ")"
+                    << std::endl;
+        }
+    }
+
+    std::cout << "\nWrote matrix manifest to " << manifestName << std::endl;
+    return EXIT_SUCCESS;
+    }
+
 
 #endif

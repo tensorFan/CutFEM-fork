@@ -249,7 +249,7 @@ template <typename Mesh> void MacroElement<Mesh>::createMacroElement() {
             SmallElement &Ks(small_element[idx_Ks]);
 
             // lLOOP OVER FACES
-            for (int ifac = 0; ifac < 3; ++ifac) {
+            for (int ifac = 0; ifac < Mesh::Element::nea; ++ifac) {
 
                 int ifacn = ifac;
                 int kn    = Th_.ElementAdj(k, ifacn);
@@ -285,6 +285,16 @@ template <typename Mesh> void MacroElement<Mesh>::createMacroElement() {
                 idx_small_K_temp.erase(idx_small_K_temp.begin() + i);
                 break;
             }
+        }
+
+        if (big_element_found.empty()) {
+            std::cerr << "MacroElement::createMacroElement stalled: "
+                      << idx_small_K_temp.size()
+                      << " small elements remain unresolved after chain position "
+                      << pos << ".\n";
+            throw std::runtime_error(
+                "MacroElement::createMacroElement made no progress"
+            );
         }
 
         for (int j = 0; j < big_element_found.size(); ++j) {
@@ -546,7 +556,7 @@ template <typename Mesh> void TimeMacroElementSurface<Mesh>::createMacroElement(
             SmallElement &Ks(small_element[idx_Ks]);
 
             // lLOOP OVER FACES
-            for (int ifac = 0; ifac < 3; ++ifac) {
+            for (int ifac = 0; ifac < Mesh::Element::nea; ++ifac) {
 
                 int ifacn = ifac;
                 int kn    = Th.ElementAdj(k, ifacn);
@@ -583,6 +593,16 @@ template <typename Mesh> void TimeMacroElementSurface<Mesh>::createMacroElement(
                 idx_small_K_temp.erase(idx_small_K_temp.begin() + i);
                 break;
             }
+        }
+
+        if (big_element_found.empty()) {
+            std::cerr << "MacroElement::createMacroElement stalled: "
+                      << idx_small_K_temp.size()
+                      << " small elements remain unresolved after chain position "
+                      << pos << ".\n";
+            throw std::runtime_error(
+                "MacroElement::createMacroElement made no progress"
+            );
         }
 
         for (int j = 0; j < big_element_found.size(); ++j) {
@@ -802,6 +822,16 @@ template <typename Mesh> void MacroElementPartition<Mesh>::createMacroElement() 
             }
         }
 
+        if (big_element_found.empty()) {
+            std::cerr << "MacroElement::createMacroElement stalled: "
+                      << idx_small_K_temp.size()
+                      << " small elements remain unresolved after chain position "
+                      << pos << ".\n";
+            throw std::runtime_error(
+                "MacroElement::createMacroElement made no progress"
+            );
+        }
+
         for (int j = 0; j < big_element_found.size(); ++j) {
             int k             = big_element_found[j].first;
             int kn            = big_element_found[j].second;
@@ -967,7 +997,7 @@ template <typename Mesh> void TimeMacroElement<Mesh>::createMacroElement() {
             SmallElement &Ks(small_element[idx_Ks]);
 
             // lLOOP OVER FACES
-            for (int ifac = 0; ifac < 3; ++ifac) {
+            for (int ifac = 0; ifac < Mesh::Element::nea; ++ifac) {
 
                 int ifacn = ifac;
                 int kn    = Th.ElementAdj(k, ifacn);
@@ -1004,6 +1034,16 @@ template <typename Mesh> void TimeMacroElement<Mesh>::createMacroElement() {
                 idx_small_K_temp.erase(idx_small_K_temp.begin() + i);
                 break;
             }
+        }
+
+        if (big_element_found.empty()) {
+            std::cerr << "MacroElement::createMacroElement stalled: "
+                      << idx_small_K_temp.size()
+                      << " small elements remain unresolved after chain position "
+                      << pos << ".\n";
+            throw std::runtime_error(
+                "MacroElement::createMacroElement made no progress"
+            );
         }
 
         for (int j = 0; j < big_element_found.size(); ++j) {
@@ -1143,7 +1183,7 @@ template <typename Mesh> void TimeMacroElement2<Mesh>::createMacroElement() {
             SmallElement &Ks(small_element[idx_Ks]);
 
             // lLOOP OVER FACES
-            for (int ifac = 0; ifac < 3; ++ifac) {
+            for (int ifac = 0; ifac < Mesh::Element::nea; ++ifac) {
 
                 int ifacn = ifac;
                 int kn    = Th.ElementAdj(k, ifacn);
@@ -1182,6 +1222,16 @@ template <typename Mesh> void TimeMacroElement2<Mesh>::createMacroElement() {
             }
         }
 
+        if (big_element_found.empty()) {
+            std::cerr << "MacroElement::createMacroElement stalled: "
+                      << idx_small_K_temp.size()
+                      << " small elements remain unresolved after chain position "
+                      << pos << ".\n";
+            throw std::runtime_error(
+                "MacroElement::createMacroElement made no progress"
+            );
+        }
+
         for (int j = 0; j < big_element_found.size(); ++j) {
             int k             = big_element_found[j].first;
             int kn            = big_element_found[j].second;
@@ -1199,216 +1249,6 @@ template <typename Mesh> int TimeMacroElement2<Mesh>::number_of_inner_edges() {
     }
     return num_of_inner_edges;
 }
-
-// template <typename Mesh> class AlgoimBaseMacro : public GMacro {
-
-//   public:
-//     const ActiveMesh<Mesh> &Th;
-//     R tol;
-//     int nb_element_0,
-//         nb_element_1; // number of small elements in outer and inner domain respectively w.r.t level-set function
-//                       // sign
-
-//     const int number_of_faces; // number of faces of the mesh element
-//     int number_of_stabilized_edges = 0;
-
-//     AlgoimBaseMacro(const ActiveMesh<Mesh> &, const double, const TimeSlab & = nullptr,
-//                           const QuadratureFormular1d & = nullptr);
-
-//   private:
-//     virtual void findSmallElement(const TimeSlab * = nullptr, const QuadratureFormular1d * = nullptr);
-//     void createMacroElement();
-//     void setInnerEdges();
-// };
-
-// template <typename Mesh>
-// AlgoimBaseMacro<Mesh>::AlgoimBaseMacro(const ActiveMesh<Mesh> &Th_, const double C_, const TimeSlab &In_,
-//                                                    const QuadratureFormular1d &qTime_)
-//     : Th(Th_), number_of_faces(Th_[0].ne) {
-
-//     double measure = Th[0].measure(); // measure = h^2/2
-
-//     nb_element_0 = 0;
-//     nb_element_1 = 0;
-//     tol          = C_ * measure;
-
-//     std::cout << "Tolerance: \t" << tol << std::endl;
-//     std::cout << "|K|: \t" << measure << std::endl;
-//     this->findSmallElement(&In_, &qTime_);
-//     std::cout << nb_element_0 << " \t in Omega 1 " << std::endl;
-//     std::cout << nb_element_1 << " \t in Omega 2 " << std::endl;
-//     createMacroElement();
-//     setInnerEdges();
-//     std::cout << "Macro element created\n";
-// }
-
-// template <typename Mesh>
-// void AlgoimBaseMacro<Mesh>::findSmallElement(const TimeSlab *In, const QuadratureFormular1d *qTime_) {
-
-//     // Iterate over all elements in the active mesh (over the whole time-slab)
-
-//     for (int k = 0; k < Th.get_nb_element(); k += 1) {
-
-//         if (!Th.isStabilizeElement(k))
-//             continue; // if the element is not cut or if it doesn't change domain it doesn't need stabilization
-
-//         const typename Mesh::Element &K(Th[k]);
-
-//         const int domain = Th.get_domain_element(k);
-
-//         // Iterate over the quadrature points in the time-slab In
-
-//         bool is_large           = false; // is element large in any quadrature point?
-//         bool is_small           = false; // is element large in any quadrature point?
-//         bool is_inactive        = false; // is element inactive in any quadrature point?
-//         int numb_times_inactive = 0;
-
-//         for (int itq = 0; itq < Th.nb_quadrature_time_; ++itq) {
-
-//             Cut_Part<typename Mesh::Element> cutK(Th.get_cut_part(k, itq));
-//             double areaCut = cutK.measure();
-//             double part    = areaCut / K.measure();
-
-//             if ((areaCut > tol) && (!Th.isInactive(k, itq))) {
-//                 is_large = true;
-//                 // std::cout << "LARGE: kb: " << Th.idx_in_background_mesh_[0][k] << ", itq: " << itq << ", k: " << k
-//                 //           << ", area_cut: " << areaCut << ", |K|: " << K.measure() << ", cut part %: " << part <<
-//                 //           "\n";
-//             } else if ((areaCut <= tol) && (!Th.isInactive(k, itq))) {
-//                 is_small = true;
-//                 // std::cout << "SMALL: kb: " << Th.idx_in_background_mesh_[0][k] << ", itq: " << itq << ", k: " << k
-//                 //           << ", area_cut: " << areaCut << ", |K|: " << K.measure() << ", cut part %: " << part <<
-//                 //           "\n";
-//             }
-
-//             if (Th.isInactive(k, itq)) {
-//                 is_inactive = true;
-//                 // std::cout << "INACTIVE. kb: " << Th.idx_in_background_mesh_[0][k] << ", itq: " << itq << ", k: "
-//                 << k
-//                 // << "\n";
-//             }
-
-//             // if (Th.isInactive(k, itq))
-//             //     ++numb_times_inactive;
-//         }
-
-//         // if (!is_large || is_inactive) { // method 1
-//         if (is_small || is_inactive) { // method 2
-//             // if (!is_large || numb_times_inactive >= 2) {
-//             small_element[k] = SmallElement(k);
-//             // small_element[k].area = areaCut;
-//             if (domain == 0)
-//                 nb_element_0++;
-//             else
-//                 nb_element_1++;
-//         }
-//     }
-// }
-
-// template <typename Mesh> void AlgoimBaseMacro<Mesh>::createMacroElement() {
-
-//     std::vector<std::pair<int, int>> idx_small_K_temp(small_element.size());
-//     std::vector<int> small_or_fat_K(Th.get_nb_element());
-//     std::vector<std::pair<int, int>> big_element_found;
-
-//     for (int i = 0; i < small_or_fat_K.size(); ++i)
-//         small_or_fat_K[i] = i;
-//     int ii = 0;
-//     for (auto it = small_element.begin(); it != small_element.end(); ++it) {
-//         idx_small_K_temp[ii++] = std::make_pair(it->second.index, it->first);
-
-//         small_or_fat_K[it->second.index] = small;
-//     }
-//     int pos = 0;
-//     while (idx_small_K_temp.size() > 0) {
-//         int nb_of_small_K_left = idx_small_K_temp.size();
-//         pos += 1;
-//         big_element_found.clear();
-//         for (int i = nb_of_small_K_left - 1; i >= 0; --i) {
-//             // LOOP OVER SMALL ELEMENTS LEFT
-
-//             int k      = idx_small_K_temp[i].first;
-//             int idx_Ks = idx_small_K_temp[i].second;
-//             SmallElement &Ks(small_element[idx_Ks]);
-
-//             // LOOP OVER FACES
-//             for (int ifac = 0; ifac < number_of_faces; ++ifac) {
-
-//                 int ifacn = ifac;
-//                 int kn    = Th.ElementAdj(k, ifacn);
-//                 if (kn == -1)
-//                     continue;
-
-//                 if (small_or_fat_K[kn] == small)
-//                     continue;
-
-//                 // set position of the small element
-//                 Ks.setChainPosition(pos);
-//                 Ks.setRoot(small_or_fat_K[kn]);
-//                 big_element_found.push_back(std::make_pair(k, kn));
-
-//                 // find the correonding macro element
-//                 int root_id = small_or_fat_K[kn];
-//                 auto it     = macro_element.find(root_id);
-//                 // for unique edge
-//                 int ie      = (k < kn) ? ifac : ifacn;
-//                 int kk      = (k < kn) ? k : kn;
-
-//                 if (it != macro_element.end()) { // already exist
-//                     // it->second.add(k, std::make_pair(kk, ie), Ks.area);
-//                     // number_of_stabilized_edges += 1;
-//                     it->second.add(k, Ks.area);
-
-//                 } else {
-
-//                     const Cut_Part<typename Mesh::Element> cutK(Th.get_cut_part(root_id, 0));
-//                     double areaCut = cutK.measure();
-
-//                     macro_element[root_id] = MElement(root_id, areaCut, this);
-
-//                     // macro_element[root_id].add(k, std::make_pair(kk, ie), Ks.area);
-//                     // number_of_stabilized_edges += 1;
-
-//                     macro_element[root_id].add(k, Ks.area);
-//                 }
-
-//                 // remove small element from the list
-//                 idx_small_K_temp.erase(idx_small_K_temp.begin() + i);
-//                 break;
-//             }
-//         }
-
-//         for (int j = 0; j < big_element_found.size(); ++j) {
-//             int k             = big_element_found[j].first;
-//             int kn            = big_element_found[j].second;
-//             small_or_fat_K[k] = small_or_fat_K[kn];
-//         }
-//     }
-// }
-
-// template <typename Mesh> void AlgoimBaseMacro<Mesh>::setInnerEdges() {
-//     // loop over macro elements
-//     for (auto &[idx_root, MK] : macro_element) {
-//         // loop over element contained in the macro element
-//         for (int k = 0; k < MK.size(); ++k) {
-//             int ki = MK.get_index_element(k);
-//             // loop over each edges of the element
-//             for (int ie = 0; ie < Mesh::Element::nea; ++ie) {
-//                 auto [kn, je] = Th.elementAdjacent(ki, ie);
-//                 // if neighbor element belongs to the macro element, we mark as inner edge
-//                 if (MK.containElement(kn)) {
-
-//                     // Add only elements with higher index, otherwise the same element
-//                     // will be added twice
-//                     if (ki < kn) {
-//                         MK.inner_edge.push_back(std::make_pair(ki, ie));
-//                         number_of_stabilized_edges += 1;
-//                     }
-//                 }
-//             }
-//         }
-//     }
-// }
 
 // // Algoim Macro Element Partition
 
@@ -1610,6 +1450,16 @@ template <typename Mesh, typename L> void AlgoimMacro<Mesh, L>::createMacroEleme
                 idx_small_K_temp.erase(idx_small_K_temp.begin() + i);
                 break;
             }
+        }
+
+        if (big_element_found.empty()) {
+            std::cerr << "MacroElement::createMacroElement stalled: "
+                      << idx_small_K_temp.size()
+                      << " small elements remain unresolved after chain position "
+                      << pos << ".\n";
+            throw std::runtime_error(
+                "MacroElement::createMacroElement made no progress"
+            );
         }
 
         for (int j = 0; j < big_element_found.size(); ++j) {

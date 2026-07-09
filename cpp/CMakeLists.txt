@@ -84,6 +84,10 @@ set(EX_NAME stokesRT)
 add_executable(${EX_NAME}  mainFiles/stokesRT.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 
+set(EX_NAME stokes_presrob)
+add_executable(${EX_NAME}  mainFiles/stokes_presrob.cpp )
+target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+
 set(EX_NAME maxwell3D)
 add_executable(${EX_NAME}  mainFiles/maxwell3D.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
