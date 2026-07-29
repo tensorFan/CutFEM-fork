@@ -19,12 +19,14 @@
 
 // #define PROBLEM_2026_KIKUCHI_3D_PRESROB_FITTED // Section 5.2 pressure-robustness test
 
-// #define PROBLEM_2026_KIKUCHI_3D_PRESROB_UNFITTED // pressure-robustness test, unfitted version
+// {For the paper
+#define PROBLEM_2026_KIKUCHI_3D_PRESROB_UNFITTED // pressure-robustness test, unfitted version
 // Data set for the cut-sphere Kikuchi test below.  Comment this line to recover
 // the original pure-gradient test with u_exact = 0.
-// #define KIKUCHI_SPHERE_USE_NONZERO_SWIRL
+#define KIKUCHI_SPHERE_USE_NONZERO_SWIRL
+// }
 
-#define KIKUCHI_CUT_POSITION_CONDITION
+// #define KIKUCHI_CUT_POSITION_CONDITION
 
 
 // -----------------------------------------------------------------------------
@@ -617,19 +619,17 @@
         + innerProduct(etaGhost * pow(hi,1) * jump(curl(u)), jump(curl(v)))
         + innerProduct(etaGhost * pow(hi,1) * jump(grad(p)), jump(v))
         + innerProduct(etaGhost * pow(hi,1) * jump(u), jump(grad(q)))
-        // + innerProduct(etaGhost * pow(hi,1) * jump(p), jump(q))
-        // + innerProduct(etaGhost * pow(hi,3) * jump(grad(p)), jump(grad(q)))
         , Khi
         , macro
       );
 
       // RHS ghost product contribution: s_h(f_h, v_h)
-      stokes.addFaceStabilizationRHS(
-        + innerProduct(jump(fh.exprList()), etaGhost * pow(hi,1) *jump(v)) // + innerProduct(jump(fh, 1., -1.), etaGhost * pow(hi,1) *jump(v))
-        // + innerProduct(jump(gradph.exprList()), etaGhost * pow(hi,1) * jump(v))
-        , Khi
-        , macro
-      );
+      // stokes.addFaceStabilizationRHS(
+      //   + innerProduct(jump(fh.exprList()), etaGhost * pow(hi,1) *jump(v)) // + innerProduct(jump(fh, 1., -1.), etaGhost * pow(hi,1) *jump(v))
+      //   // + innerProduct(jump(gradph.exprList()), etaGhost * pow(hi,1) * jump(v))
+      //   , Khi
+      //   , macro
+      // );
       
       // p_exact has zero mean over the exact ball
       stokes.addLagrangeMultiplier(
@@ -789,231 +789,231 @@
 
 #ifdef KIKUCHI_CUT_POSITION_CONDITION
 
-namespace KikuchiCutPositionData {
+  namespace KikuchiCutPositionData {
 
-const R radius  = 2.0 / 3.0;
-const R radius2 = radius * radius;
-const R eps_ls  = 1e-14;
+  const R radius  = 2.0 / 3.0;
+  const R radius2 = radius * radius;
+  const R eps_ls  = 1e-14;
 
-// The sphere is translated only in the x direction.
-R sphereShiftX = 0.0;
+  // The sphere is translated only in the x direction.
+  R sphereShiftX = 0.0;
 
-R fun_levelSet(const R3 P, const int i) {
-  const R x = P.x - sphereShiftX;
-  return x * x + P.y * P.y + P.z * P.z - radius2 + eps_ls;
-}
+  R fun_levelSet(const R3 P, const int i) {
+    const R x = P.x - sphereShiftX;
+    return x * x + P.y * P.y + P.z * P.z - radius2 + eps_ls;
+  }
 
-} // namespace KikuchiCutPositionData
+  } // namespace KikuchiCutPositionData
 
-using namespace KikuchiCutPositionData;
+  using namespace KikuchiCutPositionData;
 
-struct CutQuality {
-  R minCutVolume   = std::numeric_limits<R>::infinity();
-  R minCutFraction = std::numeric_limits<R>::infinity();
-  int activeElementIndex     = -1;
-  int backgroundElementIndex = -1;
-  int numberOfCutElements    = 0;
-};
+  struct CutQuality {
+    R minCutVolume   = std::numeric_limits<R>::infinity();
+    R minCutFraction = std::numeric_limits<R>::infinity();
+    int activeElementIndex     = -1;
+    int backgroundElementIndex = -1;
+    int numberOfCutElements    = 0;
+  };
 
-template <typename CutMesh>
-CutQuality computeSmallestActiveCut(const CutMesh &Khi) {
-  CutQuality quality;
+  template <typename CutMesh>
+  CutQuality computeSmallestActiveCut(const CutMesh &Khi) {
+    CutQuality quality;
 
-  for (int k = 0; k < Khi.get_nb_element(); ++k) {
-    if (!Khi.isCut(k, 0)) {
-      continue;
+    for (int k = 0; k < Khi.get_nb_element(); ++k) {
+      if (!Khi.isCut(k, 0)) {
+        continue;
+      }
+
+      ++quality.numberOfCutElements;
+
+      // get_cut_part(k,0) is the physical part retained in the truncated active
+      // mesh. Its measure is a volume in this 3D test.
+      const R cutVolume     = Khi.get_cut_part(k, 0).measure();
+      const R elementVolume = Khi[k].measure();
+      const R cutFraction   = cutVolume / elementVolume;
+
+      if (cutFraction < quality.minCutFraction) {
+        quality.minCutVolume          = cutVolume;
+        quality.minCutFraction        = cutFraction;
+        quality.activeElementIndex    = k;
+        quality.backgroundElementIndex = Khi.idxElementInBackMesh(k);
+      }
     }
 
-    ++quality.numberOfCutElements;
-
-    // get_cut_part(k,0) is the physical part retained in the truncated active
-    // mesh. Its measure is a volume in this 3D test.
-    const R cutVolume     = Khi.get_cut_part(k, 0).measure();
-    const R elementVolume = Khi[k].measure();
-    const R cutFraction   = cutVolume / elementVolume;
-
-    if (cutFraction < quality.minCutFraction) {
-      quality.minCutVolume          = cutVolume;
-      quality.minCutFraction        = cutFraction;
-      quality.activeElementIndex    = k;
-      quality.backgroundElementIndex = Khi.idxElementInBackMesh(k);
-    }
+    assert(quality.numberOfCutElements > 0);
+    assert(std::isfinite(quality.minCutVolume));
+    assert(std::isfinite(quality.minCutFraction));
+    return quality;
   }
 
-  assert(quality.numberOfCutElements > 0);
-  assert(std::isfinite(quality.minCutVolume));
-  assert(std::isfinite(quality.minCutFraction));
-  return quality;
-}
+  template <typename Mesh, typename CutMesh>
+  int assembleAndExportMatrix(
+      const Mesh &Kh,
+      CutMesh &Khi,
+      const R h,
+      const bool useMacroStabilization,
+      const std::string &matrixFile) {
 
-template <typename Mesh, typename CutMesh>
-int assembleAndExportMatrix(
-    const Mesh &Kh,
-    CutMesh &Khi,
-    const R h,
-    const bool useMacroStabilization,
-    const std::string &matrixFile) {
+    typedef TestFunction<Mesh> FunTest;
+    typedef FESpace3 Space;
+    typedef CutFESpaceT3 CutSpace;
 
-  typedef TestFunction<Mesh> FunTest;
-  typedef FESpace3 Space;
-  typedef CutFESpaceT3 CutSpace;
+    Space Uh_(Kh, DataFE<Mesh>::Ned0);
+    Space Ph_(Kh, DataFE<Mesh>::P1);
 
-  Space Uh_(Kh, DataFE<Mesh>::Ned0);
-  Space Ph_(Kh, DataFE<Mesh>::P1);
+    CutSpace Uh(Khi, Uh_);
+    CutSpace Ph(Khi, Ph_);
 
-  CutSpace Uh(Khi, Uh_);
-  CutSpace Ph(Khi, Ph_);
+    CutFEM<Mesh> stokes(Uh);
+    stokes.add(Ph);
 
-  CutFEM<Mesh> stokes(Uh);
-  stokes.add(Ph);
+    FunTest u(Uh, 3, 0), v(Uh, 3, 0);
+    FunTest p(Ph, 1, 0), q(Ph, 1, 0);
 
-  FunTest u(Uh, 3, 0), v(Uh, 3, 0);
-  FunTest p(Ph, 1, 0), q(Ph, 1, 0);
+    stokes.addBilinear(
+        +innerProduct(curl(u), curl(v))
+        +innerProduct(grad(p), v),
+        Khi);
 
-  stokes.addBilinear(
-      +innerProduct(curl(u), curl(v))
-      +innerProduct(grad(p), v),
-      Khi);
+    stokes.addBilinear(
+        +innerProduct(u, grad(q)),
+        Khi);
 
-  stokes.addBilinear(
-      +innerProduct(u, grad(q)),
-      Khi);
+    if (useMacroStabilization) {
+      const R etaGhost = 1.0;
+      MacroElement<Mesh> macro(Khi, 0.25);
 
-  if (useMacroStabilization) {
-    const R etaGhost = 1.0;
-    MacroElement<Mesh> macro(Khi, 0.25);
-
-    // Same macro ghost-product stabilization as in the uploaded pressure-
-    // robustness test. No stabilized RHS is needed because only the matrix is
-    // being studied here.
-    stokes.addFaceStabilization(
-        +innerProduct(etaGhost * pow(h, 1) * jump(curl(u)), jump(curl(v)))
-        +innerProduct(etaGhost * pow(h, 1) * jump(grad(p)), jump(v))
-        +innerProduct(etaGhost * pow(h, 1) * jump(u), jump(grad(q))),
-        Khi,
-        macro);
-  }
-
-  // Remove the constant-pressure nullspace in exactly the same way for both
-  // methods.
-  stokes.addLagrangeMultiplier(
-      innerProduct(1, p),
-      0.0,
-      Khi);
-
-  matlab::Export(stokes.mat_[0], matrixFile);
-
-  return Uh.get_nb_dof() + Ph.get_nb_dof() + 1;
-}
-
-std::string caseTag(const int caseIndex) {
-  std::ostringstream out;
-  out << "case_" << std::setw(2) << std::setfill('0') << caseIndex;
-  return out.str();
-}
-
-int main(int argc, char **argv) {
-  typedef FunFEM<Mesh3> Fun_h;
-  typedef Mesh3 Mesh;
-  typedef ActiveMeshT3 CutMesh;
-  typedef FESpace3 Space;
-
-  MPIcf cfMPI(argc, argv);
-
-  // This is the mesh from the second refinement iteration of the uploaded test:
-  // nx = ny = nz = 17 and h = 1/8.
-  const int nx = 17;
-  const int ny = 17;
-  const int nz = 17;
-  const R h = 2.0 / (nx - 1);
-
-  Mesh Kh(nx, ny, nz, -1.0, -1.0, -1.0, 2.0, 2.0, 2.0);
-
-  // x = 5/8 is a background-grid vertex for h = 1/8. The base translation
-  // places the rightmost point of the sphere at this vertex. A positive gap
-  // alpha*h then leaves a progressively smaller active sliver in neighboring
-  // tetrahedra as alpha tends to zero.
-  const R targetVertexX = 5.0 / 8.0;
-  const std::array<R, 5> gapOverH = {
-      0.006,// 0.01,// 2.0e-1,
-      0.003,// 0.005,// 5.0e-2,
-      0.0015,// 0.002,// 1.0e-2,
-      0.00075,// 0.001,// 2.0e-3,
-      0.000375};// 0.0004};// 4.0e-4};
-
-  const std::string manifestName = "kikuchi_cut_position_manifest.csv";
-  std::ofstream manifest(manifestName);
-  if (!manifest) {
-    std::cerr << "Could not open " << manifestName << " for writing.\n";
-    return EXIT_FAILURE;
-  }
-
-  manifest
-      << "case,method,nx,h,shift_x,gap_over_h,min_cut_volume,"
-      << "min_cut_fraction,n_cut_elements,min_active_element,"
-      << "min_background_element,matrix_size,matrix_file\n";
-  manifest << std::setprecision(17);
-
-  for (int caseIndex = 0; caseIndex < static_cast<int>(gapOverH.size()); ++caseIndex) {
-    const R alpha = gapOverH[caseIndex];
-    sphereShiftX = targetVertexX - radius + alpha * h;
-
-    Space Lh_(Kh, DataFE<Mesh>::P1);
-    Fun_h levelSet(Lh_, fun_levelSet);
-    InterfaceLevelSet<Mesh> interface(Kh, levelSet);
-
-    CutMesh Khi(Kh);
-    // phi > 0 is outside the sphere, so sign +1 removes the exterior.
-    Khi.truncate(interface, 1);
-
-    const CutQuality quality = computeSmallestActiveCut(Khi);
-    const std::string tag = caseTag(caseIndex);
-
-    std::cout << "\n" << tag
-              << ": shift_x = " << sphereShiftX
-              << ", gap/h = " << alpha
-              << ", min cut volume = " << quality.minCutVolume
-              << ", min cut fraction = " << quality.minCutFraction
-              << std::endl;
-
-    for (int stabilized = 0; stabilized <= 1; ++stabilized) {
-      const bool useMacro = (stabilized == 1);
-      const std::string method = useMacro
-          ? "macro_stabilization"
-          : "no_stabilization";
-      const std::string matrixFile =
-          "kikuchi_cut_position_" + tag + "_" + method + ".dat";
-
-      const int matrixSize = assembleAndExportMatrix(
-          Kh,
+      // Same macro ghost-product stabilization as in the uploaded pressure-
+      // robustness test. No stabilized RHS is needed because only the matrix is
+      // being studied here.
+      stokes.addFaceStabilization(
+          +innerProduct(etaGhost * pow(h, 1) * jump(curl(u)), jump(curl(v)))
+          +innerProduct(etaGhost * pow(h, 1) * jump(grad(p)), jump(v))
+          +innerProduct(etaGhost * pow(h, 1) * jump(u), jump(grad(q))),
           Khi,
-          h,
-          useMacro,
-          matrixFile);
-
-      manifest
-          << caseIndex << ","
-          << method << ","
-          << nx << ","
-          << h << ","
-          << sphereShiftX << ","
-          << alpha << ","
-          << quality.minCutVolume << ","
-          << quality.minCutFraction << ","
-          << quality.numberOfCutElements << ","
-          << quality.activeElementIndex << ","
-          << quality.backgroundElementIndex << ","
-          << matrixSize << ","
-          << matrixFile << "\n";
-
-      std::cout << "  exported " << matrixFile
-                << " (size " << matrixSize << " x " << matrixSize << ")"
-                << std::endl;
+          macro);
     }
+
+    // Remove the constant-pressure nullspace in exactly the same way for both
+    // methods.
+    stokes.addLagrangeMultiplier(
+        innerProduct(1, p),
+        0.0,
+        Khi);
+
+    matlab::Export(stokes.mat_[0], matrixFile);
+
+    return Uh.get_nb_dof() + Ph.get_nb_dof() + 1;
   }
 
-  std::cout << "\nWrote matrix manifest to " << manifestName << std::endl;
-  return EXIT_SUCCESS;
-}
+  std::string caseTag(const int caseIndex) {
+    std::ostringstream out;
+    out << "case_" << std::setw(2) << std::setfill('0') << caseIndex;
+    return out.str();
+  }
+
+  int main(int argc, char **argv) {
+    typedef FunFEM<Mesh3> Fun_h;
+    typedef Mesh3 Mesh;
+    typedef ActiveMeshT3 CutMesh;
+    typedef FESpace3 Space;
+
+    MPIcf cfMPI(argc, argv);
+
+    // This is the mesh from the second refinement iteration of the uploaded test:
+    // nx = ny = nz = 17 and h = 1/8.
+    const int nx = 17;
+    const int ny = 17;
+    const int nz = 17;
+    const R h = 2.0 / (nx - 1);
+
+    Mesh Kh(nx, ny, nz, -1.0, -1.0, -1.0, 2.0, 2.0, 2.0);
+
+    // x = 5/8 is a background-grid vertex for h = 1/8. The base translation
+    // places the rightmost point of the sphere at this vertex. A positive gap
+    // alpha*h then leaves a progressively smaller active sliver in neighboring
+    // tetrahedra as alpha tends to zero.
+    const R targetVertexX = 5.0 / 8.0;
+    const std::array<R, 5> gapOverH = {
+        0.006,// 0.01,// 2.0e-1,
+        0.003,// 0.005,// 5.0e-2,
+        0.0015,// 0.002,// 1.0e-2,
+        0.00075,// 0.001,// 2.0e-3,
+        0.000375};// 0.0004};// 4.0e-4};
+
+    const std::string manifestName = "kikuchi_cut_position_manifest.csv";
+    std::ofstream manifest(manifestName);
+    if (!manifest) {
+      std::cerr << "Could not open " << manifestName << " for writing.\n";
+      return EXIT_FAILURE;
+    }
+
+    manifest
+        << "case,method,nx,h,shift_x,gap_over_h,min_cut_volume,"
+        << "min_cut_fraction,n_cut_elements,min_active_element,"
+        << "min_background_element,matrix_size,matrix_file\n";
+    manifest << std::setprecision(17);
+
+    for (int caseIndex = 0; caseIndex < static_cast<int>(gapOverH.size()); ++caseIndex) {
+      const R alpha = gapOverH[caseIndex];
+      sphereShiftX = targetVertexX - radius + alpha * h;
+
+      Space Lh_(Kh, DataFE<Mesh>::P1);
+      Fun_h levelSet(Lh_, fun_levelSet);
+      InterfaceLevelSet<Mesh> interface(Kh, levelSet);
+
+      CutMesh Khi(Kh);
+      // phi > 0 is outside the sphere, so sign +1 removes the exterior.
+      Khi.truncate(interface, 1);
+
+      const CutQuality quality = computeSmallestActiveCut(Khi);
+      const std::string tag = caseTag(caseIndex);
+
+      std::cout << "\n" << tag
+                << ": shift_x = " << sphereShiftX
+                << ", gap/h = " << alpha
+                << ", min cut volume = " << quality.minCutVolume
+                << ", min cut fraction = " << quality.minCutFraction
+                << std::endl;
+
+      for (int stabilized = 0; stabilized <= 1; ++stabilized) {
+        const bool useMacro = (stabilized == 1);
+        const std::string method = useMacro
+            ? "macro_stabilization"
+            : "no_stabilization";
+        const std::string matrixFile =
+            "kikuchi_cut_position_" + tag + "_" + method + ".dat";
+
+        const int matrixSize = assembleAndExportMatrix(
+            Kh,
+            Khi,
+            h,
+            useMacro,
+            matrixFile);
+
+        manifest
+            << caseIndex << ","
+            << method << ","
+            << nx << ","
+            << h << ","
+            << sphereShiftX << ","
+            << alpha << ","
+            << quality.minCutVolume << ","
+            << quality.minCutFraction << ","
+            << quality.numberOfCutElements << ","
+            << quality.activeElementIndex << ","
+            << quality.backgroundElementIndex << ","
+            << matrixSize << ","
+            << matrixFile << "\n";
+
+        std::cout << "  exported " << matrixFile
+                  << " (size " << matrixSize << " x " << matrixSize << ")"
+                  << std::endl;
+      }
+    }
+
+    std::cout << "\nWrote matrix manifest to " << manifestName << std::endl;
+    return EXIT_SUCCESS;
+  }
 
 #endif

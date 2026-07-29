@@ -22,8 +22,8 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
 #include "../num/matlab.hpp"
 #include "../num/gnuplot.hpp"
 
-// #define TORUS_UNFITTED_3D
-#define TORUS_UNFITTED_CUT_POSITION_TEST_3D
+#define TORUS_UNFITTED_3D
+// #define TORUS_UNFITTED_CUT_POSITION_TEST_3D
 
 
 #ifdef TORUS_UNFITTED_3D
@@ -215,7 +215,6 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
 
             Space Wh(Kh, DataFE<Mesh>::P1);
             Space Vh(Kh, DataFE<Mesh>::Ned0);
-            // Space Uh(Kh, DataFE<Mesh>::RT0);
 
             ActiveMesh<Mesh> Kh_i(Kh);
             Kh_i.truncate(interface, 1);
@@ -223,14 +222,12 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
             
             CutSpace WhC(Kh_i, Wh);
             CutSpace VhC(Kh_i, Vh);
-            // CutSpace UhC(Kh_i, Uh);
 
             Lagrange3 DataSpace(2);
             Space Velh(Kh, DataSpace);
             CutSpace VelhC(Kh_i, Velh);
 
             CutFEM<Mesh> HL(WhC); HL.add(VhC);
-            // HL.add(UhC);
 
             const R h_i  = 1. / (nx - 1);
             const R invh = 1. / h_i;
@@ -245,7 +242,6 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
             Fun_h u0(VhC, fun_exact_u);
 
             FunTest w(WhC, 1, 0), tau(WhC, 1, 0), u(VhC, 3, 0), v(VhC, 3, 0);
-            // FunTest p(UhC, 3, 0), q(UhC, 3, 0);
 
             double wPenParam = 1e0; // 1e-2
             double uPenParam = 1e0; // 1e-2
@@ -266,13 +262,6 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
             HL.addLinear(
                 innerProduct(gradphi.exprList(), v)
             , Kh_i);
-            // HL.addBilinear(
-            //     // innerProduct(p, q)
-            //     - innerProduct(curl(u), q)
-            //     + innerProduct(p, curl(v))
-            //     // - innerProduct(p, grad(tau))
-            //     // + innerProduct(grad(w), q)
-            // , Kh_i);
 
             // {Adds harmonic form Lagrange multiplier with s-stabilization}
             CutFEM<Mesh> lagr(WhC); lagr.add(VhC);
@@ -316,11 +305,11 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
             t0 = MPIcf::Wtime();
 
             // {Export matrix for condition number computation}
-            // matlab::Export(HL.mat_[0], "mat" + std::to_string(i) + "Cut.dat");
-            // std::cout << " Time export \t" << MPIcf::Wtime() - t0 << std::endl;
-            // t0 = MPIcf::Wtime();
-            // nx = 2 * nx - 1;
-            // continue;
+            matlab::Export(HL.mat_[0], "mat" + std::to_string(i) + "Cut.dat");
+            std::cout << " Time export \t" << MPIcf::Wtime() - t0 << std::endl;
+            t0 = MPIcf::Wtime();
+            nx = 2 * nx - 1;
+            continue;
 
             HL.solve("mumps");
             std::cout << " Time solver \t" << MPIcf::Wtime() - t0 << std::endl;
