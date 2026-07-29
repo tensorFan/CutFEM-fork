@@ -36,6 +36,89 @@ For a very large matrix, sparse LU fill-in can still require many times the
 storage of the original sparse matrix. On Linux, run this program under a
 systemd MemoryMax limit if you need a hard protection against an OOM freeze.
 
+Relative project-data paths are resolved from the current working directory
+first. If no file is found there, the script also searches the script
+directory, the repository root, and the repository's ``build/`` directory.
+The helper is deliberately file-type agnostic, so it can also be used for CSV
+manifests or other auxiliary files added later. This lets the script live in
+``cpp/mainFiles/notebooks`` while exported data remain in ``build``.
+
+
+HOW TO Run from terminal:
+------ one matrix mat3Cut ------
+systemd-run --user \
+    --unit=condest-pardiso \
+    --collect \
+    --working-directory="$PWD" \
+    -p MemoryHigh=70% \
+    -p MemoryMax=80% \
+    -p MemorySwapMax=2G \
+    systemd-inhibit \
+        --what=sleep:idle:handle-lid-switch \
+        --mode=block \
+        --why="Parallel sparse condest computation" \
+        "$PWD/../../../build/.venv-condest/bin/python" -u \
+        "$PWD/condest_sparse_build_folder.py" \
+        mat3Cut.zip \
+        --backend pardiso \
+        --threads 4 \
+        --t 2 \
+        --output "$PWD/condest_result.json"
+
+------ all four matrices ------
+BUILD_DIR="$(realpath "$PWD/../../../build")"
+PYTHON="$BUILD_DIR/.venv-condest/bin/python"
+SCRIPT="$PWD/condest_sparse_build_folder.py"
+OUTPUT_DIR="$PWD"
+
+systemd-run --user \
+    --unit=condest-batch \
+    --collect \
+    --working-directory="$PWD" \
+    -p MemoryHigh=70% \
+    -p MemoryMax=80% \
+    -p MemorySwapMax=2G \
+    systemd-inhibit \
+        --what=sleep:idle:handle-lid-switch \
+        --mode=block \
+        --why="Sparse condest batch computation" \
+        /bin/bash -lc '
+            set -euo pipefail
+
+            found=0
+            for matrix in "$1"/mat*Cut.zip; do
+                [[ -e "$matrix" ]] || continue
+                found=1
+
+                filename=$(basename "$matrix")
+                name=${filename%.zip}
+
+                echo
+                echo "========================================"
+                echo "Starting $filename at $(date)"
+                echo "========================================"
+
+                "$2" -u "$3" \
+                    "$matrix" \
+                    --backend pardiso \
+                    --threads 4 \
+                    --t 2 \
+                    --output "$4/condest_result_${name}.json"
+
+                echo "Finished $filename at $(date)"
+            done
+
+            if [[ "$found" -eq 0 ]]; then
+                echo "No mat*Cut.zip files found in $1" >&2
+                exit 1
+            fi
+
+            echo
+            echo "All condition estimates completed."
+        ' _ "$BUILD_DIR" "$PYTHON" "$SCRIPT" "$OUTPUT_DIR"
+
+TO CHECK the progress:
+journalctl --user -fu condest-batch.service
 
 """
 
@@ -88,6 +171,56 @@ MIB = 1024**2
 
 class MatrixFormatError(RuntimeError):
     pass
+
+
+def find_repository_root() -> Optional[Path]:
+    """Return the nearest ancestor containing both ``cpp`` and ``build``."""
+    script_dir = Path(__file__).resolve().parent
+    for candidate in (script_dir, *script_dir.parents):
+        if (candidate / "cpp").is_dir() and (candidate / "build").is_dir():
+            return candidate
+    return None
+
+
+def resolve_project_file(path: Path) -> Path:
+    """Resolve any project data file, falling back to ``root/build``.
+
+    This function is intentionally not matrix-specific: use it for matrix
+    files, CSV manifests, or any other input that remains in the build tree.
+    """
+    expanded = path.expanduser()
+    if expanded.is_absolute():
+        return expanded.resolve()
+
+    script_dir = Path(__file__).resolve().parent
+    repository_root = find_repository_root()
+
+    candidates = [
+        Path.cwd() / expanded,
+        script_dir / expanded,
+    ]
+    if repository_root is not None:
+        # ``build/mat.dat`` resolves through the first repository candidate;
+        # simply ``mat.dat`` resolves through the second one.
+        candidates.extend(
+            [
+                repository_root / expanded,
+                repository_root / "build" / expanded,
+            ]
+        )
+
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if resolved.is_file():
+            return resolved
+
+    # Preserve the old error behaviour and show the path relative to the
+    # caller's working directory when no candidate exists.
+    return (Path.cwd() / expanded).resolve()
 
 
 @dataclass(frozen=True)
@@ -158,10 +291,21 @@ def linux_mem_available() -> Optional[int]:
         return None
 
 
+def resolve_input_path(path: Path) -> Path:
+    """Backward-compatible matrix-input wrapper."""
+    return resolve_project_file(path)
+
+
 def describe_input(path: Path, requested_member: Optional[str]) -> InputDescription:
-    path = path.expanduser().resolve()
+    path = resolve_input_path(path)
     if not path.is_file():
-        raise FileNotFoundError(path)
+        repository_root = find_repository_root()
+        build_hint = (
+            f" Also searched {repository_root / 'build'}"
+            if repository_root is not None
+            else ""
+        )
+        raise FileNotFoundError(f"{path}.{build_hint}")
 
     stat = path.stat()
     if zipfile.is_zipfile(path):
@@ -811,7 +955,15 @@ def parse_arguments() -> argparse.Namespace:
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("input", type=Path, help=".dat file or .zip archive")
+    parser.add_argument(
+        "input",
+        type=Path,
+        help=(
+            ".dat file or .zip archive; relative paths are also searched "
+            "under the repository's build directory. The same generic "
+            "resolver can be used for CSV manifests and auxiliary files."
+        ),
+    )
     parser.add_argument(
         "--member",
         help="member name when the zip archive contains more than one file",
