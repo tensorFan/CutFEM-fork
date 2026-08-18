@@ -145,9 +145,9 @@ struct Config {
 
     // Ghost penalties.  These are configurable because the three formulations
     // have different unknowns, but the defaults keep runs reproducible.
-    R tau_curl = 1e-2; // 1e0
-    R tau_mass = 1e-2; // 1e0
-    R tau_p    = 1e-2; // 1e0
+    R tau_curl = 1e0; // 1e0, testade 1e-2 - ingen skillnad!
+    R tau_mass = 1e0; // 1e0, testade 1e-2 - ingen skillnad!
+    R tau_p    = 1e0; // 1e0, testade 1e-2 - ingen skillnad!
 
     R tau_w_3field = 1e0;
     R tau_m_3field = 1e0;
