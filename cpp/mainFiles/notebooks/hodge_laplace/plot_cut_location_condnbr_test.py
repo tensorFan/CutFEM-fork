@@ -5,10 +5,10 @@ The C++ test writes sparse matrices as one-based (row, column, value) triplets
 and records their names and matrix sizes in kikuchi_cut_position_manifest.csv.
 
 In /build run:
-python3 ../cpp/mainFiles/notebooks/stokes/plot_cut_condition_test.py
+python3 ../cpp/mainFiles/notebooks/hodge_laplace/plot_cut_location_condnbr_test.py
 
 or:
-python3 ../cpp/mainFiles/notebooks/stokes/plot_cut_condition_test.py --manifest hodge_cut_position_manifest.csv
+python3 ../cpp/mainFiles/notebooks/hodge_laplace/plot_cut_location_condnbr_test.py --manifest hodge_cut_position_manifest.csv
 """
 
 from __future__ import annotations
@@ -142,16 +142,16 @@ def main() -> None:
         writer.writerows(results)
 
     labels = {
-        "no_stabilization": "no stabilization",
-        "macro_stabilization": "macro stabilization",
+        "no_stabilisation": "no stabilisation",
+        "macro_stabilisation": "macro stabilisation",
     }
     markers = {
-        "no_stabilization": "D",
-        "macro_stabilization": "+",
+        "no_stabilisation": "D",
+        "macro_stabilisation": "+",
     }
 
     fig, ax = plt.subplots(figsize=(6.4, 4.6))
-    for method in ("no_stabilization", "macro_stabilization"):
+    for method in ("no_stabilisation", "macro_stabilisation"):
         method_rows = [row for row in results if row["method"] == method]
         method_rows.sort(key=lambda row: float(row[args.x_axis]))
 
@@ -163,7 +163,7 @@ def main() -> None:
             x[finite],
             y[finite],
             marker=markers[method],
-            linestyle="-" if method == "macro_stabilization" else "none",
+            linestyle="-" if method == "macro_stabilisation" else "none",
             label=labels[method],
         )
 

@@ -57,7 +57,7 @@
 //       --levels 2 --nx0 7 --prefix eigcmp_curlbc
 //
 //   conda activate fenicsx-env
-//   python3 ../cpp/mainFiles/notebooks/eigvals_compare_slepc.py \
+//   python3 ../cpp/mainFiles/notebooks/maxwell/eigvals_compare_slepc.py \
 //       --matrix-dir . --prefix eigcmp_curlbc --target 3.2 --nev 41
 // -----------------------------------------------------------------------------
 

@@ -47,10 +47,10 @@
 // Suggested terminal workflow inside build:
 //   ./bin/maxwell3D_eigen_compare --example all --levels 2 --nx0 7 --prefix eigcmp // OR 
 //   ./bin/maxwell3D_eigen_compare --example all --method 3field --levels 2 --nx0 7 --prefix eigcmp // OR
-//   ./bin/maxwell3D_eigen_compare --example all --method all --levels 2 --nx0 7 --prefix eigcmp --no-harmonic-filter
+//   ./bin/maxwell3D_eigen_compare --example spherical_shell --method all --levels 2 --nx0 7 --prefix eigcmp --no-harmonic-filter
 //   
 //   conda activate fenicsx-env
-//   python3 ../cpp/mainFiles/notebooks/eigvals_compare_slepc.py --matrix-dir . --prefix eigcmp --target 3.2 --nev 41
+//   python3 ../cpp/mainFiles/notebooks/maxwell/eigvals_compare_slepc.py --matrix-dir . --prefix eigcmp --target 3.2 --nev 41
 // -----------------------------------------------------------------------------
 
 using namespace globalVariable;
@@ -145,9 +145,9 @@ struct Config {
 
     // Ghost penalties.  These are configurable because the three formulations
     // have different unknowns, but the defaults keep runs reproducible.
-    R tau_curl = 1e0;
-    R tau_mass = 1e0;
-    R tau_p    = 1e0;
+    R tau_curl = 1e-2; // 1e0
+    R tau_mass = 1e-2; // 1e0
+    R tau_p    = 1e-2; // 1e0
 
     R tau_w_3field = 1e0;
     R tau_m_3field = 1e0;
@@ -468,6 +468,9 @@ static void assemble_kikuchi(const Config &cfg, ExampleKind ex, int level, int n
     , Khi);
 
     A.addBilinear(
+        -innerProduct(u*n, q)
+        -innerProduct(p, v*n)
+        
         -innerProduct(epsi * mui * curl(u), cross(n, v))
         -innerProduct(epsi * mui * cross(n, u), curl(v))
         +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
@@ -475,6 +478,9 @@ static void assemble_kikuchi(const Config &cfg, ExampleKind ex, int level, int n
     , interface);
     if (ex == ExampleKind::Cube) {
     A.addBilinear(
+        -innerProduct(u*n, q)
+        -innerProduct(p, v*n)
+
         -innerProduct(epsi * mui * curl(u), cross(n, v))
         -innerProduct(epsi * mui * cross(n, u), curl(v))
         +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
