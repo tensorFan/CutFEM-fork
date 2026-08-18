@@ -348,9 +348,7 @@ static void assemble_kikuchi(const Config &cfg,
         A.addBilinear(
             -innerProduct(u*n, q)
             -innerProduct(p, v*n)
-        , Kh, INTEGRAL_BOUNDARY);
-        A.addBilinear(
-            +innerProduct(cfg.pressure_penalty / h * p, q)
+            -innerProduct(cfg.pressure_penalty / h * p, q)
         , Kh, INTEGRAL_BOUNDARY);
     }
 
