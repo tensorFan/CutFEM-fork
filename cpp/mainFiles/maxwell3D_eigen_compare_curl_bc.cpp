@@ -453,9 +453,9 @@ static void assemble_3field(const Config &cfg, int level, int nx, int ny, int nz
     A.addBilinear(
         -innerProduct(u, cross(n, tau))
         -innerProduct(cross(n, w), v)
-        +innerProduct(cross(n, w), cfg.penalty / h * cross(n, tau))
-        -innerProduct(p, v * n)
-        -innerProduct(u * n, q)
+        -innerProduct(cross(n, w), cfg.penalty / h * cross(n, tau))
+        // -innerProduct(p, v * n)
+        // -innerProduct(u * n, q)
         +innerProduct(u * n, cfg.penalty / h * v * n)
     , interface);
 
@@ -482,7 +482,7 @@ static void assemble_3field(const Config &cfg, int level, int nx, int ny, int nz
     const int n_u = Uhdiv.get_nb_dof();
     const int n_p = Qh.get_nb_dof();
     const int base_dofs = n_w + n_u + n_p;
-    add_zero_mean_scalar_constraint(A, B, p, q, Khi, base_dofs);
+    // add_zero_mean_scalar_constraint(A, B, p, q, Khi, base_dofs);
     const int nlambda = 1;
 
     const std::string Afile = mat_name(cfg, "A", "3field", level);

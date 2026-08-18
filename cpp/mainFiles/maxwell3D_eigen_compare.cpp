@@ -470,21 +470,21 @@ static void assemble_kikuchi(const Config &cfg, ExampleKind ex, int level, int n
     A.addBilinear(
         -innerProduct(u*n, q)
         -innerProduct(p, v*n)
+        -innerProduct(p, cfg.penalty / h * q)
         
         -innerProduct(epsi * mui * curl(u), cross(n, v))
         -innerProduct(epsi * mui * cross(n, u), curl(v))
         +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
-        +innerProduct(p, cfg.penalty / h * q)
     , interface);
     if (ex == ExampleKind::Cube) {
     A.addBilinear(
         -innerProduct(u*n, q)
         -innerProduct(p, v*n)
+        -innerProduct(p, cfg.penalty / h * q)
 
         -innerProduct(epsi * mui * curl(u), cross(n, v))
         -innerProduct(epsi * mui * cross(n, u), curl(v))
         +innerProduct(cross(n, u), cfg.penalty / h * cross(n, v))
-        +innerProduct(p, cfg.penalty / h * q)
     , Khi, INTEGRAL_BOUNDARY);
     }
 
