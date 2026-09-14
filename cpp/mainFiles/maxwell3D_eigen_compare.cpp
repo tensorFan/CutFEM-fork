@@ -50,7 +50,7 @@
 //   ./bin/maxwell3D_eigen_compare --example spherical_shell --method all --levels 2 --nx0 7 --prefix eigcmp --no-harmonic-filter
 //   
 //   conda activate fenicsx-env
-//   python3 ../cpp/mainFiles/notebooks/maxwell/eigvals_compare_slepc.py --matrix-dir . --prefix eigcmp --target 3.2 --nev 41
+//   python3 ../cpp/mainFiles/notebooks/maxwell/eigvals_compare_slepc.py --matrix-dir . --prefix eigcmp --target 3.2 --nev 41 --no-condense-3field
 // -----------------------------------------------------------------------------
 
 using namespace globalVariable;
@@ -492,6 +492,7 @@ static void assemble_kikuchi(const Config &cfg, ExampleKind ex, int level, int n
         +innerProduct(cfg.tau_curl * jump(curl(u)), jump(curl(v)))
         +innerProduct(cfg.tau_p * jump(grad(p)), jump(v))
         +innerProduct(cfg.tau_p * jump(u), jump(grad(q)))
+        +innerProduct(cfg.tau_p * jump(grad(p)), jump(grad(q)))
     , Khi);
 
     // const R regularizer = cfg.pressure_regularizer / (h * h * h);

@@ -356,7 +356,7 @@ static void assemble_kikuchi(const Config &cfg, int level, int nx, int ny, int n
         +innerProduct(cfg.tau_curl * jump(curl(u)), jump(curl(v)))
         +innerProduct(cfg.tau_p * jump(grad(p)), jump(v))
         +innerProduct(cfg.tau_p * jump(u), jump(grad(q)))
-        // +innerProduct(cfg.tau_p * jump(p), jump(q))
+        +innerProduct(cfg.tau_p * jump(p), jump(q))
     , Khi);
 
     // const R regularizer = cfg.pressure_regularizer / (h * h * h);
