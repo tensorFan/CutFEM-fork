@@ -16,6 +16,8 @@ CutFEM-Library. If not, see <https://www.gnu.org/licenses/>
 #ifndef PARAVIEW_HPP
 #define PARAVIEW_HPP
 
+#include <iomanip>
+
 #include "../common/cut_method.hpp"
 #include "FESpace.hpp"
 #include "macroElement.hpp"
@@ -53,6 +55,7 @@ template <class M> class Paraview {
 
     const int nv_cut_element = Rd::d + 1;
     int nbDataFile           = 0;
+    int precision_          = 6; // More than six digits also selects VTK double arrays.
     std::string outFile_;
     int ntCut = -1;
     int nt_cut, nt_notcut;
@@ -166,6 +169,7 @@ template <class M> class Paraview {
 
                 } else {
                     // not cut
+                    check_and_resize_array(kk);
                     idx_in_Vh[kk] = std::make_pair(kb, domain);
                     num_cell[kk]  = std::make_pair(nvCell_, numCell_);
                     for (int i = 0; i < nvCell_; ++i) {
@@ -1684,8 +1688,9 @@ template <class M> class Paraview {
     } mesh_data;
 
     Paraview() {}
-    Paraview(const ActiveMesh<Mesh> &cutTh, std::string name) {
+    Paraview(const ActiveMesh<Mesh> &cutTh, std::string name, int precision = 6) {
         outFile_ = name;
+        precision_ = precision;
         mesh_data.build(cutTh);
         this->writeFileMesh();
         this->writeFileCell();
@@ -1994,11 +1999,12 @@ template <class M> class Paraview {
 template <class M> void Paraview<M>::writeFileMesh() {
 
     std::ofstream point(outFile_.c_str(), std::ofstream::out);
+    point << std::setprecision(precision_);
     point << "# vtk DataFile Version 1.0" << std::endl
           << "unstructured Grid" << std::endl
           << "ASCII" << std::endl
           << "DATASET UNSTRUCTURED_GRID" << std::endl
-          << "POINTS " << mesh_data.nbNode() << " float " << std::endl;
+          << "POINTS " << mesh_data.nbNode() << (precision_ > 6 ? " double " : " float ") << std::endl;
 
     for (int k = 0; k < mesh_data.nbElement(); ++k) {
         for (int i = 0; i < mesh_data.mesh_node[k].size(); ++i) {
@@ -2059,9 +2065,10 @@ template <class M> void Paraview<M>::add(const std::shared_ptr<ExpressionVirtual
 template <class M> void Paraview<M>::writeFileScalarData(const ExpressionVirtual &fh, std::string name) {
 
     std::ofstream data(outFile_.c_str(), std::ofstream::out | std::ofstream::app);
+    data << std::setprecision(precision_);
     if (nbDataFile == 0)
         data << "POINT_DATA " << mesh_data.nbNode() << std::endl;
-    data << "SCALARS " + name + " float" << std::endl;
+    data << "SCALARS " + name << (precision_ > 6 ? " double" : " float") << std::endl;
     data << "LOOKUP_TABLE default" << std::endl;
 
     for (int k = 0; k < mesh_data.nbElement(); ++k) {
@@ -2082,9 +2089,10 @@ template <class M>
 void Paraview<M>::writeFileScalarData(const std::shared_ptr<ExpressionVirtual> &fh, std::string name) {
 
     std::ofstream data(outFile_.c_str(), std::ofstream::out | std::ofstream::app);
+    data << std::setprecision(precision_);
     if (nbDataFile == 0)
         data << "POINT_DATA " << mesh_data.nbNode() << std::endl;
-    data << "SCALARS " + name + " float" << std::endl;
+    data << "SCALARS " + name << (precision_ > 6 ? " double" : " float") << std::endl;
     data << "LOOKUP_TABLE default" << std::endl;
 
     for (int k = 0; k < mesh_data.nbElement(); ++k) {
@@ -2104,10 +2112,11 @@ void Paraview<M>::writeFileScalarData(const std::shared_ptr<ExpressionVirtual> &
 template <class M> void Paraview<M>::writeFileVectorData(Fun_h &fh, int c0, std::string name) {
 
     std::ofstream data(outFile_.c_str(), std::ofstream::out | std::ofstream::app);
+    data << std::setprecision(precision_);
 
     if (nbDataFile == 0)
         data << "POINT_DATA " << mesh_data.nbNode() << std::endl;
-    data << "VECTORS " + name + " float" << std::endl;
+    data << "VECTORS " + name << (precision_ > 6 ? " double" : " float") << std::endl;
 
     for (int k = 0; k < mesh_data.nbElement(); ++k) {
         auto k_dom = mesh_data.idx_in_Vh[k];

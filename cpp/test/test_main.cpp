@@ -26,3 +26,4 @@ using namespace globalVariable;
 #include "test_test_function.hpp"
 #include "test_expression.hpp"
 #include "test_BDM2.hpp"
+#include "test_patch_stabilization.hpp"

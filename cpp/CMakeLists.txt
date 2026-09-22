@@ -49,6 +49,13 @@ endif()
 
 if(${CUTFEM_BUILD_MAIN})
 
+if(USE_UMFPACK)
+    set(EX_NAME maxwell3D_kikuchi_eigenfunction)
+    add_executable(${EX_NAME} mainFiles/maxwell3D_kikuchi_eigenfunction.cpp)
+    target_include_directories(${EX_NAME} PRIVATE ${UMFPACK_INCLUDES})
+    target_link_libraries(${EX_NAME} PRIVATE ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES} ${UMFPACK_LIBRARIES})
+endif()
+
 set(EX_NAME maxwell3D_eigen_compare)
 add_executable(${EX_NAME}  mainFiles/maxwell3D_eigen_compare.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
