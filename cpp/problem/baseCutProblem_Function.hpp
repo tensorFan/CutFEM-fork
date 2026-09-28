@@ -1803,18 +1803,19 @@ void BaseCutFEM<M>::addPatchStabilization(const itemVFlist_t &VF, const CutMesh 
     for (int k = Th.first_element(); k < Th.last_element(); k += Th.next_element()) {
         bar += Th.next_element();
 
-        if (!Th.isCut(k, 0) && !Th.isInactive(k, 0))
-            continue;
+        const bool cut_k = Th.isCut(k, 0) || Th.isInactive(k, 0);
         for (int ifac = 0; ifac < Element::nea; ++ifac) { // loop over the edges / faces
 
             int jfac = ifac;
             int kn   = Th.ElementAdj(k, jfac);
             // ONLY INNER EDGE && LOWER INDEX TAKE CARE OF THE INTEGRATION
-            if (kn < k)
+            if (kn < 0 || kn <= k)
                 continue;
-
-            std::pair<int, int> e1 = std::make_pair(k, ifac);
-            std::pair<int, int> e2 = std::make_pair(kn, jfac);
+            // A patch is selected if either element is cut. Testing only k
+            // before the neighbour loop loses patches when the uncut element
+            // has the lower index.
+            if (!cut_k && !Th.isCut(kn, 0) && !Th.isInactive(kn, 0))
+                continue;
             BaseFEM<M>::addPatchContribution(VF, k, kn, nullptr, 0, 1.);
         }
         this->addLocalContribution();

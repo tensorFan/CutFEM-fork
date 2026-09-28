@@ -44,7 +44,7 @@ if(USE_MUMPS)
 
     # Dependencies missing from the MUMPS list on Arch.
     find_library(ESMUMPS_LIB  NAMES esmumps  REQUIRED)
-    find_library(SCALAPACK_LIB NAMES scalapack REQUIRED)
+    find_library(SCALAPACK_LIB NAMES scalapack scalapack-openmpi REQUIRED)
     find_library(LAPACK_LIB   NAMES lapack   REQUIRED)
     find_library(BLAS_LIB     NAMES blas     REQUIRED)
 
