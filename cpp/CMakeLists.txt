@@ -47,6 +47,15 @@ if(${CUTFEM_BUILD_TESTS})
 add_subdirectory(test/)
 endif()
 
+if(CUTFEM_BUILD_OBSTACLE_MAP_TESTS)
+  add_executable(bound_quadratic_tests test/test_bound_quadratic.cpp)
+  add_executable(obstacle_map_tests test/test_obstacle_map.cpp)
+  add_executable(obstacle_target_tests test/test_obstacle_target.cpp)
+  add_test(NAME bound_quadratic COMMAND bound_quadratic_tests)
+  add_test(NAME obstacle_map COMMAND obstacle_map_tests)
+  add_test(NAME obstacle_target COMMAND obstacle_target_tests)
+endif()
+
 if(${CUTFEM_BUILD_MAIN})
 
 set(EX_NAME maxwell3D_eigen_compare)
@@ -107,6 +116,9 @@ target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 set(EX_NAME scalar_obstacle)
 add_executable(${EX_NAME}  mainFiles/scalar_obstacle.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
+
+# Fitted P1 obstacle maps use a reusable standalone metric/active-set kernel.
+add_executable(obstacle_map mainFiles/obstacle_map.cpp)
 
 # DOESNT WORK ATM
 # -----------------------------------------------------------------------------

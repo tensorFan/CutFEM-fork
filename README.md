@@ -21,6 +21,12 @@ To create the Darcy problem to reproduce results using Python:
 
 Note : It is important to turn off the options for finding libraries if they are not installed, otherwise the compilation will not succeed.
 
+The fitted finite element obstacle-map example is declared in
+`cpp/mainFiles/obstacle_map.cpp`. See [the algorithm and geometry guide](Documentation/obstacle_map.md)
+for weak forms, custom source/target geometry, verification, and build commands.
+The executable target is `obstacle_map`; its standalone numerical tests are
+enabled with `CUTFEM_BUILD_OBSTACLE_MAP_TESTS=ON`.
+
 Note : When compiling the python library, the MPI option should be turned off.
 
 On another hand, to update all modules (test, solver etc) one can do
@@ -33,6 +39,5 @@ On another hand, to update all modules (test, solver etc) one can do
 2. Go to UMFPACK folder
 "make local; make install;
 3. Fixe the cmake/FindUMFPACK.cmake
-
 
 
