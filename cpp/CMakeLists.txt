@@ -51,6 +51,10 @@ if(CUTFEM_BUILD_OBSTACLE_MAP_TESTS)
   add_executable(bound_quadratic_tests test/test_bound_quadratic.cpp)
   add_executable(obstacle_map_tests test/test_obstacle_map.cpp)
   add_executable(obstacle_target_tests test/test_obstacle_target.cpp)
+  target_link_libraries(bound_quadratic_tests PRIVATE common)
+  target_include_directories(bound_quadratic_tests PRIVATE "${PROJECT_BINARY_DIR}")
+  target_link_libraries(obstacle_map_tests PRIVATE FESpace common)
+  target_link_libraries(obstacle_target_tests PRIVATE FESpace common)
   add_test(NAME bound_quadratic COMMAND bound_quadratic_tests)
   add_test(NAME obstacle_map COMMAND obstacle_map_tests)
   add_test(NAME obstacle_target COMMAND obstacle_target_tests)
@@ -124,8 +128,9 @@ set(EX_NAME scalar_obstacle)
 add_executable(${EX_NAME}  mainFiles/scalar_obstacle.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 
-# Fitted P1 obstacle maps use a reusable standalone metric/active-set kernel.
+# Fitted obstacle maps use the library mesh, P1 space, quadrature and output.
 add_executable(obstacle_map mainFiles/obstacle_map.cpp)
+target_link_libraries(obstacle_map PRIVATE FESpace common)
 
 # DOESNT WORK ATM
 # -----------------------------------------------------------------------------

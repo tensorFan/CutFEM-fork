@@ -10,6 +10,7 @@ using namespace cutfem::obstacle;
 namespace examples = cutfem::obstacle::examples;
 
 namespace {
+using cutfem::obstacle::Vector;
 
 void require(bool condition, const std::string& message) {
     if (!condition) throw std::runtime_error(message);
@@ -34,9 +35,9 @@ template <int D> void checkResult(const ObstacleMapProblem<D>& problem,
     const auto assembly = problem.assemble(result.coordinates);
     const int m = problem.target().dimension;
     double normal = 0., tangent = 0.;
-    for (std::size_t i = 0; i < problem.mesh().nodes.size(); ++i) {
-        if (problem.mesh().boundary[i]) {
-            const auto trace = boundary(problem.mesh().nodes[i]);
+    for (std::size_t i = 0; i < problem.mesh().nv; ++i) {
+        if (problem.isBoundary(i)) {
+            const auto trace = boundary(point<D>(problem.mesh()(i)));
             require(std::isnan(result.reaction[i]), "Dirichlet reaction was reported as an obstacle multiplier");
             for (int a = 0; a < m; ++a)
                 require(result.coordinates[i*m+a] == trace[a], "Dirichlet data changed");
@@ -76,7 +77,7 @@ TargetChart farFieldShear(double epsilon = .2, double r0 = .05) {
     return target;
 }
 
-template <int D> void gradientCheck(SimplexMesh<D> mesh) {
+template <int D> void gradientCheck(std::shared_ptr<SourceMesh<D>> mesh) {
     // Compose two independent changes of coordinates to exercise derivatives
     // in both a tangential coordinate and the normal coordinate.
     const auto target = examples::reparameterizedChart(farFieldShear(), .23);
@@ -109,6 +110,39 @@ template <int D> void gradientCheck(SimplexMesh<D> mesh) {
                 "Full metric gradient does not differentiate the discrete energy");
     }
     std::cout << "gradient D=" << D << " max error=" << largest_error << '\n';
+}
+
+// Exact affine energy and volume catch basis, DOF, Jacobian and quadrature
+// integration mistakes independently of the nonlinear solver's residuals.
+template <int D> void libraryAssembly(std::shared_ptr<SourceMesh<D>> mesh) {
+    const ObstacleMapProblem<D> problem(mesh, examples::euclidean_half_space(1));
+    const auto q = problem.interpolate([](const Point<D>& x) {
+        double value = 2.;
+        for (int d = 0; d < D; ++d) value += .1*(d+1)*x[d];
+        return Vector{value};
+    });
+    const auto assembly = problem.assemble(q);
+    double volume = 0., norm2 = 0.;
+    for (double mass : assembly.mass) volume += mass;
+    for (int d = 0; d < D; ++d) norm2 += .01*(d+1)*(d+1);
+    require(std::abs(volume-std::pow(2.,D)) < 1e-12, "Library quadrature has wrong volume normalization");
+    require(std::abs(assembly.energy-.5*volume*norm2) < 1e-12, "Library P1 affine energy is incorrect");
+    Rn product(q.size());
+    multiply(q.size(), q.size(), assembly.stiffness, q, product);
+    for (std::size_t i = 0; i < q.size(); ++i)
+        require(std::abs(product[int(i)]-assembly.gradient[i]) < 1e-12, "Library matrix and residual DOFs disagree");
+}
+
+void fittedBallMeshes() {
+    for (int n : {2,3,4,6,8,12}) {
+        const auto mesh = examples::unit_ball_mesh_3d(n);
+        const ObstacleMapProblem<3> problem(mesh, examples::euclidean_half_space(1));
+        for (int i = 0; i < mesh->nv; ++i) {
+            const double radius = (*mesh)(i).norme();
+            require(problem.isBoundary(i) ? std::abs(radius-1.) < 1e-12 : radius < 1.,
+                    "Mapped library mesh has incorrect sphere boundary or interior vertices");
+        }
+    }
 }
 
 void halfSpaceSolutions() {
@@ -197,7 +231,8 @@ void rejectionAndFailure() {
         SourceMetric<2> source; source.inverse[0][0] = -1.; return source;
     });
     requireInvalid([&] { bad_source.assemble(feasible); }, "Indefinite source metric was accepted");
-    mesh.nodes[mesh.cells[0][1]] = mesh.nodes[mesh.cells[0][0]];
+    mesh = examples::box_mesh_2d(2);
+    static_cast<R2&>(mesh->v((*mesh)(0,1))) = mesh->v((*mesh)(0,0));
     requireInvalid([&] { ObstacleMapProblem<2> degenerate(mesh, examples::euclidean_half_space(2)); },
                    "Degenerate source simplex was accepted");
 
@@ -225,7 +260,7 @@ void rejectionAndFailure() {
             "Exhausted geometry backtracking did not return LINE_SEARCH_FAILED");
 }
 
-template <int D, class Profile> double profileError(SimplexMesh<D> mesh, const Profile& profile,
+template <int D, class Profile> double profileError(std::shared_ptr<SourceMesh<D>> mesh, const Profile& profile,
                                                    double tube, int subdivisions, const std::string& label) {
     const ObstacleMapProblem<D> problem(std::move(mesh), profile.chart(tube));
     const auto exact = [profile](const Point<D>& x) { return profile.exact(x); };
@@ -238,8 +273,8 @@ template <int D, class Profile> double profileError(SimplexMesh<D> mesh, const P
     int slab_checks = 0, far_checks = 0;
     double primal_violation = 0., dual_violation = 0.;
     const double h = 2. / subdivisions, interface_strip = .35*h;
-    for (std::size_t i = 0; i < problem.mesh().nodes.size(); ++i) if (!problem.mesh().boundary[i]) {
-        const auto& x = problem.mesh().nodes[i];
+    for (std::size_t i = 0; i < problem.mesh().nv; ++i) if (!problem.isBoundary(i)) {
+        const auto x = point<D>(problem.mesh()(i));
         const double r = result.coordinates[2*i+1], lambda = result.reaction[i];
         require(initial(x).back() > 0., "Profile initial map supplied a contact set");
         contact = contact || result.contact[i]; noncontact = noncontact || !result.contact[i];
@@ -301,6 +336,9 @@ int main() {
     try {
         gradientCheck<2>(examples::box_mesh_2d(2));
         gradientCheck<3>(examples::box_mesh_3d(1));
+        libraryAssembly<2>(examples::box_mesh_2d(2));
+        libraryAssembly<3>(examples::box_mesh_3d(2));
+        fittedBallMeshes();
         halfSpaceSolutions();
         nonFermiFarFieldSolve();
         rejectionAndFailure();

@@ -1695,8 +1695,9 @@ template <class M> class Paraview {
         this->writeFileMesh();
         this->writeFileCell();
     }
-    Paraview(const Mesh &Th, std::string name) {
+    Paraview(const Mesh &Th, std::string name, int precision = 6) {
         outFile_ = name;
+        precision_ = precision;
         mesh_data.build(Th);
         this->writeFileMesh();
         this->writeFileCell();

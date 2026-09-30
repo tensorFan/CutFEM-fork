@@ -7,10 +7,10 @@ is separate:
 
 | File | Responsibility |
 | --- | --- |
-| `cpp/problem/obstacleMap.hpp` | Coordinate P1 finite elements, weak-form assembly, feasibility, collar and bulk updates, and global KKT residuals |
+| `cpp/problem/obstacleMap.hpp` | Library P1 space, chart-dependent weak-form assembly, feasibility, collar and bulk updates, and global KKT residuals |
 | `cpp/problem/obstacleTarget.hpp` | Full target metric and its derivatives from an embedding, Jacobian, and Hessian |
 | `cpp/solver/boundQuadratic.hpp` | Reusable convex quadratic solver with lower bounds, active constraints, and reduced preconditioned CG |
-| `cpp/example/obstacle_map/benchmarks.hpp` | Fitted mesh generators, target charts, independent initial fields, and reference profiles |
+| `cpp/example/obstacle_map/benchmarks.hpp` | Library box meshes, ball mapping, target charts, independent initial fields, and reference profiles |
 | `cpp/example/obstacle_map/driver.hpp` | Fluent example interface, arguments, reference error, and output |
 
 The implementation is serial. It accepts fitted triangular sources (`D=2`) and
@@ -160,21 +160,43 @@ Rejection of an uncertified whole element does not construct an alternative
 chart. The implementation supports many geometries within a supplied regular
 representation; it is not a globally universal geometry solver.
 
-`SimplexMesh<D>` supplies node coordinates, simplex connectivity, and a boundary
-node mask. `fittedSimplexMesh(mesh)` adapts existing `Mesh2`/`Mesh3` objects using
-the full mesh in one process. The optional `Source` callback supplies the inverse
-source metric and its volume density `sqrt(det(g))`; these must be consistent.
+`ObstacleMapProblem<D>` takes a `std::shared_ptr<const Mesh2>` or
+`std::shared_ptr<const Mesh3>` and retains it for the lifetime of its
+`GFESpace<Mesh>`. The mesh must not be modified while the problem is in use.
+It uses `DataFE<Mesh>::P1`, `GFElement::BF`, library local-to-global DOF numbering,
+element measures and coordinate maps. Boundary vertices come from the native
+mesh boundary elements. `space()` and `mesh()` expose these library objects;
+`isBoundary(i)` reports the prescribed vertices. The old `SimplexMesh` and
+`fittedSimplexMesh` copy adapter are no longer needed.
+
+Assembly writes the library's `Matrix` format; the QP kernel converts it once
+per subproblem to `SparseMatrixRC<double>` for repeated matrix-vector products.
+The chart-dependent energy and its derivative remain explicit element
+integrals. The bound-constrained active set and reduced PCG remain in
+`boundQuadratic.hpp`; the library's direct linear solvers do not enforce these
+inequality constraints. This implementation still uses the full mesh in one
+process, including in MPI-enabled builds.
+
+The optional `Source` callback supplies the inverse source metric and its
+volume density `sqrt(det(g))`; these must be consistent.
 Its default is Euclidean. The fluent example currently uses that default;
 custom source metrics can be passed to `ObstacleMapProblem<D>` directly.
 
 Energy, residual, and frozen stiffness all use the same positive symmetric
-degree-two simplex quadrature. For a nonlinear target metric this defines a
+degree-two library rule, `QF_Simplex<Rd>(2)`: three edge midpoints in 2D and
+four interior points in 3D. The old 2D rule used three interior points, so
+nonlinear energies and errors can differ after this refactor. For a nonlinear target metric this defines a
 quadrature approximation of the continuum energy. The assembled residual is the
 exact derivative of that discrete energy. Quadrature order is currently fixed.
 
 The source boundary is fitted to the computational mesh. No elements are cut and
 no ghost penalty is needed. The fitted polyhedral ball has planar boundary faces
-with vertices on the sphere; it is not an exact curved ball. A future CutFEM
+with vertices on the sphere; it is not an exact curved ball. Both box meshes use
+the native structured mesh constructors. The ball maps their cube vertices by
+`x_i * sqrt(1 - (x_j^2+x_k^2)/2 + x_j^2*x_k^2/3)`, with cyclic indices.
+This smooth map replaces max-norm radial scaling, which can invert cells of the
+library's tetrahedral subdivision. Element and boundary measures are refreshed
+after moving vertices, and nonpositive cell volumes are rejected. A future CutFEM
 source implementation would need consistent boundary imposition and suitable
 cut-cell stabilization before these guarantees could be transferred.
 
@@ -281,7 +303,10 @@ not have positive reaction: degenerate thin-contact examples can have zero
 reaction.
 
 The driver writes `<prefix>.vtk`, `<prefix>_energy.csv`, and
-`<prefix>_summary.csv`. VTK ambient components are nodal samples of `F(q_h)`;
+`<prefix>_summary.csv`. Mesh and nodal fields use the library's `Paraview` and
+`FunFEM` output at 17-digit precision. Its VTK layout duplicates shared vertices
+per cell; the numerical FE mesh still shares its vertex DOFs. VTK ambient
+components are nodal samples of `F(q_h)`;
 linear interpolation of these displayed samples is not the actual mapped FE
 field. The reference error instead evaluates `F(q_h)` at quadrature points. That
 driver diagnostic includes `problem.sourceMetric(x).density` in its integration
@@ -440,7 +465,7 @@ results from the implementation are recorded below.
 
 ### Verified results
 
-All three standalone QP, map, and embedding-geometry suites pass through CTest.
+All three library-linked QP, map, and embedding-geometry suites pass through CTest.
 Tests check the derivative
 of the assembled energy against independent centered differences, including
 target metric cross terms, tangential derivatives, a variable source metric,
@@ -451,19 +476,22 @@ The embedding suite also solves a contact problem above a concave parabola,
 checks its positive reaction, and verifies a coupled metric for a curved target
 embedded in four dimensions.
 
-For the default spherical-cap example on fitted polyhedral balls, with
-`--tube 0.03 --tol 1e-7` and independent positive initial distance:
+After the library refactor, the spherical-cap verification profile (`k=1`,
+`tube=0.01`, tolerance `1e-7`) on fitted polyhedral balls gives:
 
 | Subdivisions | Nodes | Tetrahedra | Outer iterations | Global residual | Physical-map L2 error |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 4 | 125 | 384 | 5 | 3.79e-8 | 1.19285e-2 |
-| 8 | 729 | 3072 | 9 | 6.38e-8 | 3.45419e-3 |
-| 12 | 2197 | 10368 | 9 | 2.22e-8 | 1.72267e-3 |
+| 4 | 125 | 384 | 6 | 1.07e-8 | 8.87924e-3 |
+| 6 | 343 | 1296 | 7 | 4.73e-8 | 5.50908e-3 |
+
+The example in `mainFiles/obstacle_map.cpp` currently uses `k=2.712423`.
+At 8 subdivisions with its default tube it converges in 19 iterations, with
+residual `5.33e-8` and physical-map L2 error `1.74062e-2`.
 
 The independent exterior-circle test on square meshes, with tube radius `0.01`,
-reduces L2 error from `8.97325e-3` at 8 subdivisions to `1.80332e-3` at 16.
+reduces L2 error from `1.10545e-2` at 8 subdivisions to `2.39564e-3` at 16.
 Both use bulk harmonic updates and converge below `1e-7`. Reparameterizing its
-tangential coordinate gives L2 error `8.95079e-3` on the coarse mesh, consistent
+tangential coordinate gives L2 error `1.10471e-2` on the coarse mesh, consistent
 with recovery of the same physical map from a different coordinate FE space.
 All these runs preserve nodal feasibility; dual violations in the profile tests
 are within the residual tolerance. These are numerical verification results,
@@ -484,15 +512,14 @@ cmake --build build --target obstacle_map_tests bound_quadratic_tests obstacle_t
 ctest --test-dir build --output-on-failure
 ```
 
-The standalone header implementation also permits direct compilation without
-the other library solver dependencies:
+The example and tests now link `FESpace` and `common`; direct compilation of a
+standalone header is no longer supported. MPI and external direct solvers are
+optional for these targets. A minimal serial configuration is:
 
 ```sh
-g++ -std=c++20 -O2 -Wall -Wextra -pedantic cpp/mainFiles/obstacle_map.cpp -o /tmp/obstacle_map
-/tmp/obstacle_map --help
-/tmp/obstacle_map --subdivisions 8 --output /tmp/obstacle_map
-g++ -std=c++20 -O2 -Wall -Wextra -pedantic cpp/test/test_bound_quadratic.cpp -o /tmp/bound_quadratic_tests
-/tmp/bound_quadratic_tests
+cmake -S . -B build/obstacle-serial -DUSE_MPI=OFF -DUSE_MUMPS=OFF -DUSE_UMFPACK=OFF -DCUTFEM_CREATE_DOCS=OFF -DCUTFEM_BUILD_OBSTACLE_MAP_TESTS=ON
+cmake --build build/obstacle-serial --target obstacle_map obstacle_map_tests bound_quadratic_tests obstacle_target_tests
+ctest --test-dir build/obstacle-serial --output-on-failure
 ```
 
 The example accepts `--subdivisions N`, `--box`, `--tube R`, `--tol T`,

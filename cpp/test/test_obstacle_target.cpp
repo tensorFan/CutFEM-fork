@@ -4,6 +4,7 @@
 using namespace cutfem::obstacle;
 
 namespace {
+using cutfem::obstacle::Vector;
 void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
@@ -66,6 +67,7 @@ void derivativeCheck(const TargetChart& target, const Vector& q) {
 } // namespace
 
 int main() {
+    using cutfem::obstacle::Vector;
     try {
         const auto target = embeddedTargetChart(2, 2, .25, parabola, collar);
         for (double s : {-.8, -.2, .0, .4, .9}) for (double r : {.02, .11, .23}) {
@@ -96,9 +98,17 @@ int main() {
 
         // Concave parabola: obstacle contact is favored by the boundary data.
         // This five-node solve also exercises the adapter through FEM assembly.
-        SimplexMesh<2> mesh{{{-1.,-1.},{1.,-1.},{1.,1.},{-1.,1.},{0.,0.}},
-                            {{0,1,4},{1,2,4},{2,3,4},{3,0,4}},
-                            {true,true,true,true,false}};
+        auto mesh = std::make_shared<Mesh2>();
+        mesh->set(5,4,4);
+        const R2 points[] = {{-1.,-1.},{1.,-1.},{1.,1.},{-1.,1.},{0.,0.}};
+        for (int i = 0; i < 5; ++i) static_cast<R2&>(mesh->v(i)) = points[i];
+        for (int i = 0; i < 4; ++i) {
+            int nodes[] = {i,(i+1)%4,4};
+            mesh->t(i).set(mesh->vertices,nodes,0);
+            mesh->be(i).set(mesh->vertices,nodes,1);
+        }
+        mesh->BuildBound();
+        mesh->BuildAdj();
         auto concave = embeddedTargetChart(2,2,.25,
             [](const Vector& q) { return parabolaJet(q,-.6); },
             [](const std::vector<Vector>& vertices) {

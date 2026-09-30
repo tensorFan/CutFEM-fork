@@ -15,7 +15,7 @@ option(USE_MUMPS "Found the MUMPS library" ON)
 
 option(CUTFEM_BUILD_DEBUG "Build to allow debugging" OFF)
 option(CUTFEM_BUILD_TESTS "Build and run library tests" OFF)
-option(CUTFEM_BUILD_OBSTACLE_MAP_TESTS "Build standalone obstacle-map numerical tests" OFF)
+option(CUTFEM_BUILD_OBSTACLE_MAP_TESTS "Build obstacle-map numerical tests" OFF)
 option(CUTFEM_BUILD_PYTHON_WRAPPER "Build a library for Python" OFF)
 option(CUTFEM_BUILD_LIBRARY "Build the libraries" ON)
 option(CUTFEM_BUILD_MAIN "Build main file" ON)

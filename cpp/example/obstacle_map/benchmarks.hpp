@@ -39,16 +39,6 @@ inline void require_tube(double radius) {
         throw std::invalid_argument("The target tube radius must be finite and positive");
 }
 
-inline double tetra_determinant(const SimplexMesh<3> &mesh, const std::array<int, 4> &cell) {
-    std::array<Point<3>, 3> edge{};
-    for (int j = 0; j < 3; ++j)
-        for (int d = 0; d < 3; ++d)
-            edge[j][d] = mesh.nodes[cell[j + 1]][d] - mesh.nodes[cell[0]][d];
-    return edge[0][0] * (edge[1][1] * edge[2][2] - edge[1][2] * edge[2][1]) -
-           edge[0][1] * (edge[1][0] * edge[2][2] - edge[1][2] * edge[2][0]) +
-           edge[0][2] * (edge[1][0] * edge[2][1] - edge[1][1] * edge[2][0]);
-}
-
 inline void require_mesh_parameters(int subdivisions, double half_width, int dimension) {
     if (subdivisions < 1 || !(half_width > 0.) || !std::isfinite(half_width))
         throw std::invalid_argument("A box mesh needs positive subdivisions and finite positive half-width");
@@ -62,87 +52,50 @@ inline void require_mesh_parameters(int subdivisions, double half_width, int dim
 
 } // namespace detail
 
-// Conforming, fitted P1 meshes. Every cube uses the same body diagonal and
-// Freudenthal subdivision, so neighbouring cells have matching face triangles.
-inline SimplexMesh<3> box_mesh_3d(int subdivisions = 8, double half_width = 1.) {
+// Use the library's structured fitted meshes and boundary labels.
+inline std::shared_ptr<Mesh3> box_mesh_3d(int subdivisions = 8, double half_width = 1.) {
     detail::require_mesh_parameters(subdivisions, half_width, 3);
-    SimplexMesh<3> mesh;
-    const int n = subdivisions;
-    const int side = n + 1;
-    const auto index = [side](int i, int j, int k) { return (k * side + j) * side + i; };
-    mesh.nodes.reserve(static_cast<std::size_t>(side) * side * side);
-    mesh.boundary.reserve(static_cast<std::size_t>(side) * side * side);
-    mesh.cells.reserve(static_cast<std::size_t>(6) * n * n * n);
-    for (int k = 0; k <= n; ++k)
-        for (int j = 0; j <= n; ++j)
-            for (int i = 0; i <= n; ++i) {
-                mesh.nodes.push_back({half_width * (2. * i / n - 1.),
-                                      half_width * (2. * j / n - 1.),
-                                      half_width * (2. * k / n - 1.)});
-                mesh.boundary.push_back(i == 0 || i == n || j == 0 || j == n || k == 0 || k == n);
-            }
-    for (int k = 0; k < n; ++k)
-        for (int j = 0; j < n; ++j)
-            for (int i = 0; i < n; ++i) {
-                std::array<int, 3> permutation{0, 1, 2};
-                do {
-                    std::array<int, 3> p{i, j, k};
-                    std::array<int, 4> cell{};
-                    cell[0] = index(p[0], p[1], p[2]);
-                    for (int v = 0; v < 3; ++v) {
-                        ++p[permutation[v]];
-                        cell[v + 1] = index(p[0], p[1], p[2]);
-                    }
-                    if (detail::tetra_determinant(mesh, cell) < 0.)
-                        std::swap(cell[1], cell[2]);
-                    mesh.cells.push_back(cell);
-                } while (std::next_permutation(permutation.begin(), permutation.end()));
-            }
-    return mesh;
+    const int n = subdivisions + 1;
+    return std::make_shared<Mesh3>(n, n, n, -half_width, -half_width, -half_width,
+                                  2*half_width, 2*half_width, 2*half_width);
 }
 
-// A fitted polyhedral approximation of B^3. The continuous radial cube-to-ball
-// map sends the cube boundary to the sphere; the FEM domain has planar faces.
-// Exact benchmark boundary data are evaluated on this actual polyhedral domain.
-inline SimplexMesh<3> unit_ball_mesh_3d(int subdivisions = 8) {
+// Smoothly map the library cube mesh to a fitted polyhedral unit ball.
+// On any cube face the squared mapped coordinates sum to one. Unlike
+// max-norm radial scaling, this map has no derivative jumps inside the cube.
+inline std::shared_ptr<Mesh3> unit_ball_mesh_3d(int subdivisions = 8) {
     if (subdivisions < 2)
         throw std::invalid_argument("A ball mesh needs at least two subdivisions per cube edge");
     auto mesh = box_mesh_3d(subdivisions);
-    for (auto &p : mesh.nodes) {
-        const double norm = std::sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
-        const double max_norm = std::max({std::abs(p[0]), std::abs(p[1]), std::abs(p[2])});
-        if (norm > 0.)
-            for (double &coordinate : p)
-                coordinate *= max_norm / norm;
+    for (int i = 0; i < mesh->nv; ++i) {
+        auto& p = mesh->v(i);
+        const R3 square(p[0]*p[0], p[1]*p[1], p[2]*p[2]);
+        for (int d = 0; d < 3; ++d) {
+            const double a = square[(d+1)%3], b = square[(d+2)%3];
+            p[d] *= std::sqrt(1. - (a+b)/2. + a*b/3.);
+        }
     }
-    for (const auto &cell : mesh.cells) {
-        const double determinant = detail::tetra_determinant(mesh, cell);
-        if (!(determinant > 0.) || !std::isfinite(determinant))
+    // Library elements cache their measures; refresh them after moving vertices.
+    mesh->mes = mesh->mesb = 0.;
+    for (int k = 0; k < mesh->nt; ++k) {
+        auto& cell = mesh->t(k);
+        cell.mes = DataTet::mesure(cell.vertices.data());
+        if (!(cell.mes > 0.) || !std::isfinite(cell.mes))
             throw std::runtime_error("Cube-to-ball mesh mapping produced a degenerate or inverted tetrahedron");
+        mesh->mes += cell.mes;
+    }
+    for (int k = 0; k < mesh->nbe; ++k) {
+        auto& face = mesh->be(k);
+        face.mes = DataTriangle3::mesure(face.vertices.data());
+        mesh->mesb += face.mes;
     }
     return mesh;
 }
 
-inline SimplexMesh<2> box_mesh_2d(int subdivisions = 8, double half_width = 1.) {
+inline std::shared_ptr<Mesh2> box_mesh_2d(int subdivisions = 8, double half_width = 1.) {
     detail::require_mesh_parameters(subdivisions, half_width, 2);
-    SimplexMesh<2> mesh;
-    const int n = subdivisions;
-    const int side = n + 1;
-    const auto index = [side](int i, int j) { return j * side + i; };
-    mesh.nodes.reserve(static_cast<std::size_t>(side) * side);
-    mesh.boundary.reserve(static_cast<std::size_t>(side) * side);
-    mesh.cells.reserve(static_cast<std::size_t>(2) * n * n);
-    for (int j = 0; j <= n; ++j)
-        for (int i = 0; i <= n; ++i) {
-            mesh.nodes.push_back({half_width * (2. * i / n - 1.), half_width * (2. * j / n - 1.)});
-            mesh.boundary.push_back(i == 0 || i == n || j == 0 || j == n);
-        }
-    for (int j = 0; j < n; ++j)
-        for (int i = 0; i < n; ++i) {
-            mesh.cells.push_back({index(i, j), index(i + 1, j), index(i + 1, j + 1)});
-            mesh.cells.push_back({index(i, j), index(i + 1, j + 1), index(i, j + 1)});
-        }
-    return mesh;
+    return std::make_shared<Mesh2>(subdivisions+1, subdivisions+1, -half_width, -half_width,
+                                  2*half_width, 2*half_width);
 }
 
 // Section 2 of HarmonicObstacleMaps/Main.tex, with the inward Fermi distance
@@ -214,16 +167,6 @@ struct RotatingProfile {
                 .08 + .01 * std::cos(x[0]) + .02 * x[1] * x[1]};
     }
 
-    template <int D> std::vector<Vector> initial(const SimplexMesh<D> &mesh) const {
-        if (mesh.boundary.size() != mesh.nodes.size())
-            throw std::invalid_argument("Mesh boundary mask must have one entry per node");
-        std::vector<Vector> q;
-        q.reserve(mesh.nodes.size());
-        for (std::size_t i = 0; i < mesh.nodes.size(); ++i)
-            q.push_back(initial(mesh.nodes[i], mesh.boundary[i]));
-        return q;
-    }
-
     TargetChart chart(double tube_radius = .03) const {
         detail::require_tube(tube_radius);
         if (!(tube_radius < alpha - .05))
@@ -290,16 +233,6 @@ struct ExteriorCircleProfile {
             return exact(x);
         return {k * x[0] + .04 * std::sin(x[0] + .7 * x[1]),
                 .08 + .01 * std::cos(x[0]) + .02 * x[1] * x[1]};
-    }
-
-    template <int D> std::vector<Vector> initial(const SimplexMesh<D> &mesh) const {
-        if (mesh.boundary.size() != mesh.nodes.size())
-            throw std::invalid_argument("Mesh boundary mask must have one entry per node");
-        std::vector<Vector> q;
-        q.reserve(mesh.nodes.size());
-        for (std::size_t i = 0; i < mesh.nodes.size(); ++i)
-            q.push_back(initial(mesh.nodes[i], mesh.boundary[i]));
-        return q;
     }
 
     TargetChart chart(double tube_radius = .05) const {
