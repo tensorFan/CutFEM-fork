@@ -58,6 +58,12 @@ if(CUTFEM_BUILD_OBSTACLE_MAP_TESTS)
   add_test(NAME bound_quadratic COMMAND bound_quadratic_tests)
   add_test(NAME obstacle_map COMMAND obstacle_map_tests)
   add_test(NAME obstacle_target COMMAND obstacle_target_tests)
+  add_executable(obstacle_labyrinth_tests test/test_obstacle_labyrinth.cpp)
+  target_link_libraries(obstacle_labyrinth_tests PRIVATE FESpace common)
+  add_test(NAME obstacle_labyrinth COMMAND obstacle_labyrinth_tests)
+  add_executable(obstacle_horosphere_tests test/test_obstacle_horosphere.cpp)
+  target_link_libraries(obstacle_horosphere_tests PRIVATE FESpace common)
+  add_test(NAME obstacle_horosphere COMMAND obstacle_horosphere_tests)
 endif()
 
 if(${CUTFEM_BUILD_MAIN})
@@ -72,6 +78,9 @@ endif()
 set(EX_NAME maxwell3D_eigen_compare)
 add_executable(${EX_NAME}  mainFiles/maxwell3D_eigen_compare.cpp )
 target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
+
+add_executable(poisson3D_eigen_compare mainFiles/poisson3D_eigen_compare.cpp)
+target_link_libraries(poisson3D_eigen_compare PRIVATE ${EXTRA_LIBS} ${MPI_CXX_LIBRARIES})
 
 set(EX_NAME maxwell3D_eigen_compare_curl_bc)
 add_executable(${EX_NAME}  mainFiles/maxwell3D_eigen_compare_curl_bc.cpp )
@@ -131,6 +140,15 @@ target_link_libraries(${EX_NAME} PUBLIC ${EXTRA_LIBS} )
 # Fitted obstacle maps use the library mesh, P1 space, quadrature and output.
 add_executable(obstacle_map mainFiles/obstacle_map.cpp)
 target_link_libraries(obstacle_map PRIVATE FESpace common)
+
+add_executable(obstacle_map_initial_guess mainFiles/obstacle_map_initial_guess.cpp)
+target_link_libraries(obstacle_map_initial_guess PRIVATE FESpace common)
+
+add_executable(obstacle_map_labyrinth mainFiles/obstacle_map_labyrinth.cpp)
+target_link_libraries(obstacle_map_labyrinth PRIVATE FESpace common)
+
+add_executable(obstacle_map_horosphere mainFiles/obstacle_map_horosphere.cpp)
+target_link_libraries(obstacle_map_horosphere PRIVATE FESpace common)
 
 # DOESNT WORK ATM
 # -----------------------------------------------------------------------------

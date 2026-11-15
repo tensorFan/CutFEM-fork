@@ -1,0 +1,73 @@
+spherical_cap_n4_current initial energy=1.65471 residual=0.95764
+spherical_cap_n4_current CONVERGED iterations=6 residual=1.07077e-08 L2=0.00887924 difference from current=0
+spherical_cap_n4_all_contact initial energy=10.8312 residual=25.5155
+spherical_cap_n4_all_contact CONVERGED iterations=6 residual=2.64872e-09 L2=0.00887924 difference from current=2.16314e-10
+spherical_cap_n4_far_normal initial energy=65.1383 residual=30.0004
+spherical_cap_n4_far_normal CONVERGED iterations=9 residual=6.82208e-09 L2=0.00887924 difference from current=1.04625e-10
+spherical_cap_n4_oscillatory initial energy=2579.48 residual=1340.95
+spherical_cap_n4_oscillatory LINE_SEARCH_FAILED iterations=16 residual=374.412 L2=2.04938 difference from current=2.04839
+spherical_cap_n4_angular_only initial energy=2523.97 residual=512.178
+spherical_cap_n4_angular_only CONVERGED iterations=7 residual=3.44316e-09 L2=0.00887924 difference from current=3.20279e-10
+spherical_cap_n4_normal_only initial energy=31.9526 residual=24.1955
+spherical_cap_n4_normal_only CONVERGED iterations=8 residual=1.79899e-08 L2=0.00887924 difference from current=1.88857e-10
+spherical_cap_n4_random_seed1 initial energy=4102.78 residual=3513.62
+spherical_cap_n4_random_seed1 LINE_SEARCH_FAILED iterations=14 residual=852.094 L2=2.03698 difference from current=2.03534
+spherical_cap_n4_random_seed2 initial energy=6369.84 residual=3564.12
+spherical_cap_n4_random_seed2 LINE_SEARCH_FAILED iterations=20 residual=699.991 L2=2.21321 difference from current=2.2118
+spherical_cap_n4_random_seed3 initial energy=5799.83 residual=3920.17
+spherical_cap_n4_random_seed3 LINE_SEARCH_FAILED iterations=15 residual=157.714 L2=1.71331 difference from current=1.7113
+spherical_cap_n6_current initial energy=1.82094 residual=4.42219
+spherical_cap_n6_current CONVERGED iterations=7 residual=4.73278e-08 L2=0.00550908 difference from current=0
+spherical_cap_n6_all_contact initial energy=25.1766 residual=142.207
+spherical_cap_n6_all_contact CONVERGED iterations=5 residual=1.18131e-08 L2=0.00550907 difference from current=5.23805e-10
+spherical_cap_n6_far_normal initial energy=137.758 residual=171.889
+spherical_cap_n6_far_normal CONVERGED iterations=10 residual=4.62041e-08 L2=0.00550908 difference from current=8.51824e-11
+spherical_cap_n6_oscillatory initial energy=4529.49 residual=2648.98
+spherical_cap_n6_oscillatory LINE_SEARCH_FAILED iterations=13 residual=2045.04 L2=2.71213 difference from current=2.71151
+spherical_cap_n6_angular_only initial energy=5058.68 residual=1028.42
+spherical_cap_n6_angular_only CONVERGED iterations=7 residual=2.15434e-09 L2=0.00550907 difference from current=5.33258e-10
+spherical_cap_n6_normal_only initial energy=65.5007 residual=133.043
+spherical_cap_n6_normal_only CONVERGED iterations=9 residual=4.38796e-08 L2=0.00550908 difference from current=8.8053e-11
+spherical_cap_n6_random_seed1 initial energy=26200.6 residual=23517.1
+spherical_cap_n6_random_seed1 LINE_SEARCH_FAILED iterations=14 residual=11009.6 L2=2.69249 difference from current=2.69201
+spherical_cap_n6_random_seed2 initial energy=21719.3 residual=19105.5
+spherical_cap_n6_random_seed2 LINE_SEARCH_FAILED iterations=10 residual=10917.4 L2=2.69581 difference from current=2.69505
+spherical_cap_n6_random_seed3 initial energy=22268.3 residual=16206.3
+spherical_cap_n6_random_seed3 LINE_SEARCH_FAILED iterations=15 residual=7417.27 L2=2.5873 difference from current=2.58663
+exterior_circle_n8_current initial energy=2.71216 residual=3.34537
+exterior_circle_n8_current CONVERGED iterations=13 residual=8.89324e-08 L2=0.0110545 difference from current=0
+exterior_circle_n8_all_contact initial energy=33.8914 residual=70.9948
+exterior_circle_n8_all_contact CONVERGED iterations=13 residual=9.63689e-08 L2=0.0110545 difference from current=3.1147e-09
+exterior_circle_n8_far_normal initial energy=10097 residual=9464.79
+exterior_circle_n8_far_normal CONVERGED iterations=15 residual=6.21247e-08 L2=0.0110545 difference from current=2.23455e-09
+exterior_circle_n8_oscillatory initial energy=684076 residual=108821
+exterior_circle_n8_oscillatory CONVERGED iterations=16 residual=5.10968e-08 L2=0.0110545 difference from current=2.58181e-09
+exterior_circle_n8_angular_only initial energy=6031.32 residual=790.768
+exterior_circle_n8_angular_only CONVERGED iterations=15 residual=5.86687e-08 L2=0.0110545 difference from current=3.08069e-09
+exterior_circle_n8_normal_only initial energy=4143.76 residual=1329.74
+exterior_circle_n8_normal_only CONVERGED iterations=18 residual=7.25662e-08 L2=0.0110545 difference from current=2.56231e-09
+exterior_circle_n8_random_seed1 initial energy=2.26552e+06 residual=291507
+exterior_circle_n8_random_seed1 CONVERGED iterations=15 residual=6.39549e-08 L2=0.0110545 difference from current=2.69423e-09
+exterior_circle_n8_random_seed2 initial energy=1.84998e+06 residual=374696
+exterior_circle_n8_random_seed2 CONVERGED iterations=17 residual=3.63101e-08 L2=0.0110545 difference from current=2.36396e-09
+exterior_circle_n8_random_seed3 initial energy=3.14886e+06 residual=531068
+exterior_circle_n8_random_seed3 CONVERGED iterations=16 residual=6.33629e-08 L2=0.0110545 difference from current=2.83221e-09
+exterior_circle_n16_current initial energy=2.90453 residual=19.7513
+exterior_circle_n16_current CONVERGED iterations=27 residual=7.32614e-08 L2=0.00239564 difference from current=0
+exterior_circle_n16_all_contact initial energy=81.1798 residual=323.193
+exterior_circle_n16_all_contact CONVERGED iterations=27 residual=6.95717e-08 L2=0.00239564 difference from current=5.23087e-10
+exterior_circle_n16_far_normal initial energy=22942 residual=38907.5
+exterior_circle_n16_far_normal CONVERGED iterations=36 residual=6.21406e-08 L2=0.00239564 difference from current=1.6786e-09
+exterior_circle_n16_oscillatory initial energy=1.19195e+06 residual=301377
+exterior_circle_n16_oscillatory CONVERGED iterations=30 residual=7.58686e-08 L2=0.00239564 difference from current=1.75073e-09
+exterior_circle_n16_angular_only initial energy=9458.95 residual=2173.55
+exterior_circle_n16_angular_only CONVERGED iterations=26 residual=9.93088e-08 L2=0.00239564 difference from current=4.61849e-10
+exterior_circle_n16_normal_only initial energy=16349.7 residual=4669.42
+exterior_circle_n16_normal_only CONVERGED iterations=41 residual=6.75858e-08 L2=0.00239564 difference from current=1.97136e-09
+exterior_circle_n16_random_seed1 initial energy=1.12445e+07 residual=1.69818e+06
+exterior_circle_n16_random_seed1 CONVERGED iterations=34 residual=8.11834e-08 L2=0.00239564 difference from current=2.32862e-09
+exterior_circle_n16_random_seed2 initial energy=1.23492e+07 residual=1.85507e+06
+exterior_circle_n16_random_seed2 CONVERGED iterations=30 residual=9.91669e-08 L2=0.00239564 difference from current=2.60943e-09
+exterior_circle_n16_random_seed3 initial energy=1.31436e+07 residual=2.23619e+06
+exterior_circle_n16_random_seed3 CONVERGED iterations=33 residual=7.08815e-08 L2=0.00239564 difference from current=2.07836e-09
+Recorded 36 runs; 8 did not converge. Summary: "build/obstacle-explore/initial-guess-final/results.csv"

@@ -1,0 +1,1343 @@
+{
+  "ball12": {
+    "solver": {
+      "status": "CONVERGED",
+      "n": "12",
+      "ball": "1",
+      "seed": "0",
+      "bias": "0.45000000000000001",
+      "frequency": "3.1415926535897931",
+      "scale": "2.6000000000000001",
+      "twist": "0.65000000000000002",
+      "height": "0.025000000000000001",
+      "anisotropy": "0.25",
+      "warp": "0.12",
+      "tube": "0.050000000000000003",
+      "tolerance": "9.9999999999999995e-07",
+      "iterations": "7",
+      "nodes": "2197",
+      "cells": "10368",
+      "energy": "34.172205306465372",
+      "residual": "4.4786385035605806e-07",
+      "min_r": "0",
+      "max_r": "0.040666151098038915",
+      "dual_violation": "4.298955479810109e-07",
+      "complementarity": "5.482042065269908e-09",
+      "trace_error": "0",
+      "active_nodes": "913"
+    },
+    "max_accepted_energy_increase": 3.055333763768431e-13,
+    "topology": [
+      {
+        "level": 1e-05,
+        "components": [
+          {
+            "vertices": 3772,
+            "edges": 11364,
+            "faces": 7576,
+            "euler_characteristic": -16,
+            "closed_manifold": true,
+            "genus": 9,
+            "area": 22.83677720352848,
+            "enclosed_signed_volume": 1.3805517615380254
+          }
+        ]
+      },
+      {
+        "level": 0.0001,
+        "components": [
+          {
+            "vertices": 3776,
+            "edges": 11376,
+            "faces": 7584,
+            "euler_characteristic": -16,
+            "closed_manifold": true,
+            "genus": 9,
+            "area": 22.766407104647726,
+            "enclosed_signed_volume": 1.4306399215953896
+          }
+        ]
+      },
+      {
+        "level": 0.001,
+        "components": [
+          {
+            "vertices": 3768,
+            "edges": 11346,
+            "faces": 7564,
+            "euler_characteristic": -14,
+            "closed_manifold": true,
+            "genus": 8,
+            "area": 22.131874132434426,
+            "enclosed_signed_volume": 1.7168600895421633
+          }
+        ]
+      },
+      {
+        "level": "active_midpoint",
+        "components": [
+          {
+            "vertices": 3772,
+            "edges": 11364,
+            "faces": 7576,
+            "euler_characteristic": -16,
+            "closed_manifold": true,
+            "genus": 9,
+            "area": 21.097185942221735,
+            "enclosed_signed_volume": 2.644844318392519
+          }
+        ]
+      }
+    ]
+  },
+  "ball20": {
+    "solver": {
+      "status": "CONVERGED",
+      "n": "20",
+      "ball": "1",
+      "seed": "0",
+      "bias": "0.45000000000000001",
+      "frequency": "3.1415926535897931",
+      "scale": "2.6000000000000001",
+      "twist": "0.65000000000000002",
+      "height": "0.025000000000000001",
+      "anisotropy": "0.25",
+      "warp": "0.12",
+      "tube": "0.050000000000000003",
+      "tolerance": "9.9999999999999995e-07",
+      "iterations": "8",
+      "nodes": "9261",
+      "cells": "48000",
+      "energy": "34.158569757845314",
+      "residual": "5.5617778945657646e-07",
+      "min_r": "0",
+      "max_r": "0.048846753981652079",
+      "dual_violation": "4.9950777662327373e-09",
+      "complementarity": "5.8411714175503947e-10",
+      "trace_error": "0",
+      "active_nodes": "3801"
+    },
+    "max_accepted_energy_increase": 4.192202140984591e-13,
+    "topology": [
+      {
+        "level": 1e-05,
+        "components": [
+          {
+            "vertices": 11792,
+            "edges": 35418,
+            "faces": 23612,
+            "euler_characteristic": -14,
+            "closed_manifold": true,
+            "genus": 8,
+            "area": 25.53292162012305,
+            "enclosed_signed_volume": 1.528466204851954
+          }
+        ]
+      },
+      {
+        "level": 0.0001,
+        "components": [
+          {
+            "vertices": 11786,
+            "edges": 35400,
+            "faces": 23600,
+            "euler_characteristic": -14,
+            "closed_manifold": true,
+            "genus": 8,
+            "area": 25.27716618329547,
+            "enclosed_signed_volume": 1.5932341938808936
+          }
+        ]
+      },
+      {
+        "level": 0.001,
+        "components": [
+          {
+            "vertices": 11790,
+            "edges": 35406,
+            "faces": 23604,
+            "euler_characteristic": -12,
+            "closed_manifold": true,
+            "genus": 7,
+            "area": 23.85310029425429,
+            "enclosed_signed_volume": 1.8924236046316523
+          }
+        ]
+      },
+      {
+        "level": "active_midpoint",
+        "components": [
+          {
+            "vertices": 11790,
+            "edges": 35412,
+            "faces": 23608,
+            "euler_characteristic": -14,
+            "closed_manifold": true,
+            "genus": 8,
+            "area": 23.99893459811049,
+            "enclosed_signed_volume": 2.378755953711066
+          }
+        ]
+      }
+    ]
+  },
+  "base12": {
+    "solver": {
+      "status": "CONVERGED",
+      "n": "12",
+      "ball": "0",
+      "seed": "0",
+      "bias": "0.45000000000000001",
+      "frequency": "3.1415926535897931",
+      "scale": "2",
+      "twist": "0.65000000000000002",
+      "height": "0.025000000000000001",
+      "anisotropy": "0.25",
+      "warp": "0.12",
+      "tube": "0.050000000000000003",
+      "tolerance": "9.9999999999999995e-07",
+      "iterations": "7",
+      "nodes": "2197",
+      "cells": "10368",
+      "energy": "40.919412817454493",
+      "residual": "5.559871977707429e-07",
+      "min_r": "0",
+      "max_r": "0.041592033427916751",
+      "dual_violation": "5.2718486611169321e-07",
+      "complementarity": "1.8323050810093368e-08",
+      "trace_error": "0",
+      "active_nodes": "972"
+    },
+    "max_accepted_energy_increase": 4.121147867408581e-13,
+    "topology": [
+      {
+        "level": 1e-05,
+        "components": [
+          {
+            "vertices": 4230,
+            "edges": 12726,
+            "faces": 8484,
+            "euler_characteristic": -12,
+            "closed_manifold": true,
+            "genus": 7,
+            "area": 32.40421413214203,
+            "enclosed_signed_volume": 2.061311363807167
+          }
+        ]
+      },
+      {
+        "level": 0.0001,
+        "components": [
+          {
+            "vertices": 4230,
+            "edges": 12726,
+            "faces": 8484,
+            "euler_characteristic": -12,
+            "closed_manifold": true,
+            "genus": 7,
+            "area": 32.24287108033065,
+            "enclosed_signed_volume": 2.1576458986218072
+          }
+        ]
+      },
+      {
+        "level": 0.001,
+        "components": [
+          {
+            "vertices": 4202,
+            "edges": 12636,
+            "faces": 8424,
+            "euler_characteristic": -10,
+            "closed_manifold": true,
+            "genus": 6,
+            "area": 31.378259179158704,
+            "enclosed_signed_volume": 2.639190629988549
+          }
+        ]
+      },
+      {
+        "level": "active_midpoint",
+        "components": [
+          {
+            "vertices": 4230,
+            "edges": 12726,
+            "faces": 8484,
+            "euler_characteristic": -12,
+            "closed_manifold": true,
+            "genus": 7,
+            "area": 33.07883355393068,
+            "enclosed_signed_volume": 4.486111111111111
+          }
+        ]
+      }
+    ]
+  },
+  "base20": {
+    "solver": {
+      "status": "CONVERGED",
+      "n": "20",
+      "ball": "0",
+      "seed": "0",
+      "bias": "0.45000000000000001",
+      "frequency": "3.1415926535897931",
+      "scale": "2",
+      "twist": "0.65000000000000002",
+      "height": "0.025000000000000001",
+      "anisotropy": "0.25",
+      "warp": "0.12",
+      "tube": "0.050000000000000003",
+      "tolerance": "9.9999999999999995e-07",
+      "iterations": "8",
+      "nodes": "9261",
+      "cells": "48000",
+      "energy": "40.71380340035185",
+      "residual": "6.0418146287338794e-08",
+      "min_r": "0",
+      "max_r": "0.047974209129930244",
+      "dual_violation": "5.8365299298077895e-08",
+      "complementarity": "2.6203403502862386e-09",
+      "trace_error": "0",
+      "active_nodes": "4341"
+    },
+    "max_accepted_energy_increase": 0.0,
+    "topology": [
+      {
+        "level": 1e-05,
+        "components": [
+          {
+            "vertices": 13558,
+            "edges": 40728,
+            "faces": 27152,
+            "euler_characteristic": -18,
+            "closed_manifold": true,
+            "genus": 10,
+            "area": 38.34726424590703,
+            "enclosed_signed_volume": 2.6528996727237373
+          }
+        ]
+      },
+      {
+        "level": 0.0001,
+        "components": [
+          {
+            "vertices": 13558,
+            "edges": 40722,
+            "faces": 27148,
+            "euler_characteristic": -16,
+            "closed_manifold": true,
+            "genus": 9,
+            "area": 38.07313563733692,
+            "enclosed_signed_volume": 2.763185820245088
+          }
+        ]
+      },
+      {
+        "level": 0.001,
+        "components": [
+          {
+            "vertices": 13488,
+            "edges": 40512,
+            "faces": 27008,
+            "euler_characteristic": -16,
+            "closed_manifold": true,
+            "genus": 9,
+            "area": 36.12292149831074,
+            "enclosed_signed_volume": 3.273561929168291
+          }
+        ]
+      },
+      {
+        "level": "active_midpoint",
+        "components": [
+          {
+            "vertices": 13562,
+            "edges": 40740,
+            "faces": 27160,
+            "euler_characteristic": -18,
+            "closed_manifold": true,
+            "genus": 10,
+            "area": 38.23660117800638,
+            "enclosed_signed_volume": 4.3345833333333355
+          }
+        ]
+      }
+    ]
+  },
+  "base28": {
+    "solver": {
+      "status": "CONVERGED",
+      "n": "28",
+      "ball": "0",
+      "seed": "0",
+      "bias": "0.45000000000000001",
+      "frequency": "3.1415926535897931",
+      "scale": "2",
+      "twist": "0.65000000000000002",
+      "height": "0.025000000000000001",
+      "anisotropy": "0.25",
+      "warp": "0.12",
+      "tube": "0.050000000000000003",
+      "tolerance": "9.9999999999999995e-07",
+      "iterations": "46",
+      "nodes": "24389",
+      "cells": "131712",
+      "energy": "40.648938944605391",
+      "residual": "9.0751560612241528e-07",
+      "min_r": "0",
+      "max_r": "0.051174547019291743",
+      "dual_violation": "9.1439683536634949e-08",
+      "complementarity": "4.1793494646742778e-09",
+      "trace_error": "0",
+      "active_nodes": "11286"
+    },
+    "max_accepted_energy_increase": 5.400124791776761e-13,
+    "topology": [
+      {
+        "level": 1e-05,
+        "components": [
+          {
+            "vertices": 27716,
+            "edges": 83196,
+            "faces": 55464,
+            "euler_characteristic": -16,
+            "closed_manifold": true,
+            "genus": 9,
+            "area": 40.470600851761375,
+            "enclosed_signed_volume": 2.87206616683178
+          }
+        ]
+      },
+      {
+        "level": 0.0001,
+        "components": [
+          {
+            "vertices": 27714,
+            "edges": 83190,
+            "faces": 55460,
+            "euler_characteristic": -16,
+            "closed_manifold": true,
+            "genus": 9,
+            "area": 39.9281423651889,
+            "enclosed_signed_volume": 3.022859202459021
+          }
+        ]
+      },
+      {
+        "level": 0.001,
+        "components": [
+          {
+            "vertices": 27612,
+            "edges": 82860,
+            "faces": 55240,
+            "euler_characteristic": -8,
+            "closed_manifold": true,
+            "genus": 5,
+            "area": 36.9689083115037,
+            "enclosed_signed_volume": 3.592129101320969
+          }
+        ]
+      },
+      {
+        "level": "active_midpoint",
+        "components": [
+          {
+            "vertices": 27722,
+            "edges": 83214,
+            "faces": 55476,
+            "euler_characteristic": -16,
+            "closed_manifold": true,
+            "genus": 9,
+            "area": 40.13957539293473,
+            "enclosed_signed_volume": 4.108175413022352
+          }
+        ]
+      }
+    ]
+  },
+  "base36": {
+    "solver": {
+      "status": "CONVERGED",
+      "n": "36",
+      "ball": "0",
+      "seed": "0",
+      "bias": "0.45000000000000001",
+      "frequency": "3.1415926535897931",
+      "scale": "2",
+      "twist": "0.65000000000000002",
+      "height": "0.025000000000000001",
+      "anisotropy": "0.25",
+      "warp": "0.12",
+      "tube": "0.050000000000000003",
+      "tolerance": "9.9999999999999995e-07",
+      "iterations": "13",
+      "nodes": "50653",
+      "cells": "279936",
+      "energy": "40.622372743761176",
+      "residual": "7.2272304412445384e-07",
+      "min_r": "0",
+      "max_r": "0.05273634890361803",
+      "dual_violation": "6.7156307590692625e-08",
+      "complementarity": "6.6688550327947336e-09",
+      "trace_error": "0",
+      "active_nodes": "22878",
+      "max_iterations": "500",
+      "max_qp_iterations": "20000",
+      "normal_steps": "13",
+      "tangent_steps": "13",
+      "harmonic_steps": "0",
+      "warm_start": "build/obstacle-explore/runs/base20_nodes.csv"
+    },
+    "max_accepted_energy_increase": 5.329070518200751e-13,
+    "topology": [
+      {
+        "level": 1e-05,
+        "components": [
+          {
+            "vertices": 46248,
+            "edges": 138768,
+            "faces": 92512,
+            "euler_characteristic": -8,
+            "closed_manifold": true,
+            "genus": 5,
+            "area": 41.157548647646045,
+            "enclosed_signed_volume": 2.9572963485901895
+          }
+        ]
+      },
+      {
+        "level": 0.0001,
+        "components": [
+          {
+            "vertices": 46238,
+            "edges": 138738,
+            "faces": 92492,
+            "euler_characteristic": -8,
+            "closed_manifold": true,
+            "genus": 5,
+            "area": 40.28991324250855,
+            "enclosed_signed_volume": 3.1184987720628605
+          }
+        ]
+      },
+      {
+        "level": 0.001,
+        "components": [
+          {
+            "vertices": 46264,
+            "edges": 138822,
+            "faces": 92548,
+            "euler_characteristic": -10,
+            "closed_manifold": true,
+            "genus": 6,
+            "area": 36.566467626612294,
+            "enclosed_signed_volume": 3.706368022864042
+          }
+        ]
+      },
+      {
+        "level": "active_midpoint",
+        "components": [
+          {
+            "vertices": 46266,
+            "edges": 138822,
+            "faces": 92548,
+            "euler_characteristic": -8,
+            "closed_manifold": true,
+            "genus": 5,
+            "area": 40.4807073148707,
+            "enclosed_signed_volume": 3.9201817558299084
+          }
+        ]
+      }
+    ]
+  },
+  "lowbias12": {
+    "solver": {
+      "status": "CONVERGED",
+      "n": "12",
+      "ball": "0",
+      "seed": "0",
+      "bias": "0.14999999999999999",
+      "frequency": "3.1415926535897931",
+      "scale": "2",
+      "twist": "0.65000000000000002",
+      "height": "0.025000000000000001",
+      "anisotropy": "0.25",
+      "warp": "0.12",
+      "tube": "0.050000000000000003",
+      "tolerance": "9.9999999999999995e-07",
+      "iterations": "11",
+      "nodes": "2197",
+      "cells": "10368",
+      "energy": "40.575584577857853",
+      "residual": "5.148485310944875e-08",
+      "min_r": "0",
+      "max_r": "0.098158118281161735",
+      "dual_violation": "4.6631398258003235e-08",
+      "complementarity": "4.4926905486932464e-09",
+      "trace_error": "0",
+      "active_nodes": "480"
+    },
+    "max_accepted_energy_increase": 3.552713678800501e-13,
+    "topology": [
+      {
+        "level": 1e-05,
+        "components": [
+          {
+            "vertices": 2604,
+            "edges": 7830,
+            "faces": 5220,
+            "euler_characteristic": -6,
+            "closed_manifold": true,
+            "genus": 4,
+            "area": 14.186711389499765,
+            "enclosed_signed_volume": 0.506641881190675
+          },
+          {
+            "vertices": 404,
+            "edges": 1206,
+            "faces": 804,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.7275384339726672,
+            "enclosed_signed_volume": 0.03424818238797559
+          },
+          {
+            "vertices": 278,
+            "edges": 828,
+            "faces": 552,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 0.8921184212101403,
+            "enclosed_signed_volume": 0.014728455314300804
+          }
+        ]
+      },
+      {
+        "level": 0.0001,
+        "components": [
+          {
+            "vertices": 2604,
+            "edges": 7830,
+            "faces": 5220,
+            "euler_characteristic": -6,
+            "closed_manifold": true,
+            "genus": 4,
+            "area": 14.640537789926224,
+            "enclosed_signed_volume": 0.5457322496839159
+          },
+          {
+            "vertices": 404,
+            "edges": 1206,
+            "faces": 804,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.7930854398770142,
+            "enclosed_signed_volume": 0.03687192026923974
+          },
+          {
+            "vertices": 278,
+            "edges": 828,
+            "faces": 552,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 0.932991187696357,
+            "enclosed_signed_volume": 0.015352811887689376
+          }
+        ]
+      },
+      {
+        "level": 0.001,
+        "components": [
+          {
+            "vertices": 2666,
+            "edges": 8022,
+            "faces": 5348,
+            "euler_characteristic": -8,
+            "closed_manifold": true,
+            "genus": 5,
+            "area": 16.480745971700642,
+            "enclosed_signed_volume": 0.7550890405659679
+          },
+          {
+            "vertices": 424,
+            "edges": 1266,
+            "faces": 844,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 2.0271903960719593,
+            "enclosed_signed_volume": 0.05811246558018257
+          },
+          {
+            "vertices": 296,
+            "edges": 882,
+            "faces": 588,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.1157602022189708,
+            "enclosed_signed_volume": 0.02225275885671342
+          }
+        ]
+      },
+      {
+        "level": "active_midpoint",
+        "components": [
+          {
+            "vertices": 2604,
+            "edges": 7830,
+            "faces": 5220,
+            "euler_characteristic": -6,
+            "closed_manifold": true,
+            "genus": 4,
+            "area": 21.75330353517823,
+            "enclosed_signed_volume": 1.7534722222222225
+          },
+          {
+            "vertices": 404,
+            "edges": 1206,
+            "faces": 804,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 3.2833954955874254,
+            "enclosed_signed_volume": 0.2110339506172841
+          },
+          {
+            "vertices": 278,
+            "edges": 828,
+            "faces": 552,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 2.2398989235468356,
+            "enclosed_signed_volume": 0.12538580246913567
+          }
+        ]
+      }
+    ]
+  },
+  "lowbias20": {
+    "solver": {
+      "status": "CONVERGED",
+      "n": "20",
+      "ball": "0",
+      "seed": "0",
+      "bias": "0.14999999999999999",
+      "frequency": "3.1415926535897931",
+      "scale": "2",
+      "twist": "0.65000000000000002",
+      "height": "0.025000000000000001",
+      "anisotropy": "0.25",
+      "warp": "0.12",
+      "tube": "0.050000000000000003",
+      "tolerance": "9.9999999999999995e-07",
+      "iterations": "99",
+      "nodes": "9261",
+      "cells": "48000",
+      "energy": "40.365878148418787",
+      "residual": "7.1012114972554867e-07",
+      "min_r": "0",
+      "max_r": "0.10607036297742145",
+      "dual_violation": "3.2173229724263161e-08",
+      "complementarity": "2.379563528947001e-09",
+      "trace_error": "0",
+      "active_nodes": "1841",
+      "max_iterations": "500",
+      "max_qp_iterations": "20000",
+      "normal_steps": "99",
+      "tangent_steps": "99",
+      "harmonic_steps": "99",
+      "warm_start": "build/obstacle-explore/runs/lowbias12_nodes.csv"
+    },
+    "max_accepted_energy_increase": 5.755396159656812e-13,
+    "topology": [
+      {
+        "level": 1e-05,
+        "components": [
+          {
+            "vertices": 3002,
+            "edges": 9006,
+            "faces": 6004,
+            "euler_characteristic": 0,
+            "closed_manifold": true,
+            "genus": 1,
+            "area": 6.226103307779043,
+            "enclosed_signed_volume": 0.29051469496502147
+          },
+          {
+            "vertices": 1272,
+            "edges": 3810,
+            "faces": 2540,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 2.6838094528464045,
+            "enclosed_signed_volume": 0.14416674401619053
+          },
+          {
+            "vertices": 1158,
+            "edges": 3468,
+            "faces": 2312,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 2.4388407839343182,
+            "enclosed_signed_volume": 0.11975787882237277
+          },
+          {
+            "vertices": 950,
+            "edges": 2844,
+            "faces": 1896,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.73024275621207,
+            "enclosed_signed_volume": 0.037297468194199296
+          },
+          {
+            "vertices": 710,
+            "edges": 2124,
+            "faces": 1416,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.2553551633644568,
+            "enclosed_signed_volume": 0.04171807023769939
+          },
+          {
+            "vertices": 674,
+            "edges": 2016,
+            "faces": 1344,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.2480532089410012,
+            "enclosed_signed_volume": 0.03659774936429934
+          },
+          {
+            "vertices": 650,
+            "edges": 1944,
+            "faces": 1296,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.1518381146184367,
+            "enclosed_signed_volume": 0.04261903265668396
+          },
+          {
+            "vertices": 564,
+            "edges": 1686,
+            "faces": 1124,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.1293410556747543,
+            "enclosed_signed_volume": 0.03704810360367144
+          },
+          {
+            "vertices": 670,
+            "edges": 2004,
+            "faces": 1336,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 0.7731881881735634,
+            "enclosed_signed_volume": 0.016001192199881883
+          },
+          {
+            "vertices": 26,
+            "edges": 72,
+            "faces": 48,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 0.0007416644865348071,
+            "enclosed_signed_volume": 3.200584635609389e-08
+          },
+          {
+            "vertices": 38,
+            "edges": 108,
+            "faces": 72,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 9.209822118202789e-05,
+            "enclosed_signed_volume": 2.0956303499002514e-09
+          }
+        ]
+      },
+      {
+        "level": 0.0001,
+        "components": [
+          {
+            "vertices": 3002,
+            "edges": 9006,
+            "faces": 6004,
+            "euler_characteristic": 0,
+            "closed_manifold": true,
+            "genus": 1,
+            "area": 6.376657022580719,
+            "enclosed_signed_volume": 0.307770094566776
+          },
+          {
+            "vertices": 1272,
+            "edges": 3810,
+            "faces": 2540,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 2.7173866814150056,
+            "enclosed_signed_volume": 0.15284792228245972
+          },
+          {
+            "vertices": 1330,
+            "edges": 3984,
+            "faces": 2656,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 2.5151914124193295,
+            "enclosed_signed_volume": 0.08549067480803885
+          },
+          {
+            "vertices": 1162,
+            "edges": 3480,
+            "faces": 2320,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 2.5026049504224837,
+            "enclosed_signed_volume": 0.12993809701273207
+          },
+          {
+            "vertices": 954,
+            "edges": 2856,
+            "faces": 1904,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.7843359873904672,
+            "enclosed_signed_volume": 0.0419248728928736
+          },
+          {
+            "vertices": 710,
+            "edges": 2124,
+            "faces": 1416,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.2725305806611251,
+            "enclosed_signed_volume": 0.04361270136913729
+          },
+          {
+            "vertices": 568,
+            "edges": 1698,
+            "faces": 1132,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.1761925554096173,
+            "enclosed_signed_volume": 0.040133101476732956
+          },
+          {
+            "vertices": 676,
+            "edges": 2022,
+            "faces": 1348,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 0.8625920153362463,
+            "enclosed_signed_volume": 0.018656276543923645
+          },
+          {
+            "vertices": 26,
+            "edges": 72,
+            "faces": 48,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 0.0066690241204604315,
+            "enclosed_signed_volume": 2.979920592402543e-06
+          },
+          {
+            "vertices": 38,
+            "edges": 108,
+            "faces": 72,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 0.0010386103860777181,
+            "enclosed_signed_volume": 2.2879441288184334e-07
+          }
+        ]
+      },
+      {
+        "level": 0.001,
+        "components": [
+          {
+            "vertices": 3804,
+            "edges": 11418,
+            "faces": 7612,
+            "euler_characteristic": -2,
+            "closed_manifold": true,
+            "genus": 2,
+            "area": 8.475540750341278,
+            "enclosed_signed_volume": 0.43453441971607676
+          },
+          {
+            "vertices": 1822,
+            "edges": 5460,
+            "faces": 3640,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 4.061491412929311,
+            "enclosed_signed_volume": 0.22752607053888554
+          },
+          {
+            "vertices": 1316,
+            "edges": 3942,
+            "faces": 2628,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 2.910585404759,
+            "enclosed_signed_volume": 0.1955791155005556
+          },
+          {
+            "vertices": 1398,
+            "edges": 4188,
+            "faces": 2792,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 2.9024233811836284,
+            "enclosed_signed_volume": 0.11772189367378168
+          },
+          {
+            "vertices": 1002,
+            "edges": 3000,
+            "faces": 2000,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 2.0250143998437595,
+            "enclosed_signed_volume": 0.06318320723980803
+          },
+          {
+            "vertices": 714,
+            "edges": 2136,
+            "faces": 1424,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.41686667616563,
+            "enclosed_signed_volume": 0.058048550759660915
+          },
+          {
+            "vertices": 36,
+            "edges": 102,
+            "faces": 68,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 0.03149715726374587,
+            "enclosed_signed_volume": 0.00015927093602487478
+          },
+          {
+            "vertices": 14,
+            "edges": 36,
+            "faces": 24,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 0.0008356057490960494,
+            "enclosed_signed_volume": 4.5723792096492464e-07
+          }
+        ]
+      },
+      {
+        "level": "active_midpoint",
+        "components": [
+          {
+            "vertices": 3002,
+            "edges": 9006,
+            "faces": 6004,
+            "euler_characteristic": 0,
+            "closed_manifold": true,
+            "genus": 1,
+            "area": 8.654707087047953,
+            "enclosed_signed_volume": 0.6117500000000003
+          },
+          {
+            "vertices": 1268,
+            "edges": 3798,
+            "faces": 2532,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 3.5985114340195494,
+            "enclosed_signed_volume": 0.2803333333333334
+          },
+          {
+            "vertices": 1156,
+            "edges": 3462,
+            "faces": 2308,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 3.3211051904964752,
+            "enclosed_signed_volume": 0.24308333333333343
+          },
+          {
+            "vertices": 950,
+            "edges": 2844,
+            "faces": 1896,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 2.7327874425298297,
+            "enclosed_signed_volume": 0.13274999999999992
+          },
+          {
+            "vertices": 710,
+            "edges": 2124,
+            "faces": 1416,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.9751810886336443,
+            "enclosed_signed_volume": 0.11383333333333356
+          },
+          {
+            "vertices": 674,
+            "edges": 2016,
+            "faces": 1344,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.968031802275386,
+            "enclosed_signed_volume": 0.1045833333333334
+          },
+          {
+            "vertices": 650,
+            "edges": 1944,
+            "faces": 1296,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.8883546082636902,
+            "enclosed_signed_volume": 0.10708333333333359
+          },
+          {
+            "vertices": 670,
+            "edges": 2004,
+            "faces": 1336,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.8829662016779167,
+            "enclosed_signed_volume": 0.07383333333333358
+          },
+          {
+            "vertices": 564,
+            "edges": 1686,
+            "faces": 1124,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 1.692449065851862,
+            "enclosed_signed_volume": 0.09550000000000018
+          },
+          {
+            "vertices": 38,
+            "edges": 108,
+            "faces": 72,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 0.10789355420632551,
+            "enclosed_signed_volume": 0.0019999999999999953
+          },
+          {
+            "vertices": 26,
+            "edges": 72,
+            "faces": 48,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 0.07117165688648482,
+            "enclosed_signed_volume": 0.0012499999999999844
+          }
+        ]
+      }
+    ]
+  },
+  "positive12": {
+    "solver": {
+      "status": "CONVERGED",
+      "n": "12",
+      "ball": "0",
+      "seed": "0",
+      "bias": "1.5",
+      "frequency": "3.1415926535897931",
+      "scale": "2",
+      "twist": "0.65000000000000002",
+      "height": "0.025000000000000001",
+      "anisotropy": "0.25",
+      "warp": "0.12",
+      "tube": "0.050000000000000003",
+      "tolerance": "9.9999999999999995e-07",
+      "iterations": "5",
+      "nodes": "2197",
+      "cells": "10368",
+      "energy": "41.499588344950837",
+      "residual": "1.6228301255182957e-07",
+      "min_r": "0",
+      "max_r": "0.030360000000000005",
+      "dual_violation": "0",
+      "complementarity": "0",
+      "trace_error": "0",
+      "active_nodes": "1331",
+      "max_iterations": "500",
+      "max_qp_iterations": "20000",
+      "normal_steps": "5",
+      "tangent_steps": "5",
+      "harmonic_steps": "1",
+      "warm_start": ""
+    },
+    "max_accepted_energy_increase": 0.0,
+    "topology": [
+      {
+        "level": 1e-05,
+        "components": [
+          {
+            "vertices": 2774,
+            "edges": 8316,
+            "faces": 5544,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 16.687720824798845,
+            "enclosed_signed_volume": 4.630756470455932
+          }
+        ]
+      },
+      {
+        "level": 0.0001,
+        "components": [
+          {
+            "vertices": 2774,
+            "edges": 8316,
+            "faces": 5544,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 16.70764012842153,
+            "enclosed_signed_volume": 4.640903542033565
+          }
+        ]
+      },
+      {
+        "level": 0.001,
+        "components": [
+          {
+            "vertices": 2774,
+            "edges": 8316,
+            "faces": 5544,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 16.909123743617236,
+            "enclosed_signed_volume": 4.742924208342139
+          }
+        ]
+      },
+      {
+        "level": "active_midpoint",
+        "components": [
+          {
+            "vertices": 2774,
+            "edges": 8316,
+            "faces": 5544,
+            "euler_characteristic": 2,
+            "closed_manifold": true,
+            "genus": 0,
+            "area": 19.750187374284728,
+            "enclosed_signed_volume": 6.121141975308642
+          }
+        ]
+      }
+    ]
+  },
+  "restart20": {
+    "solver": {
+      "status": "CONVERGED",
+      "n": "20",
+      "ball": "0",
+      "seed": "0",
+      "bias": "0.45000000000000001",
+      "frequency": "3.1415926535897931",
+      "scale": "2",
+      "twist": "0.65000000000000002",
+      "height": "0.025000000000000001",
+      "anisotropy": "0.25",
+      "warp": "0.12",
+      "tube": "0.050000000000000003",
+      "tolerance": "9.9999999999999995e-07",
+      "iterations": "0",
+      "nodes": "9261",
+      "cells": "48000",
+      "energy": "40.713803400351843",
+      "residual": "6.041815182387922e-08",
+      "min_r": "0",
+      "max_r": "0.047974209129930237",
+      "dual_violation": "5.8365309374274752e-08",
+      "complementarity": "2.6203408026623159e-09",
+      "trace_error": "0",
+      "active_nodes": "4341",
+      "max_iterations": "500",
+      "max_qp_iterations": "20000",
+      "normal_steps": "0",
+      "tangent_steps": "0",
+      "harmonic_steps": "0",
+      "warm_start": "build/obstacle-explore/runs/base20_nodes.csv"
+    },
+    "max_accepted_energy_increase": 0.0
+  },
+  "seed20": {
+    "solver": {
+      "status": "CONVERGED",
+      "n": "20",
+      "ball": "0",
+      "seed": "3",
+      "bias": "0.45000000000000001",
+      "frequency": "3.1415926535897931",
+      "scale": "2",
+      "twist": "0.65000000000000002",
+      "height": "0.025000000000000001",
+      "anisotropy": "0.25",
+      "warp": "0.12",
+      "tube": "0.050000000000000003",
+      "tolerance": "9.9999999999999995e-07",
+      "iterations": "8",
+      "nodes": "9261",
+      "cells": "48000",
+      "energy": "40.713803400351743",
+      "residual": "6.9636342951428447e-08",
+      "min_r": "0",
+      "max_r": "0.047974209002622295",
+      "dual_violation": "2.9972982299454038e-09",
+      "complementarity": "1.4022002603244807e-09",
+      "trace_error": "0",
+      "active_nodes": "4341"
+    },
+    "max_accepted_energy_increase": 5.258016244624741e-13
+  }
+}

@@ -497,6 +497,14 @@ All these runs preserve nodal feasibility; dual violations in the profile tests
 are within the residual tolerance. These are numerical verification results,
 not a general convergence theorem or a certified free-boundary error bound.
 
+A separate [initial-guess sensitivity study](experiments/initial_guess/README.md)
+repeats these four verification meshes with eight adverse initial guesses each,
+while preserving the current examples and solver defaults. All exterior-circle
+runs recover the control solution. Combined large angular and normal
+perturbations cause the spherical-cap solver to fail its line search near the
+chart's excluded polar region; angular-only and normal-only controls converge.
+The study includes all 36 results, iteration histories, and convergence plots.
+
 ## Build and run
 
 With an existing configured project build, the example target is `obstacle_map`.
@@ -563,3 +571,25 @@ adaptive refinement driven by the free boundary and harmonic error, higher
 order quadrature, and scalable sparse solvers. A future staged free-boundary
 acceleration must still re-evaluate the complete coupled KKT system after bulk
 relaxation and permit contact changes.
+
+## Exploratory free-boundary geometry
+
+The separate `obstacle_map_labyrinth` executable explores a sheared three-dimensional
+source and an intrinsic target with sign-changing boundary curvature, using the
+existing solver unchanged. It produces perforated contact regions and tests
+mesh refinement, alternative starts, and curvature controls. See the
+[experiment, figures, limitations, and reproduction commands](experiments/labyrinth/README.md).
+These are numerical candidates for mathematical investigation; novelty and
+continuum free-boundary topology are not established.
+
+## A round free boundary in hyperbolic geometry
+
+The `obstacle_map_horosphere` executable maps a Euclidean unit ball into
+hyperbolic four-space with metric `dr^2 + exp(2r)|ds|^2` and obstacle `r >= 0`.
+Its radial reference has an exact spherical free boundary of radius `1/2`,
+constant contact reaction `1`, and quadratic release from contact. A separate
+energy comparison proves that this reference is the unique global minimizer,
+including among nonsymmetric competitors. The existing finite element solver
+recovers it from a strictly positive, perturbed initial map.
+
+See the [construction, proof, computed figure, and refinement results](experiments/horosphere/README.md).
